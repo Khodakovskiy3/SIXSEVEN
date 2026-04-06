@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Реєстрація</title>
+    <link rel="stylesheet" href="../styles/register.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1d6f42">
+</head>
+<body>
+    <div class="register-container">
+        <h2>Реєстрація</h2>
+        <form id="register-form" action="#" method="post">
+            <div class="form-group">
+                <label for="fullname">Повне ім'я:</label>
+                <input type="text" id="fullname" name="fullname" required>
+            </div>
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label for="role">Роль:</label>
+                <select id="role" name="role" required>
+                    <option value="client">Клієнт</option>
+                    <option value="trainer">Тренер</option>
+                    <option value="manager">Керівник</option>
+                    <option value="admin">Адміністратор</option>
+                </select>
+            </div>
+            <div class="form-group" id="phone-group">
+                <label for="phone">Телефон:</label>
+                <input type="text" id="phone" name="phone">
+            </div>
+            <div class="form-group" id="specialization-group">
+                <label for="specialization">Спеціалізація тренера:</label>
+                <input type="text" id="specialization" name="specialization">
+            </div>
+            <div class="form-group">
+                <label for="password">Пароль:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <div class="form-group">
+                <label for="confirm-password">Підтвердити пароль:</label>
+                <input type="password" id="confirm-password" name="confirm-password" required>
+            </div>
+            <button type="submit">Зареєструватися</button>
+        </form>
+        <p id="register-message"></p>
+        <p>Вже є акаунт? <a href="login.html">Увійти</a></p>
+    </div>
+    <script type="module" src="../js/auth.js"></script>
+    <script type="module" src="../js/pwa.js"></script>
+</body>
+</html>

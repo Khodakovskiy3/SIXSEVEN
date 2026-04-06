@@ -1,0 +1,9 @@
+{
+  "name": "Sports Club System",
+  "short_name": "SportsClub",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1d6f42",
+  "icons": []
+}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>АРМ Клієнта</title>
+    <link rel="stylesheet" href="../styles/client.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1d6f42">
+</head>
+<body>
+    <header>
+        <h1>АРМ Клієнта Спортивного Клубу</h1>
+        <button id="logout-btn" class="delete-btn">Вийти</button>
+    </header>
+    <nav>
+        <ul>
+            <li><a href="#schedule">Розклад Занять</a></li>
+            <li><a href="#booking">Запис на Тренування</a></li>
+            <li><a href="#subscription">Управління Абонементом</a></li>
+            <li><a href="#history">Історія Відвідувань</a></li>
+            <li><a href="#notifications">Сповіщення</a></li>
+        </ul>
+    </nav>
+    <main>
+        <section id="schedule">
+            <h2>Розклад Занять</h2>
+            <table id="schedule-table">
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Час</th>
+                        <th>Тип Тренування</th>
+                        <th>Тренер</th>
+                        <th>Місць Залишилось</th>
+                    </tr>
+                </thead>
+                <tbody id="schedule-table-body"></tbody>
+            </table>
+        </section>
+
+        <section id="booking">
+            <h2>Онлайн-Запис на Тренування</h2>
+            <div class="filter-group">
+                <label for="booking-select">Виберіть тренування:</label>
+                <select id="booking-select"></select>
+            </div>
+            <button class="book-btn" id="booking-btn">Забронювати Місце</button>
+            <p id="booking-status"></p>
+        </section>
+
+        <section id="subscription">
+            <h2>Управління Абонементом</h2>
+            <div class="status" id="subscription-status"></div>
+            <div class="form-group">
+                <label for="payment-amount">Сума оплати (грн):</label>
+                <input type="number" id="payment-amount" value="1500">
+            </div>
+            <button class="pay-btn" id="pay-btn">Оплатити Абонемент</button>
+            <p id="payment-status"></p>
+        </section>
+
+        <section id="history">
+            <h2>Історія Відвідувань</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody id="visits-table-body"></tbody>
+            </table>
+        </section>
+
+        <section id="notifications">
+            <h2>Сповіщення</h2>
+            <div class="notification" id="notifications-box">Немає нових сповіщень.</div>
+        </section>
+    </main>
+
+    <script type="module" src="../js/client.js"></script>
+    <script type="module" src="../js/pwa.js"></script>
+</body>
+</html>

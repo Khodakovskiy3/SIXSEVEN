@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Логін</title>
+    <link rel="stylesheet" href="../styles/login.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1d6f42">
+</head>
+<body>
+    <div class="login-container">
+        <h2>Увійти</h2>
+        <form id="login-form" action="#" method="post">
+            <div class="form-group">
+                <label for="username">Ім'я користувача або email:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Пароль:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit">Увійти</button>
+        </form>
+        <p id="login-message"></p>
+        <p>Немає акаунту? <a href="register.html">Зареєструватися</a></p>
+    </div>
+    <script type="module" src="../js/auth.js"></script>
+    <script type="module" src="../js/pwa.js"></script>
+</body>
+</html>
