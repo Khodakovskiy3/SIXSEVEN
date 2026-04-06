@@ -17,95 +17,132 @@ function setMessage(id, message, isError = false) {
   el.style.color = isError ? '#c0392b' : '#1e8449';
 }
 
-async function loadUsers() {
-  const users = await apiFetch('/users');
+let allUsers = [];
+let clientsCache = [];
+let trainersCache = [];
+let workoutsCache = [];
+let schedulesCache = [];
+let subscriptionsCache = [];
+let paymentsCache = [];
+let visitsCache = [];
+
+function renderUsers() {
   const tbody = document.querySelector('#users-table');
+  const roleFilter = document.querySelector('#user-role-filter').value;
+  const searchValue = document.querySelector('#user-search').value.trim().toLowerCase();
+
+  const filtered = allUsers.filter((user) => {
+    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+    const haystack = `${user.name} ${user.email}`.toLowerCase();
+    const matchesSearch = !searchValue || haystack.includes(searchValue);
+    return matchesRole && matchesSearch;
+  });
+
   tbody.innerHTML = '';
-  users.forEach((user) => {
+  filtered.forEach((user) => {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${user.id}</td>
       <td>${user.name}</td>
       <td>${user.email}</td>
       <td>${user.role}</td>
+      <td><button class="edit-btn" data-user-id="${user.id}">Редагувати</button></td>
     `;
     tbody.appendChild(row);
   });
 }
 
+function toggleAddGroups(type) {
+  document.querySelectorAll('.add-group').forEach((group) => {
+    group.style.display = group.dataset.type === type ? 'block' : 'none';
+  });
+}
+
+function fillSelect(selector, options, includeEmpty = false) {
+  const select = document.querySelector(selector);
+  if (!select) return;
+  const emptyOption = includeEmpty ? '<option value="">(не вказано)</option>' : '';
+  select.innerHTML = emptyOption + options.join('');
+}
+
+async function loadUsers() {
+  allUsers = await apiFetch('/users');
+  renderUsers();
+}
+
 async function loadClients() {
-  const clients = await apiFetch('/clients');
+  clientsCache = await apiFetch('/clients');
   const tbody = document.querySelector('#clients-table');
   tbody.innerHTML = '';
-  clients.forEach((client) => {
+  clientsCache.forEach((client) => {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${client.id}</td>
       <td>${client.name}</td>
       <td>${client.email}</td>
       <td>${client.phone || ''}</td>
+      <td><button class="edit-btn" data-client-id="${client.id}">Редагувати</button></td>
     `;
     tbody.appendChild(row);
   });
 
-  const clientOptions = clients
-    .map((client) => `<option value="${client.id}">${client.name}</option>`)
-    .join('');
+  const clientOptions = clientsCache
+    .map((client) => `<option value="${client.id}">${client.name}</option>`);
 
-  document.querySelector('#subscription-client').innerHTML = clientOptions;
-  document.querySelector('#payment-client').innerHTML = clientOptions;
-  document.querySelector('#visit-client').innerHTML = clientOptions;
+  fillSelect('#add-subscription-client', clientOptions);
+  fillSelect('#add-payment-client', clientOptions);
+  fillSelect('#add-visit-client', clientOptions);
 }
 
 async function loadTrainers() {
-  const trainers = await apiFetch('/trainers');
+  trainersCache = await apiFetch('/trainers');
   const tbody = document.querySelector('#trainers-table');
   tbody.innerHTML = '';
-  trainers.forEach((trainer) => {
+  trainersCache.forEach((trainer) => {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${trainer.id}</td>
       <td>${trainer.name}</td>
       <td>${trainer.email}</td>
       <td>${trainer.specialization || ''}</td>
+      <td><button class="edit-btn" data-trainer-id="${trainer.id}">Редагувати</button></td>
     `;
     tbody.appendChild(row);
   });
 
-  const trainerOptions = ['<option value="">(не вказано)</option>']
-    .concat(trainers.map((trainer) => `<option value="${trainer.id}">${trainer.name}</option>`))
-    .join('');
+  const trainerOptions = trainersCache
+    .map((trainer) => `<option value="${trainer.id}">${trainer.name}</option>`);
 
-  document.querySelector('#schedule-trainer').innerHTML = trainerOptions;
+  fillSelect('#add-schedule-trainer', trainerOptions, true);
 }
 
 async function loadWorkouts() {
-  const workouts = await apiFetch('/workouts');
+  workoutsCache = await apiFetch('/workouts');
   const tbody = document.querySelector('#workouts-table');
   tbody.innerHTML = '';
-  workouts.forEach((workout) => {
+  workoutsCache.forEach((workout) => {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${workout.id}</td>
       <td>${workout.name}</td>
       <td>${workout.description || ''}</td>
       <td>${workout.max_clients}</td>
+      <td><button class="edit-btn" data-workout-id="${workout.id}">Редагувати</button></td>
     `;
     tbody.appendChild(row);
   });
 
-  const workoutOptions = workouts
-    .map((workout) => `<option value="${workout.id}">${workout.name}</option>`)
-    .join('');
+  const workoutOptions = workoutsCache
+    .map((workout) => `<option value="${workout.id}">${workout.name}</option>`);
 
-  document.querySelector('#schedule-workout').innerHTML = workoutOptions;
+  fillSelect('#add-schedule-workout', workoutOptions);
 }
 
 async function loadSchedules() {
-  const schedules = await apiFetch('/schedules');
+  schedulesCache = await apiFetch('/schedules');
   const tbody = document.querySelector('#schedules-table');
   tbody.innerHTML = '';
-  schedules.forEach((schedule) => {
+  schedulesCache.forEach((schedule) => {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${schedule.id}</td>
@@ -114,16 +151,17 @@ async function loadSchedules() {
       <td>${schedule.workout_name}</td>
       <td>${schedule.trainer_name || ''}</td>
       <td>${schedule.available}/${schedule.max_clients}</td>
+      <td><button class="edit-btn" data-schedule-id="${schedule.id}">Редагувати</button></td>
     `;
     tbody.appendChild(row);
   });
 }
 
 async function loadSubscriptions() {
-  const subscriptions = await apiFetch('/subscriptions');
+  subscriptionsCache = await apiFetch('/subscriptions');
   const tbody = document.querySelector('#subscriptions-table');
   tbody.innerHTML = '';
-  subscriptions.forEach((sub) => {
+  subscriptionsCache.forEach((sub) => {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${sub.id}</td>
@@ -132,16 +170,17 @@ async function loadSubscriptions() {
       <td>${formatDate(sub.start_date)}</td>
       <td>${formatDate(sub.end_date)}</td>
       <td>${sub.status}</td>
+      <td><button class="edit-btn" data-subscription-id="${sub.id}">Редагувати</button></td>
     `;
     tbody.appendChild(row);
   });
 }
 
 async function loadPayments() {
-  const payments = await apiFetch('/payments');
+  paymentsCache = await apiFetch('/payments');
   const tbody = document.querySelector('#payments-table');
   tbody.innerHTML = '';
-  payments.forEach((payment) => {
+  paymentsCache.forEach((payment) => {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${payment.id}</td>
@@ -149,180 +188,403 @@ async function loadPayments() {
       <td>${payment.amount}</td>
       <td>${formatDate(payment.date)}</td>
       <td>${payment.status}</td>
+      <td><button class="edit-btn" data-payment-id="${payment.id}" disabled>Редагувати</button></td>
     `;
     tbody.appendChild(row);
   });
 }
 
 async function loadVisits() {
-  const visits = await apiFetch('/visits');
+  visitsCache = await apiFetch('/visits');
   const tbody = document.querySelector('#visits-table');
   tbody.innerHTML = '';
-  visits.forEach((visit) => {
+  visitsCache.forEach((visit) => {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${visit.id}</td>
       <td>${visit.client_name}</td>
       <td>${new Date(visit.visit_time).toLocaleString()}</td>
+      <td><button class="edit-btn" data-visit-id="${visit.id}" disabled>Редагувати</button></td>
     `;
     tbody.appendChild(row);
   });
 }
 
-const clientForm = document.querySelector('#client-form');
-clientForm.addEventListener('submit', async (event) => {
+const roleFilter = document.querySelector('#user-role-filter');
+const userSearch = document.querySelector('#user-search');
+roleFilter.addEventListener('change', renderUsers);
+userSearch.addEventListener('input', renderUsers);
+
+// Unified add form
+const addTypeSelect = document.querySelector('#add-type');
+const unifiedForm = document.querySelector('#unified-form');
+addTypeSelect.addEventListener('change', () => toggleAddGroups(addTypeSelect.value));
+
+unifiedForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  setMessage('#client-message', '');
+  setMessage('#add-message', '');
+  const type = addTypeSelect.value;
+
   try {
-    await apiFetch('/clients', {
-      method: 'POST',
+    if (type === 'user') {
+      await apiFetch('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: document.querySelector('#add-name').value.trim(),
+          email: document.querySelector('#add-email').value.trim(),
+          password: document.querySelector('#add-password').value,
+          role: document.querySelector('#add-role').value,
+          phone: document.querySelector('#add-phone').value.trim(),
+          specialization: document.querySelector('#add-specialization').value.trim(),
+        }),
+      });
+      await Promise.all([loadUsers(), loadClients(), loadTrainers()]);
+    }
+
+    if (type === 'workout') {
+      await apiFetch('/workouts', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: document.querySelector('#add-workout-name').value.trim(),
+          description: document.querySelector('#add-workout-description').value.trim(),
+          max_clients: Number(document.querySelector('#add-workout-max').value),
+        }),
+      });
+      await loadWorkouts();
+    }
+
+    if (type === 'schedule') {
+      await apiFetch('/schedules', {
+        method: 'POST',
+        body: JSON.stringify({
+          workout_id: Number(document.querySelector('#add-schedule-workout').value),
+          trainer_id: document.querySelector('#add-schedule-trainer').value || null,
+          date: document.querySelector('#add-schedule-date').value,
+          time: document.querySelector('#add-schedule-time').value,
+        }),
+      });
+      await loadSchedules();
+    }
+
+    if (type === 'subscription') {
+      await apiFetch('/subscriptions', {
+        method: 'POST',
+        body: JSON.stringify({
+          client_id: Number(document.querySelector('#add-subscription-client').value),
+          type: document.querySelector('#add-subscription-type').value.trim(),
+          start_date: document.querySelector('#add-subscription-start').value,
+          end_date: document.querySelector('#add-subscription-end').value,
+          status: document.querySelector('#add-subscription-status').value,
+        }),
+      });
+      await loadSubscriptions();
+    }
+
+    if (type === 'payment') {
+      await apiFetch('/payments', {
+        method: 'POST',
+        body: JSON.stringify({
+          client_id: Number(document.querySelector('#add-payment-client').value),
+          amount: Number(document.querySelector('#add-payment-amount').value),
+          status: document.querySelector('#add-payment-status').value,
+        }),
+      });
+      await loadPayments();
+    }
+
+    if (type === 'visit') {
+      await apiFetch('/visits', {
+        method: 'POST',
+        body: JSON.stringify({
+          client_id: Number(document.querySelector('#add-visit-client').value),
+        }),
+      });
+      await loadVisits();
+    }
+
+    unifiedForm.reset();
+    toggleAddGroups(addTypeSelect.value);
+    setMessage('#add-message', 'Додано успішно');
+  } catch (err) {
+    setMessage('#add-message', err.message, true);
+  }
+});
+
+// Edit modal
+const modal = document.querySelector('#edit-modal');
+const editForm = document.querySelector('#edit-form');
+const editFields = document.querySelector('#edit-fields');
+const editTitle = document.querySelector('#edit-title');
+const editCancel = document.querySelector('#edit-cancel');
+let editState = null;
+
+function openModal(title, fields, onSubmit) {
+  editTitle.textContent = title;
+  editFields.innerHTML = fields;
+  editState = onSubmit;
+  setMessage('#edit-message', '');
+  modal.style.display = 'flex';
+}
+
+function closeModal() {
+  modal.style.display = 'none';
+  editState = null;
+}
+
+editCancel.addEventListener('click', closeModal);
+modal.addEventListener('click', (event) => {
+  if (event.target === modal) closeModal();
+});
+
+editForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!editState) return;
+  try {
+    await editState();
+    closeModal();
+  } catch (err) {
+    setMessage('#edit-message', err.message, true);
+  }
+});
+
+// Edit handlers
+
+document.querySelector('#users-table').addEventListener('click', (event) => {
+  const button = event.target.closest('.edit-btn');
+  if (!button) return;
+
+  const userId = Number(button.dataset.userId);
+  const user = allUsers.find((item) => item.id === userId);
+  if (!user) return;
+
+  openModal('Редагувати користувача', `
+    <div class="form-group">
+      <label for="edit-name">Ім'я:</label>
+      <input type="text" id="edit-name" value="${user.name}">
+    </div>
+    <div class="form-group">
+      <label for="edit-email">Email:</label>
+      <input type="email" id="edit-email" value="${user.email}">
+    </div>
+    <div class="form-group">
+      <label for="edit-role">Роль:</label>
+      <select id="edit-role">
+        <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Адміністратор</option>
+        <option value="manager" ${user.role === 'manager' ? 'selected' : ''}>Керівник</option>
+        <option value="trainer" ${user.role === 'trainer' ? 'selected' : ''}>Тренер</option>
+        <option value="client" ${user.role === 'client' ? 'selected' : ''}>Клієнт</option>
+      </select>
+    </div>
+  `, async () => {
+    await apiFetch(`/users/${userId}`, {
+      method: 'PUT',
       body: JSON.stringify({
-        name: document.querySelector('#client-name').value.trim(),
-        email: document.querySelector('#client-email').value.trim(),
-        password: document.querySelector('#client-password').value,
-        phone: document.querySelector('#client-phone').value.trim(),
+        name: document.querySelector('#edit-name').value.trim(),
+        email: document.querySelector('#edit-email').value.trim(),
+        role: document.querySelector('#edit-role').value,
       }),
     });
-    clientForm.reset();
-    setMessage('#client-message', 'Клієнта додано');
+    await loadUsers();
+  });
+});
+
+document.querySelector('#clients-table').addEventListener('click', (event) => {
+  const button = event.target.closest('.edit-btn');
+  if (!button) return;
+
+  const clientId = Number(button.dataset.clientId);
+  const client = clientsCache.find((item) => item.id === clientId);
+  if (!client) return;
+
+  openModal('Редагувати клієнта', `
+    <div class="form-group">
+      <label for="edit-name">Ім'я:</label>
+      <input type="text" id="edit-name" value="${client.name}">
+    </div>
+    <div class="form-group">
+      <label for="edit-email">Email:</label>
+      <input type="email" id="edit-email" value="${client.email}">
+    </div>
+    <div class="form-group">
+      <label for="edit-phone">Телефон:</label>
+      <input type="text" id="edit-phone" value="${client.phone || ''}">
+    </div>
+  `, async () => {
+    await apiFetch(`/clients/${clientId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: document.querySelector('#edit-name').value.trim(),
+        email: document.querySelector('#edit-email').value.trim(),
+        phone: document.querySelector('#edit-phone').value.trim(),
+      }),
+    });
     await loadClients();
     await loadUsers();
-  } catch (err) {
-    setMessage('#client-message', err.message, true);
-  }
+  });
 });
 
-const trainerForm = document.querySelector('#trainer-form');
-trainerForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  setMessage('#trainer-message', '');
-  try {
-    await apiFetch('/trainers', {
-      method: 'POST',
+document.querySelector('#trainers-table').addEventListener('click', (event) => {
+  const button = event.target.closest('.edit-btn');
+  if (!button) return;
+
+  const trainerId = Number(button.dataset.trainerId);
+  const trainer = trainersCache.find((item) => item.id === trainerId);
+  if (!trainer) return;
+
+  openModal('Редагувати тренера', `
+    <div class="form-group">
+      <label for="edit-name">Ім'я:</label>
+      <input type="text" id="edit-name" value="${trainer.name}">
+    </div>
+    <div class="form-group">
+      <label for="edit-email">Email:</label>
+      <input type="email" id="edit-email" value="${trainer.email}">
+    </div>
+    <div class="form-group">
+      <label for="edit-specialization">Спеціалізація:</label>
+      <input type="text" id="edit-specialization" value="${trainer.specialization || ''}">
+    </div>
+  `, async () => {
+    await apiFetch(`/trainers/${trainerId}`, {
+      method: 'PUT',
       body: JSON.stringify({
-        name: document.querySelector('#trainer-name').value.trim(),
-        email: document.querySelector('#trainer-email').value.trim(),
-        password: document.querySelector('#trainer-password').value,
-        specialization: document.querySelector('#trainer-specialization').value.trim(),
+        name: document.querySelector('#edit-name').value.trim(),
+        email: document.querySelector('#edit-email').value.trim(),
+        specialization: document.querySelector('#edit-specialization').value.trim(),
       }),
     });
-    trainerForm.reset();
-    setMessage('#trainer-message', 'Тренера додано');
     await loadTrainers();
     await loadUsers();
-  } catch (err) {
-    setMessage('#trainer-message', err.message, true);
-  }
+  });
 });
 
-const workoutForm = document.querySelector('#workout-form');
-workoutForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  setMessage('#workout-message', '');
-  try {
-    await apiFetch('/workouts', {
-      method: 'POST',
+document.querySelector('#workouts-table').addEventListener('click', (event) => {
+  const button = event.target.closest('.edit-btn');
+  if (!button) return;
+
+  const workoutId = Number(button.dataset.workoutId);
+  const workout = workoutsCache.find((item) => item.id === workoutId);
+  if (!workout) return;
+
+  openModal('Редагувати тренування', `
+    <div class="form-group">
+      <label for="edit-name">Назва:</label>
+      <input type="text" id="edit-name" value="${workout.name}">
+    </div>
+    <div class="form-group">
+      <label for="edit-description">Опис:</label>
+      <textarea id="edit-description">${workout.description || ''}</textarea>
+    </div>
+    <div class="form-group">
+      <label for="edit-max">Макс. кількість:</label>
+      <input type="number" id="edit-max" value="${workout.max_clients}">
+    </div>
+  `, async () => {
+    await apiFetch(`/workouts/${workoutId}`, {
+      method: 'PUT',
       body: JSON.stringify({
-        name: document.querySelector('#workout-name').value.trim(),
-        description: document.querySelector('#workout-description').value.trim(),
-        max_clients: Number(document.querySelector('#workout-max').value),
+        name: document.querySelector('#edit-name').value.trim(),
+        description: document.querySelector('#edit-description').value.trim(),
+        max_clients: Number(document.querySelector('#edit-max').value),
       }),
     });
-    workoutForm.reset();
-    setMessage('#workout-message', 'Тренування додано');
     await loadWorkouts();
     await loadSchedules();
-  } catch (err) {
-    setMessage('#workout-message', err.message, true);
-  }
+  });
 });
 
-const scheduleForm = document.querySelector('#schedule-form');
-scheduleForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  setMessage('#schedule-message', '');
-  try {
-    await apiFetch('/schedules', {
-      method: 'POST',
+document.querySelector('#schedules-table').addEventListener('click', (event) => {
+  const button = event.target.closest('.edit-btn');
+  if (!button) return;
+
+  const scheduleId = Number(button.dataset.scheduleId);
+  const schedule = schedulesCache.find((item) => item.id === scheduleId);
+  if (!schedule) return;
+
+  const workoutOptions = workoutsCache
+    .map((workout) => `<option value="${workout.id}" ${workout.id === schedule.workout_id ? 'selected' : ''}>${workout.name}</option>`)
+    .join('');
+  const trainerOptions = ['<option value="">(не вказано)</option>']
+    .concat(trainersCache.map((trainer) => `
+      <option value="${trainer.id}" ${trainer.id === schedule.trainer_id ? 'selected' : ''}>${trainer.name}</option>
+    `)).join('');
+
+  openModal('Редагувати розклад', `
+    <div class="form-group">
+      <label for="edit-workout">Тренування:</label>
+      <select id="edit-workout">${workoutOptions}</select>
+    </div>
+    <div class="form-group">
+      <label for="edit-trainer">Тренер:</label>
+      <select id="edit-trainer">${trainerOptions}</select>
+    </div>
+    <div class="form-group">
+      <label for="edit-date">Дата:</label>
+      <input type="date" id="edit-date" value="${formatDate(schedule.date)}">
+    </div>
+    <div class="form-group">
+      <label for="edit-time">Час:</label>
+      <input type="time" id="edit-time" value="${schedule.time}">
+    </div>
+  `, async () => {
+    await apiFetch(`/schedules/${scheduleId}`, {
+      method: 'PUT',
       body: JSON.stringify({
-        workout_id: Number(document.querySelector('#schedule-workout').value),
-        trainer_id: document.querySelector('#schedule-trainer').value || null,
-        date: document.querySelector('#schedule-date').value,
-        time: document.querySelector('#schedule-time').value,
+        workout_id: Number(document.querySelector('#edit-workout').value),
+        trainer_id: document.querySelector('#edit-trainer').value || null,
+        date: document.querySelector('#edit-date').value,
+        time: document.querySelector('#edit-time').value,
       }),
     });
-    scheduleForm.reset();
-    setMessage('#schedule-message', 'Розклад оновлено');
     await loadSchedules();
-  } catch (err) {
-    setMessage('#schedule-message', err.message, true);
-  }
+  });
 });
 
-const subscriptionForm = document.querySelector('#subscription-form');
-subscriptionForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  setMessage('#subscription-message', '');
-  try {
-    await apiFetch('/subscriptions', {
-      method: 'POST',
+document.querySelector('#subscriptions-table').addEventListener('click', (event) => {
+  const button = event.target.closest('.edit-btn');
+  if (!button) return;
+
+  const subscriptionId = Number(button.dataset.subscriptionId);
+  const subscription = subscriptionsCache.find((item) => item.id === subscriptionId);
+  if (!subscription) return;
+
+  openModal('Редагувати абонемент', `
+    <div class="form-group">
+      <label for="edit-type">Тип:</label>
+      <input type="text" id="edit-type" value="${subscription.type}">
+    </div>
+    <div class="form-group">
+      <label for="edit-start">Початок:</label>
+      <input type="date" id="edit-start" value="${formatDate(subscription.start_date)}">
+    </div>
+    <div class="form-group">
+      <label for="edit-end">Кінець:</label>
+      <input type="date" id="edit-end" value="${formatDate(subscription.end_date)}">
+    </div>
+    <div class="form-group">
+      <label for="edit-status">Статус:</label>
+      <select id="edit-status">
+        <option value="active" ${subscription.status === 'active' ? 'selected' : ''}>Активний</option>
+        <option value="paused" ${subscription.status === 'paused' ? 'selected' : ''}>Призупинений</option>
+        <option value="expired" ${subscription.status === 'expired' ? 'selected' : ''}>Закінчений</option>
+      </select>
+    </div>
+  `, async () => {
+    await apiFetch(`/subscriptions/${subscriptionId}`, {
+      method: 'PUT',
       body: JSON.stringify({
-        client_id: Number(document.querySelector('#subscription-client').value),
-        type: document.querySelector('#subscription-type').value.trim(),
-        start_date: document.querySelector('#subscription-start').value,
-        end_date: document.querySelector('#subscription-end').value,
-        status: document.querySelector('#subscription-status').value,
+        type: document.querySelector('#edit-type').value.trim(),
+        start_date: document.querySelector('#edit-start').value,
+        end_date: document.querySelector('#edit-end').value,
+        status: document.querySelector('#edit-status').value,
       }),
     });
-    subscriptionForm.reset();
-    setMessage('#subscription-message', 'Абонемент додано');
     await loadSubscriptions();
-  } catch (err) {
-    setMessage('#subscription-message', err.message, true);
-  }
-});
-
-const paymentForm = document.querySelector('#payment-form');
-paymentForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  setMessage('#payment-message', '');
-  try {
-    await apiFetch('/payments', {
-      method: 'POST',
-      body: JSON.stringify({
-        client_id: Number(document.querySelector('#payment-client').value),
-        amount: Number(document.querySelector('#payment-amount').value),
-        status: document.querySelector('#payment-status').value,
-      }),
-    });
-    paymentForm.reset();
-    setMessage('#payment-message', 'Оплату додано');
-    await loadPayments();
-  } catch (err) {
-    setMessage('#payment-message', err.message, true);
-  }
-});
-
-const visitForm = document.querySelector('#visit-form');
-visitForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  setMessage('#visit-message', '');
-  try {
-    await apiFetch('/visits', {
-      method: 'POST',
-      body: JSON.stringify({
-        client_id: Number(document.querySelector('#visit-client').value),
-      }),
-    });
-    visitForm.reset();
-    setMessage('#visit-message', 'Візит зафіксовано');
-    await loadVisits();
-  } catch (err) {
-    setMessage('#visit-message', err.message, true);
-  }
+  });
 });
 
 async function init() {
+  toggleAddGroups(addTypeSelect.value);
   await Promise.all([
     loadUsers(),
     loadClients(),

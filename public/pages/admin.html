@@ -16,6 +16,7 @@
     <nav>
         <ul>
             <li><a href="#users">Користувачі</a></li>
+            <li><a href="#create">Додати запис</a></li>
             <li><a href="#clients">Клієнти</a></li>
             <li><a href="#trainers">Тренери</a></li>
             <li><a href="#workouts">Тренування</a></li>
@@ -28,6 +29,18 @@
     <main>
         <section id="users">
             <h2>Користувачі</h2>
+            <div class="filter-group">
+                <label for="user-role-filter">Роль:</label>
+                <select id="user-role-filter">
+                    <option value="all">Всі</option>
+                    <option value="admin">Адміністратор</option>
+                    <option value="manager">Керівник</option>
+                    <option value="trainer">Тренер</option>
+                    <option value="client">Клієнт</option>
+                </select>
+                <label for="user-search">Пошук:</label>
+                <input type="text" id="user-search" placeholder="Ім'я або email">
+            </div>
             <table>
                 <thead>
                     <tr>
@@ -35,10 +48,149 @@
                         <th>Ім'я</th>
                         <th>Email</th>
                         <th>Роль</th>
+                        <th>Дії</th>
                     </tr>
                 </thead>
                 <tbody id="users-table"></tbody>
             </table>
+        </section>
+
+        <section id="create">
+            <h2>Додати запис</h2>
+            <form id="unified-form" class="add-form">
+                <div class="form-group">
+                    <label for="add-type">Тип:</label>
+                    <select id="add-type" required>
+                        <option value="user">Користувач</option>
+                        <option value="workout">Тренування</option>
+                        <option value="schedule">Розклад</option>
+                        <option value="subscription">Абонемент</option>
+                        <option value="payment">Оплата</option>
+                        <option value="visit">Відвідування</option>
+                    </select>
+                </div>
+
+                <div class="add-group" data-type="user">
+                    <div class="form-group">
+                        <label for="add-name">Ім'я:</label>
+                        <input type="text" id="add-name">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-email">Email:</label>
+                        <input type="email" id="add-email">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-password">Пароль:</label>
+                        <input type="password" id="add-password">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-role">Роль:</label>
+                        <select id="add-role">
+                            <option value="client">Клієнт</option>
+                            <option value="trainer">Тренер</option>
+                            <option value="manager">Керівник</option>
+                            <option value="admin">Адміністратор</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-phone">Телефон (для клієнта):</label>
+                        <input type="text" id="add-phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-specialization">Спеціалізація (для тренера):</label>
+                        <input type="text" id="add-specialization">
+                    </div>
+                </div>
+
+                <div class="add-group" data-type="workout">
+                    <div class="form-group">
+                        <label for="add-workout-name">Назва:</label>
+                        <input type="text" id="add-workout-name">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-workout-description">Опис:</label>
+                        <textarea id="add-workout-description"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-workout-max">Макс. Кількість:</label>
+                        <input type="number" id="add-workout-max">
+                    </div>
+                </div>
+
+                <div class="add-group" data-type="schedule">
+                    <div class="form-group">
+                        <label for="add-schedule-workout">Тренування:</label>
+                        <select id="add-schedule-workout"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-schedule-trainer">Тренер:</label>
+                        <select id="add-schedule-trainer"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-schedule-date">Дата:</label>
+                        <input type="date" id="add-schedule-date">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-schedule-time">Час:</label>
+                        <input type="time" id="add-schedule-time">
+                    </div>
+                </div>
+
+                <div class="add-group" data-type="subscription">
+                    <div class="form-group">
+                        <label for="add-subscription-client">Клієнт:</label>
+                        <select id="add-subscription-client"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-subscription-type">Тип:</label>
+                        <input type="text" id="add-subscription-type">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-subscription-start">Початок:</label>
+                        <input type="date" id="add-subscription-start">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-subscription-end">Кінець:</label>
+                        <input type="date" id="add-subscription-end">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-subscription-status">Статус:</label>
+                        <select id="add-subscription-status">
+                            <option value="active">Активний</option>
+                            <option value="paused">Призупинений</option>
+                            <option value="expired">Закінчений</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="add-group" data-type="payment">
+                    <div class="form-group">
+                        <label for="add-payment-client">Клієнт:</label>
+                        <select id="add-payment-client"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="add-payment-amount">Сума:</label>
+                        <input type="number" step="0.01" id="add-payment-amount">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-payment-status">Статус:</label>
+                        <select id="add-payment-status">
+                            <option value="completed">Оплачено</option>
+                            <option value="pending">Очікує</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="add-group" data-type="visit">
+                    <div class="form-group">
+                        <label for="add-visit-client">Клієнт:</label>
+                        <select id="add-visit-client"></select>
+                    </div>
+                </div>
+
+                <button type="submit" class="add-btn">Додати</button>
+                <span id="add-message"></span>
+            </form>
         </section>
 
         <section id="clients">
@@ -50,31 +202,11 @@
                         <th>Ім'я</th>
                         <th>Email</th>
                         <th>Телефон</th>
+                        <th>Дії</th>
                     </tr>
                 </thead>
                 <tbody id="clients-table"></tbody>
             </table>
-            <h3>Додати Клієнта</h3>
-            <form id="client-form" class="add-form">
-                <div class="form-group">
-                    <label for="client-name">Ім'я:</label>
-                    <input type="text" id="client-name" required>
-                </div>
-                <div class="form-group">
-                    <label for="client-email">Email:</label>
-                    <input type="email" id="client-email" required>
-                </div>
-                <div class="form-group">
-                    <label for="client-password">Пароль:</label>
-                    <input type="password" id="client-password" required>
-                </div>
-                <div class="form-group">
-                    <label for="client-phone">Телефон:</label>
-                    <input type="text" id="client-phone">
-                </div>
-                <button type="submit" class="add-btn">Додати</button>
-                <span id="client-message"></span>
-            </form>
         </section>
 
         <section id="trainers">
@@ -86,31 +218,11 @@
                         <th>Ім'я</th>
                         <th>Email</th>
                         <th>Спеціалізація</th>
+                        <th>Дії</th>
                     </tr>
                 </thead>
                 <tbody id="trainers-table"></tbody>
             </table>
-            <h3>Додати Тренера</h3>
-            <form id="trainer-form" class="add-form">
-                <div class="form-group">
-                    <label for="trainer-name">Ім'я:</label>
-                    <input type="text" id="trainer-name" required>
-                </div>
-                <div class="form-group">
-                    <label for="trainer-email">Email:</label>
-                    <input type="email" id="trainer-email" required>
-                </div>
-                <div class="form-group">
-                    <label for="trainer-password">Пароль:</label>
-                    <input type="password" id="trainer-password" required>
-                </div>
-                <div class="form-group">
-                    <label for="trainer-specialization">Спеціалізація:</label>
-                    <input type="text" id="trainer-specialization">
-                </div>
-                <button type="submit" class="add-btn">Додати</button>
-                <span id="trainer-message"></span>
-            </form>
         </section>
 
         <section id="workouts">
@@ -122,27 +234,11 @@
                         <th>Назва</th>
                         <th>Опис</th>
                         <th>Макс. Кількість</th>
+                        <th>Дії</th>
                     </tr>
                 </thead>
                 <tbody id="workouts-table"></tbody>
             </table>
-            <h3>Додати Тренування</h3>
-            <form id="workout-form" class="add-form">
-                <div class="form-group">
-                    <label for="workout-name">Назва:</label>
-                    <input type="text" id="workout-name" required>
-                </div>
-                <div class="form-group">
-                    <label for="workout-description">Опис:</label>
-                    <textarea id="workout-description"></textarea>
-                </div>
-                <div class="form-group">
-                    <label for="workout-max">Макс. Кількість:</label>
-                    <input type="number" id="workout-max" required>
-                </div>
-                <button type="submit" class="add-btn">Додати</button>
-                <span id="workout-message"></span>
-            </form>
         </section>
 
         <section id="schedules">
@@ -156,31 +252,11 @@
                         <th>Тренування</th>
                         <th>Тренер</th>
                         <th>Місць</th>
+                        <th>Дії</th>
                     </tr>
                 </thead>
                 <tbody id="schedules-table"></tbody>
             </table>
-            <h3>Додати до Розкладу</h3>
-            <form id="schedule-form" class="add-form">
-                <div class="form-group">
-                    <label for="schedule-workout">Тренування:</label>
-                    <select id="schedule-workout" required></select>
-                </div>
-                <div class="form-group">
-                    <label for="schedule-trainer">Тренер:</label>
-                    <select id="schedule-trainer"></select>
-                </div>
-                <div class="form-group">
-                    <label for="schedule-date">Дата:</label>
-                    <input type="date" id="schedule-date" required>
-                </div>
-                <div class="form-group">
-                    <label for="schedule-time">Час:</label>
-                    <input type="time" id="schedule-time" required>
-                </div>
-                <button type="submit" class="add-btn">Додати</button>
-                <span id="schedule-message"></span>
-            </form>
         </section>
 
         <section id="subscriptions">
@@ -194,39 +270,11 @@
                         <th>Початок</th>
                         <th>Кінець</th>
                         <th>Статус</th>
+                        <th>Дії</th>
                     </tr>
                 </thead>
                 <tbody id="subscriptions-table"></tbody>
             </table>
-            <h3>Додати Абонемент</h3>
-            <form id="subscription-form" class="add-form">
-                <div class="form-group">
-                    <label for="subscription-client">Клієнт:</label>
-                    <select id="subscription-client" required></select>
-                </div>
-                <div class="form-group">
-                    <label for="subscription-type">Тип:</label>
-                    <input type="text" id="subscription-type" required>
-                </div>
-                <div class="form-group">
-                    <label for="subscription-start">Початок:</label>
-                    <input type="date" id="subscription-start" required>
-                </div>
-                <div class="form-group">
-                    <label for="subscription-end">Кінець:</label>
-                    <input type="date" id="subscription-end" required>
-                </div>
-                <div class="form-group">
-                    <label for="subscription-status">Статус:</label>
-                    <select id="subscription-status">
-                        <option value="active">Активний</option>
-                        <option value="paused">Призупинений</option>
-                        <option value="expired">Закінчений</option>
-                    </select>
-                </div>
-                <button type="submit" class="add-btn">Додати</button>
-                <span id="subscription-message"></span>
-            </form>
         </section>
 
         <section id="payments">
@@ -239,30 +287,11 @@
                         <th>Сума</th>
                         <th>Дата</th>
                         <th>Статус</th>
+                        <th>Дії</th>
                     </tr>
                 </thead>
                 <tbody id="payments-table"></tbody>
             </table>
-            <h3>Додати Оплату</h3>
-            <form id="payment-form" class="add-form">
-                <div class="form-group">
-                    <label for="payment-client">Клієнт:</label>
-                    <select id="payment-client" required></select>
-                </div>
-                <div class="form-group">
-                    <label for="payment-amount">Сума:</label>
-                    <input type="number" step="0.01" id="payment-amount" required>
-                </div>
-                <div class="form-group">
-                    <label for="payment-status">Статус:</label>
-                    <select id="payment-status">
-                        <option value="completed">Оплачено</option>
-                        <option value="pending">Очікує</option>
-                    </select>
-                </div>
-                <button type="submit" class="add-btn">Додати</button>
-                <span id="payment-message"></span>
-            </form>
         </section>
 
         <section id="visits">
@@ -273,21 +302,27 @@
                         <th>ID</th>
                         <th>Клієнт</th>
                         <th>Час</th>
+                        <th>Дії</th>
                     </tr>
                 </thead>
                 <tbody id="visits-table"></tbody>
             </table>
-            <h3>Зафіксувати Візит</h3>
-            <form id="visit-form" class="add-form">
-                <div class="form-group">
-                    <label for="visit-client">Клієнт:</label>
-                    <select id="visit-client" required></select>
-                </div>
-                <button type="submit" class="add-btn">Додати</button>
-                <span id="visit-message"></span>
-            </form>
         </section>
     </main>
+
+    <div id="edit-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; padding: 20px;">
+        <div style="background: #fff; max-width: 520px; width: 100%; border-radius: 8px; padding: 20px;">
+            <h3 id="edit-title">Редагування</h3>
+            <form id="edit-form" class="add-form">
+                <div id="edit-fields"></div>
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button type="button" id="edit-cancel" class="delete-btn">Скасувати</button>
+                    <button type="submit" class="add-btn">Зберегти</button>
+                </div>
+                <span id="edit-message"></span>
+            </form>
+        </div>
+    </div>
 
     <script type="module" src="../js/admin.js"></script>
     <script type="module" src="../js/pwa.js"></script>
