@@ -26,10 +26,15 @@ let subscriptionsCache = [];
 let paymentsCache = [];
 let visitsCache = [];
 
+function getSearchValue(id) {
+  const el = document.querySelector(id);
+  return el ? el.value.trim().toLowerCase() : '';
+}
+
 function renderUsers() {
   const tbody = document.querySelector('#users-table');
   const roleFilter = document.querySelector('#user-role-filter').value;
-  const searchValue = document.querySelector('#user-search').value.trim().toLowerCase();
+  const searchValue = getSearchValue('#user-search');
 
   const filtered = allUsers.filter((user) => {
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
@@ -40,13 +45,20 @@ function renderUsers() {
 
   tbody.innerHTML = '';
   filtered.forEach((user) => {
+    const canMark = user.role === 'client' && user.client_id;
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${user.id}</td>
       <td>${user.name}</td>
       <td>${user.email}</td>
       <td>${user.role}</td>
-      <td><button class="edit-btn" data-user-id="${user.id}">Редагувати</button></td>
+      <td>
+        <button class="edit-btn" data-user-id="${user.id}">Редагувати</button>
+        <button class="visit-btn" data-client-id="${user.client_id || ''}" ${canMark ? '' : 'disabled'}>
+          Прийшов
+        </button>
+        <button class="delete-btn" data-user-id="${user.id}">Видалити</button>
+      </td>
     `;
     tbody.appendChild(row);
   });
@@ -72,19 +84,7 @@ async function loadUsers() {
 
 async function loadClients() {
   clientsCache = await apiFetch('/clients');
-  const tbody = document.querySelector('#clients-table');
-  tbody.innerHTML = '';
-  clientsCache.forEach((client) => {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${client.id}</td>
-      <td>${client.name}</td>
-      <td>${client.email}</td>
-      <td>${client.phone || ''}</td>
-      <td><button class="edit-btn" data-client-id="${client.id}">Редагувати</button></td>
-    `;
-    tbody.appendChild(row);
-  });
+  renderClients();
 
   const clientOptions = clientsCache
     .map((client) => `<option value="${client.id}">${client.name}</option>`);
@@ -94,21 +94,34 @@ async function loadClients() {
   fillSelect('#add-visit-client', clientOptions);
 }
 
-async function loadTrainers() {
-  trainersCache = await apiFetch('/trainers');
-  const tbody = document.querySelector('#trainers-table');
+function renderClients() {
+  const tbody = document.querySelector('#clients-table');
+  const searchValue = getSearchValue('#clients-search');
+  const filtered = clientsCache.filter((client) => {
+    const haystack = `${client.name} ${client.email}`.toLowerCase();
+    return !searchValue || haystack.includes(searchValue);
+  });
+
   tbody.innerHTML = '';
-  trainersCache.forEach((trainer) => {
+  filtered.forEach((client) => {
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td>${trainer.id}</td>
-      <td>${trainer.name}</td>
-      <td>${trainer.email}</td>
-      <td>${trainer.specialization || ''}</td>
-      <td><button class="edit-btn" data-trainer-id="${trainer.id}">Редагувати</button></td>
+      <td>${client.id}</td>
+      <td>${client.name}</td>
+      <td>${client.email}</td>
+      <td>${client.phone || ''}</td>
+      <td>
+        <button class="edit-btn" data-client-id="${client.id}">Редагувати</button>
+        <button class="delete-btn" data-client-id="${client.id}">Видалити</button>
+      </td>
     `;
     tbody.appendChild(row);
   });
+}
+
+async function loadTrainers() {
+  trainersCache = await apiFetch('/trainers');
+  renderTrainers();
 
   const trainerOptions = trainersCache
     .map((trainer) => `<option value="${trainer.id}">${trainer.name}</option>`);
@@ -116,21 +129,34 @@ async function loadTrainers() {
   fillSelect('#add-schedule-trainer', trainerOptions, true);
 }
 
-async function loadWorkouts() {
-  workoutsCache = await apiFetch('/workouts');
-  const tbody = document.querySelector('#workouts-table');
+function renderTrainers() {
+  const tbody = document.querySelector('#trainers-table');
+  const searchValue = getSearchValue('#trainers-search');
+  const filtered = trainersCache.filter((trainer) => {
+    const haystack = `${trainer.name} ${trainer.email}`.toLowerCase();
+    return !searchValue || haystack.includes(searchValue);
+  });
+
   tbody.innerHTML = '';
-  workoutsCache.forEach((workout) => {
+  filtered.forEach((trainer) => {
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td>${workout.id}</td>
-      <td>${workout.name}</td>
-      <td>${workout.description || ''}</td>
-      <td>${workout.max_clients}</td>
-      <td><button class="edit-btn" data-workout-id="${workout.id}">Редагувати</button></td>
+      <td>${trainer.id}</td>
+      <td>${trainer.name}</td>
+      <td>${trainer.email}</td>
+      <td>${trainer.specialization || ''}</td>
+      <td>
+        <button class="edit-btn" data-trainer-id="${trainer.id}">Редагувати</button>
+        <button class="delete-btn" data-trainer-id="${trainer.id}">Видалити</button>
+      </td>
     `;
     tbody.appendChild(row);
   });
+}
+
+async function loadWorkouts() {
+  workoutsCache = await apiFetch('/workouts');
+  renderWorkouts();
 
   const workoutOptions = workoutsCache
     .map((workout) => `<option value="${workout.id}">${workout.name}</option>`);
@@ -138,11 +164,46 @@ async function loadWorkouts() {
   fillSelect('#add-schedule-workout', workoutOptions);
 }
 
+function renderWorkouts() {
+  const tbody = document.querySelector('#workouts-table');
+  const searchValue = getSearchValue('#workouts-search');
+  const filtered = workoutsCache.filter((workout) => {
+    const haystack = `${workout.name} ${workout.description || ''}`.toLowerCase();
+    return !searchValue || haystack.includes(searchValue);
+  });
+
+  tbody.innerHTML = '';
+  filtered.forEach((workout) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${workout.id}</td>
+      <td>${workout.name}</td>
+      <td>${workout.description || ''}</td>
+      <td>${workout.max_clients}</td>
+      <td>
+        <button class="edit-btn" data-workout-id="${workout.id}">Редагувати</button>
+        <button class="delete-btn" data-workout-id="${workout.id}">Видалити</button>
+      </td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
 async function loadSchedules() {
   schedulesCache = await apiFetch('/schedules');
+  renderSchedules();
+}
+
+function renderSchedules() {
   const tbody = document.querySelector('#schedules-table');
+  const searchValue = getSearchValue('#schedules-search');
+  const filtered = schedulesCache.filter((schedule) => {
+    const haystack = `${schedule.workout_name} ${schedule.trainer_name || ''}`.toLowerCase();
+    return !searchValue || haystack.includes(searchValue);
+  });
+
   tbody.innerHTML = '';
-  schedulesCache.forEach((schedule) => {
+  filtered.forEach((schedule) => {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${schedule.id}</td>
@@ -151,7 +212,10 @@ async function loadSchedules() {
       <td>${schedule.workout_name}</td>
       <td>${schedule.trainer_name || ''}</td>
       <td>${schedule.available}/${schedule.max_clients}</td>
-      <td><button class="edit-btn" data-schedule-id="${schedule.id}">Редагувати</button></td>
+      <td>
+        <button class="edit-btn" data-schedule-id="${schedule.id}">Редагувати</button>
+        <button class="delete-btn" data-schedule-id="${schedule.id}">Видалити</button>
+      </td>
     `;
     tbody.appendChild(row);
   });
@@ -159,9 +223,19 @@ async function loadSchedules() {
 
 async function loadSubscriptions() {
   subscriptionsCache = await apiFetch('/subscriptions');
+  renderSubscriptions();
+}
+
+function renderSubscriptions() {
   const tbody = document.querySelector('#subscriptions-table');
+  const searchValue = getSearchValue('#subscriptions-search');
+  const filtered = subscriptionsCache.filter((sub) => {
+    const haystack = `${sub.client_name} ${sub.type}`.toLowerCase();
+    return !searchValue || haystack.includes(searchValue);
+  });
+
   tbody.innerHTML = '';
-  subscriptionsCache.forEach((sub) => {
+  filtered.forEach((sub) => {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${sub.id}</td>
@@ -170,7 +244,10 @@ async function loadSubscriptions() {
       <td>${formatDate(sub.start_date)}</td>
       <td>${formatDate(sub.end_date)}</td>
       <td>${sub.status}</td>
-      <td><button class="edit-btn" data-subscription-id="${sub.id}">Редагувати</button></td>
+      <td>
+        <button class="edit-btn" data-subscription-id="${sub.id}">Редагувати</button>
+        <button class="delete-btn" data-subscription-id="${sub.id}">Видалити</button>
+      </td>
     `;
     tbody.appendChild(row);
   });
@@ -178,9 +255,19 @@ async function loadSubscriptions() {
 
 async function loadPayments() {
   paymentsCache = await apiFetch('/payments');
+  renderPayments();
+}
+
+function renderPayments() {
   const tbody = document.querySelector('#payments-table');
+  const searchValue = getSearchValue('#payments-search');
+  const filtered = paymentsCache.filter((payment) => {
+    const haystack = `${payment.client_name} ${payment.status}`.toLowerCase();
+    return !searchValue || haystack.includes(searchValue);
+  });
+
   tbody.innerHTML = '';
-  paymentsCache.forEach((payment) => {
+  filtered.forEach((payment) => {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${payment.id}</td>
@@ -188,7 +275,10 @@ async function loadPayments() {
       <td>${payment.amount}</td>
       <td>${formatDate(payment.date)}</td>
       <td>${payment.status}</td>
-      <td><button class="edit-btn" data-payment-id="${payment.id}" disabled>Редагувати</button></td>
+      <td>
+        <button class="edit-btn" data-payment-id="${payment.id}" disabled>Редагувати</button>
+        <button class="delete-btn" data-payment-id="${payment.id}">Видалити</button>
+      </td>
     `;
     tbody.appendChild(row);
   });
@@ -196,15 +286,28 @@ async function loadPayments() {
 
 async function loadVisits() {
   visitsCache = await apiFetch('/visits');
+  renderVisits();
+}
+
+function renderVisits() {
   const tbody = document.querySelector('#visits-table');
+  const searchValue = getSearchValue('#visits-search');
+  const filtered = visitsCache.filter((visit) => {
+    const haystack = `${visit.client_name}`.toLowerCase();
+    return !searchValue || haystack.includes(searchValue);
+  });
+
   tbody.innerHTML = '';
-  visitsCache.forEach((visit) => {
+  filtered.forEach((visit) => {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${visit.id}</td>
       <td>${visit.client_name}</td>
       <td>${new Date(visit.visit_time).toLocaleString()}</td>
-      <td><button class="edit-btn" data-visit-id="${visit.id}" disabled>Редагувати</button></td>
+      <td>
+        <button class="edit-btn" data-visit-id="${visit.id}" disabled>Редагувати</button>
+        <button class="delete-btn" data-visit-id="${visit.id}">Видалити</button>
+      </td>
     `;
     tbody.appendChild(row);
   });
@@ -214,6 +317,13 @@ const roleFilter = document.querySelector('#user-role-filter');
 const userSearch = document.querySelector('#user-search');
 roleFilter.addEventListener('change', renderUsers);
 userSearch.addEventListener('input', renderUsers);
+document.querySelector('#clients-search').addEventListener('input', renderClients);
+document.querySelector('#trainers-search').addEventListener('input', renderTrainers);
+document.querySelector('#workouts-search').addEventListener('input', renderWorkouts);
+document.querySelector('#schedules-search').addEventListener('input', renderSchedules);
+document.querySelector('#subscriptions-search').addEventListener('input', renderSubscriptions);
+document.querySelector('#payments-search').addEventListener('input', renderPayments);
+document.querySelector('#visits-search').addEventListener('input', renderVisits);
 
 // Unified add form
 const addTypeSelect = document.querySelector('#add-type');
@@ -386,6 +496,152 @@ document.querySelector('#users-table').addEventListener('click', (event) => {
     });
     await loadUsers();
   });
+});
+
+document.querySelector('#users-table').addEventListener('click', async (event) => {
+  const button = event.target.closest('.visit-btn');
+  if (!button || button.disabled) return;
+
+  const clientId = Number(button.dataset.clientId);
+  if (!clientId) return;
+
+  try {
+    await apiFetch('/visits', {
+      method: 'POST',
+      body: JSON.stringify({ client_id: clientId }),
+    });
+    await loadVisits();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.querySelector('#users-table').addEventListener('click', async (event) => {
+  const button = event.target.closest('.delete-btn');
+  if (!button) return;
+
+  const userId = Number(button.dataset.userId);
+  if (!userId) return;
+  if (!confirm('Видалити користувача?')) return;
+
+  try {
+    await apiFetch(`/users/${userId}`, { method: 'DELETE' });
+    await Promise.all([loadUsers(), loadClients(), loadTrainers()]);
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.querySelector('#clients-table').addEventListener('click', async (event) => {
+  const button = event.target.closest('.delete-btn');
+  if (!button) return;
+
+  const clientId = Number(button.dataset.clientId);
+  if (!clientId) return;
+  if (!confirm('Видалити клієнта?')) return;
+
+  try {
+    await apiFetch(`/clients/${clientId}`, { method: 'DELETE' });
+    await Promise.all([loadClients(), loadUsers()]);
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.querySelector('#trainers-table').addEventListener('click', async (event) => {
+  const button = event.target.closest('.delete-btn');
+  if (!button) return;
+
+  const trainerId = Number(button.dataset.trainerId);
+  if (!trainerId) return;
+  if (!confirm('Видалити тренера?')) return;
+
+  try {
+    await apiFetch(`/trainers/${trainerId}`, { method: 'DELETE' });
+    await Promise.all([loadTrainers(), loadUsers()]);
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.querySelector('#workouts-table').addEventListener('click', async (event) => {
+  const button = event.target.closest('.delete-btn');
+  if (!button) return;
+
+  const workoutId = Number(button.dataset.workoutId);
+  if (!workoutId) return;
+  if (!confirm('Видалити тренування?')) return;
+
+  try {
+    await apiFetch(`/workouts/${workoutId}`, { method: 'DELETE' });
+    await Promise.all([loadWorkouts(), loadSchedules()]);
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.querySelector('#schedules-table').addEventListener('click', async (event) => {
+  const button = event.target.closest('.delete-btn');
+  if (!button) return;
+
+  const scheduleId = Number(button.dataset.scheduleId);
+  if (!scheduleId) return;
+  if (!confirm('Видалити запис розкладу?')) return;
+
+  try {
+    await apiFetch(`/schedules/${scheduleId}`, { method: 'DELETE' });
+    await loadSchedules();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.querySelector('#subscriptions-table').addEventListener('click', async (event) => {
+  const button = event.target.closest('.delete-btn');
+  if (!button) return;
+
+  const subscriptionId = Number(button.dataset.subscriptionId);
+  if (!subscriptionId) return;
+  if (!confirm('Видалити абонемент?')) return;
+
+  try {
+    await apiFetch(`/subscriptions/${subscriptionId}`, { method: 'DELETE' });
+    await loadSubscriptions();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.querySelector('#payments-table').addEventListener('click', async (event) => {
+  const button = event.target.closest('.delete-btn');
+  if (!button) return;
+
+  const paymentId = Number(button.dataset.paymentId);
+  if (!paymentId) return;
+  if (!confirm('Видалити оплату?')) return;
+
+  try {
+    await apiFetch(`/payments/${paymentId}`, { method: 'DELETE' });
+    await loadPayments();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+document.querySelector('#visits-table').addEventListener('click', async (event) => {
+  const button = event.target.closest('.delete-btn');
+  if (!button) return;
+
+  const visitId = Number(button.dataset.visitId);
+  if (!visitId) return;
+  if (!confirm('Видалити відвідування?')) return;
+
+  try {
+    await apiFetch(`/visits/${visitId}`, { method: 'DELETE' });
+    await loadVisits();
+  } catch (err) {
+    alert(err.message);
+  }
 });
 
 document.querySelector('#clients-table').addEventListener('click', (event) => {

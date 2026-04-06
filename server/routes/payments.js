@@ -60,4 +60,10 @@ router.post('/', authRequired, async (req, res) => {
   return res.status(201).json(result.rows[0]);
 });
 
+router.delete('/:id', requireRole('admin'), async (req, res) => {
+  const { id } = req.params;
+  await query('delete from payments where id = $1', [id]);
+  return res.json({ ok: true });
+});
+
 export default router;

@@ -8,9 +8,10 @@ router.use(authRequired);
 
 router.get('/', requireRole('admin', 'manager'), async (req, res) => {
   const result = await query(
-    `select id, name, email, role
-     from users
-     order by id desc`
+    `select u.id, u.name, u.email, u.role, c.id as client_id
+     from users u
+     left join clients c on c.user_id = u.id
+     order by u.id desc`
   );
   return res.json(result.rows);
 });
