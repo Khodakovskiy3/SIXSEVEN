@@ -35,14 +35,39 @@ router.get('/me', requireRole('client'), async (req, res) => {
 });
 
 router.post('/', requireRole('admin', 'trainer'), async (req, res) => {
-  const { client_id, subscription_id } = req.body || {};
+  const { client_id, subscription_id, schedule_id } = req.body || {};
   if (!client_id) return res.status(400).json({ error: 'Missing client_id' });
 
+  const activeSub = await query(
+    `select id from subscriptions
+     where client_id = $1
+       and status = 'active'
+       and end_date >= CURRENT_DATE
+     order by end_date desc
+     limit 1`,
+    [client_id]
+  );
+
+  if (activeSub.rows.length === 0) {
+    return res.status(409).json({ error: 'No active subscription' });
+  }
+
+  if (schedule_id) {
+    const existing = await query(
+      `select id from visits where client_id = $1 and schedule_id = $2`,
+      [client_id, schedule_id]
+    );
+    if (existing.rows.length > 0) {
+      return res.json(existing.rows[0]);
+    }
+  }
+
+  const resolvedSubscriptionId = subscription_id || activeSub.rows[0].id;
   const result = await query(
-    `insert into visits (client_id, subscription_id)
-     values ($1, $2)
-     returning id, client_id, subscription_id, visit_time`,
-    [client_id, subscription_id || null]
+    `insert into visits (client_id, subscription_id, schedule_id)
+     values ($1, $2, $3)
+     returning id, client_id, subscription_id, schedule_id, visit_time`,
+    [client_id, resolvedSubscriptionId, schedule_id || null]
   );
 
   return res.status(201).json(result.rows[0]);

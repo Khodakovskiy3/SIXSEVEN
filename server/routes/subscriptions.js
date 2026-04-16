@@ -7,7 +7,16 @@ const router = Router();
 
 router.use(authRequired);
 
+async function refreshSubscriptionStatuses() {
+  await query(
+    `update subscriptions
+     set status = 'expired'
+     where end_date < CURRENT_DATE and status != 'expired'`
+  );
+}
+
 router.get('/', requireRole('admin', 'manager'), async (req, res) => {
+  await refreshSubscriptionStatuses();
   const result = await query(
     `select s.id, s.client_id, s.type, s.start_date, s.end_date, s.status,
             u.name as client_name, u.email as client_email
@@ -20,6 +29,7 @@ router.get('/', requireRole('admin', 'manager'), async (req, res) => {
 });
 
 router.get('/me', requireRole('client'), async (req, res) => {
+  await refreshSubscriptionStatuses();
   const clientId = await getClientIdByUserId(req.user.id);
   if (!clientId) return res.status(404).json({ error: 'Client not found' });
 

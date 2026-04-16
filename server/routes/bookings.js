@@ -42,10 +42,12 @@ router.get('/me', requireRole('client'), async (req, res) => {
 router.get('/schedule/:id', requireRole('admin', 'manager', 'trainer'), async (req, res) => {
   const { id } = req.params;
   const result = await query(
-    `select b.id, b.status, b.client_id, u.name as client_name
+    `select b.id, b.status, b.client_id, u.name as client_name,
+            v.id as visit_id
      from bookings b
      join clients c on c.id = b.client_id
      join users u on u.id = c.user_id
+     left join visits v on v.client_id = b.client_id and v.schedule_id = b.schedule_id
      where b.schedule_id = $1
      order by u.name asc`,
     [id]

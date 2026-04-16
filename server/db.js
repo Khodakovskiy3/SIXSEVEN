@@ -23,6 +23,13 @@ export async function withClient(fn) {
   const client = await pool.connect();
   try {
     return await fn(client);
+  } catch (err) {
+    try {
+      await client.query('rollback');
+    } catch {
+      // ignore rollback errors
+    }
+    throw err;
   } finally {
     client.release();
   }

@@ -214,6 +214,7 @@ function renderSchedules() {
       <td>${schedule.available}/${schedule.max_clients}</td>
       <td>
         <button class="edit-btn" data-schedule-id="${schedule.id}">Редагувати</button>
+        <button class="group-btn" data-schedule-id="${schedule.id}">Група</button>
         <button class="delete-btn" data-schedule-id="${schedule.id}">Видалити</button>
       </td>
     `;
@@ -794,6 +795,58 @@ document.querySelector('#schedules-table').addEventListener('click', (event) => 
     });
     await loadSchedules();
   });
+});
+
+document.querySelector('#schedules-table').addEventListener('click', async (event) => {
+  const button = event.target.closest('.group-btn');
+  if (!button) return;
+
+  const scheduleId = Number(button.dataset.scheduleId);
+  if (!scheduleId) return;
+
+  try {
+    const bookings = await apiFetch(`/bookings/schedule/${scheduleId}`);
+    const list = bookings
+      .map((booking, index) => {
+        const checked = booking.visit_id ? 'checked' : '';
+        return `
+          <div class="form-group">
+            <label>
+              <input type="checkbox" data-client-id="${booking.client_id}" data-visit-id="${booking.visit_id || ''}" ${checked}>
+              ${index + 1}. ${booking.client_name}
+            </label>
+          </div>
+        `;
+      })
+      .join('');
+
+    openModal('Відвідуваність групи', `
+      <div>
+        ${list || '<p>Немає записів</p>'}
+      </div>
+    `, async () => {
+      const checkboxes = Array.from(editFields.querySelectorAll('input[type=\"checkbox\"]'));
+      const toCreate = checkboxes.filter((cb) => cb.checked && !cb.dataset.visitId);
+      const toDelete = checkboxes.filter((cb) => !cb.checked && cb.dataset.visitId);
+
+      await Promise.all([
+        ...toCreate.map((cb) =>
+          apiFetch('/visits', {
+            method: 'POST',
+            body: JSON.stringify({
+              client_id: Number(cb.dataset.clientId),
+              schedule_id: scheduleId,
+            }),
+          })
+        ),
+        ...toDelete.map((cb) => apiFetch(`/visits/${cb.dataset.visitId}`, { method: 'DELETE' })),
+      ]);
+
+      await loadVisits();
+    });
+  } catch (err) {
+    alert(err.message);
+  }
 });
 
 document.querySelector('#subscriptions-table').addEventListener('click', (event) => {
