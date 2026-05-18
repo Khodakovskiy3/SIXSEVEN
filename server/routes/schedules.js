@@ -1,18 +1,39 @@
+/**
+ * Маршрути керування розкладом занять.
+ *
+ * GET    /api/schedules     — список занять, опційно фільтр за trainer_id.
+ * POST   /api/schedules     — створити запис розкладу (admin).
+ * PUT    /api/schedules/:id — оновити запис (admin).
+ * DELETE /api/schedules/:id — видалити запис (admin).
+ *
+ * До кожного запису додається підрахунок зайнятих та вільних місць,
+ * щоб клієнти бачили доступність без додаткових запитів.
+ */
+
 import { Router } from 'express';
+
 import { query } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
+import {
+  BOOKING_STATUS,
+  HTTP_BAD_REQUEST,
+  HTTP_CREATED,
+  HTTP_NOT_FOUND,
+  ROLE,
+} from '../utils/constants.js';
 
 const router = Router();
 
 router.use(authRequired);
 
 router.get('/', async (req, res) => {
-  const { trainer_id } = req.query;
+  const { trainer_id: trainerId } = req.query;
   const params = [];
-  let where = '';
-  if (trainer_id) {
-    params.push(trainer_id);
-    where = 'where s.trainer_id = $1';
+  let whereClause = '';
+
+  if (trainerId) {
+    params.push(trainerId);
+    whereClause = 'where s.trainer_id = $1';
   }
 
   const result = await query(
@@ -26,14 +47,15 @@ router.get('/', async (req, res) => {
      left join (
         select schedule_id, count(*) as booked
         from bookings
-        where status = 'active'
+        where status = '${BOOKING_STATUS.ACTIVE}'
         group by schedule_id
      ) b on b.schedule_id = s.id
-     ${where}
+     ${whereClause}
      order by s.date asc, s.time asc`,
     params
   );
 
+  // Розраховуємо available на сервері, щоб не дублювати логіку у клієнтів.
   const rows = result.rows.map((row) => ({
     ...row,
     available: Math.max(row.max_clients - row.booked, 0),
@@ -42,25 +64,36 @@ router.get('/', async (req, res) => {
   return res.json(rows);
 });
 
-router.post('/', requireRole('admin'), async (req, res) => {
-  const { workout_id, trainer_id, date, time } = req.body || {};
-  if (!workout_id || !date || !time) {
-    return res.status(400).json({ error: 'Missing required fields' });
+router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
+  const {
+    workout_id: workoutId,
+    trainer_id: trainerId,
+    date,
+    time,
+  } = req.body || {};
+
+  if (!workoutId || !date || !time) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
   }
 
   const result = await query(
     `insert into schedules (workout_id, trainer_id, date, time)
      values ($1, $2, $3, $4)
      returning id, workout_id, trainer_id, date, time`,
-    [workout_id, trainer_id || null, date, time]
+    [workoutId, trainerId || null, date, time]
   );
 
-  return res.status(201).json(result.rows[0]);
+  return res.status(HTTP_CREATED).json(result.rows[0]);
 });
 
-router.put('/:id', requireRole('admin'), async (req, res) => {
+router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
-  const { workout_id, trainer_id, date, time } = req.body || {};
+  const {
+    workout_id: workoutId,
+    trainer_id: trainerId,
+    date,
+    time,
+  } = req.body || {};
 
   const result = await query(
     `update schedules
@@ -70,14 +103,16 @@ router.put('/:id', requireRole('admin'), async (req, res) => {
          time = coalesce($4, time)
      where id = $5
      returning id, workout_id, trainer_id, date, time`,
-    [workout_id || null, trainer_id || null, date || null, time || null, id]
+    [workoutId || null, trainerId || null, date || null, time || null, id]
   );
 
-  if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+  if (result.rows.length === 0) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+  }
   return res.json(result.rows[0]);
 });
 
-router.delete('/:id', requireRole('admin'), async (req, res) => {
+router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
   await query('delete from schedules where id = $1', [id]);
   return res.json({ ok: true });

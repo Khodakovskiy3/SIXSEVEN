@@ -1,15 +1,31 @@
+/**
+ * Сторінка керівника: список користувачів і трійка зведених звітів.
+ *
+ * Викликається з public/pages/manager.html. Доступ для ролей manager та admin.
+ */
+
 import { apiFetch, clearAuth, requireAuth, formatDate } from './api.js';
+import { PAGE, ROLE } from './constants.js';
 
-requireAuth(['manager', 'admin']);
+/** Множник для перетворення частки у відсотки. */
+const PERCENT_MULTIPLIER = 100;
 
+requireAuth([ROLE.MANAGER, ROLE.ADMIN]);
+
+// ─── Логаут ──────────────────────────────────────────────────────────────────
 const logoutBtn = document.querySelector('#logout-btn');
 if (logoutBtn) {
   logoutBtn.addEventListener('click', () => {
     clearAuth();
-    window.location.href = '/pages/login.html';
+    window.location.href = PAGE.LOGIN;
   });
 }
 
+/**
+ * Завантажує і відображає таблицю користувачів.
+ *
+ * @returns {Promise<void>}
+ */
 async function loadUsers() {
   const users = await apiFetch('/users');
   const tbody = document.querySelector('#users-table');
@@ -26,6 +42,11 @@ async function loadUsers() {
   });
 }
 
+/**
+ * Завантажує зведену статистику (виручка, активні абонементи, клієнти).
+ *
+ * @returns {Promise<void>}
+ */
 async function loadSummary() {
   const summary = await apiFetch('/reports/summary');
   document.querySelector('#revenue-total').textContent = summary.revenue;
@@ -33,30 +54,41 @@ async function loadSummary() {
   document.querySelector('#total-clients').textContent = summary.total_clients;
 }
 
+/**
+ * Завантажує звіт відвідуваності: для кожного запису рахуємо завантаженість групи.
+ *
+ * @returns {Promise<void>}
+ */
 async function loadAttendance() {
-  const data = await apiFetch('/reports/attendance');
+  const rows = await apiFetch('/reports/attendance');
   const tbody = document.querySelector('#attendance-table tbody');
   tbody.innerHTML = '';
-  data.forEach((row) => {
-    const attendance = row.max_clients
-      ? Math.round((Number(row.attendees) / Number(row.max_clients)) * 100)
+  rows.forEach((row) => {
+    // Уникаємо ділення на нуль, якщо у тренування невказана місткість.
+    const attendancePercent = row.max_clients
+      ? Math.round((Number(row.attendees) / Number(row.max_clients)) * PERCENT_MULTIPLIER)
       : 0;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${row.workout_name}</td>
       <td>${formatDate(row.date)}</td>
       <td>${row.attendees}</td>
-      <td>${attendance}%</td>
+      <td>${attendancePercent}%</td>
     `;
     tbody.appendChild(tr);
   });
 }
 
+/**
+ * Завантажує звіт по тренерах: скільки сесій провів кожен.
+ *
+ * @returns {Promise<void>}
+ */
 async function loadStaff() {
-  const data = await apiFetch('/reports/staff');
+  const rows = await apiFetch('/reports/staff');
   const tbody = document.querySelector('#staff-table');
   tbody.innerHTML = '';
-  data.forEach((row) => {
+  rows.forEach((row) => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${row.trainer_name}</td>
@@ -66,6 +98,12 @@ async function loadStaff() {
   });
 }
 
+/**
+ * Початкове завантаження сторінки.
+ * Усі чотири запити запускаємо паралельно — вони незалежні.
+ *
+ * @returns {Promise<void>}
+ */
 async function init() {
   await Promise.all([loadUsers(), loadSummary(), loadAttendance(), loadStaff()]);
 }

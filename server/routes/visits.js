@@ -1,13 +1,31 @@
+/**
+ * Маршрути керування відвідуваннями (фактичними візитами клієнтів).
+ *
+ * GET    /api/visits     — усі візити (admin, manager).
+ * GET    /api/visits/me  — візити поточного клієнта.
+ * POST   /api/visits     — зафіксувати візит (admin, trainer).
+ * DELETE /api/visits/:id — видалити запис візиту (admin).
+ */
+
 import { Router } from 'express';
+
 import { query } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import { getClientIdByUserId } from '../utils/identity.js';
+import {
+  HTTP_BAD_REQUEST,
+  HTTP_CONFLICT,
+  HTTP_CREATED,
+  HTTP_NOT_FOUND,
+  ROLE,
+  SUBSCRIPTION_STATUS,
+} from '../utils/constants.js';
 
 const router = Router();
 
 router.use(authRequired);
 
-router.get('/', requireRole('admin', 'manager'), async (req, res) => {
+router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const result = await query(
     `select v.id, v.client_id, v.subscription_id, v.visit_time,
             u.name as client_name, u.email as client_email
@@ -19,9 +37,11 @@ router.get('/', requireRole('admin', 'manager'), async (req, res) => {
   return res.json(result.rows);
 });
 
-router.get('/me', requireRole('client'), async (req, res) => {
+router.get('/me', requireRole(ROLE.CLIENT), async (req, res) => {
   const clientId = await getClientIdByUserId(req.user.id);
-  if (!clientId) return res.status(404).json({ error: 'Client not found' });
+  if (!clientId) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
+  }
 
   const result = await query(
     `select id, client_id, subscription_id, visit_time
@@ -34,46 +54,56 @@ router.get('/me', requireRole('client'), async (req, res) => {
   return res.json(result.rows);
 });
 
-router.post('/', requireRole('admin', 'trainer'), async (req, res) => {
-  const { client_id, subscription_id, schedule_id } = req.body || {};
-  if (!client_id) return res.status(400).json({ error: 'Missing client_id' });
+router.post('/', requireRole(ROLE.ADMIN, ROLE.TRAINER), async (req, res) => {
+  const {
+    client_id: clientId,
+    subscription_id: subscriptionId,
+    schedule_id: scheduleId,
+  } = req.body || {};
 
+  if (!clientId) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing client_id' });
+  }
+
+  // Шукаємо активний абонемент: візит не може відбутися без оплаченої підписки.
   const activeSub = await query(
     `select id from subscriptions
      where client_id = $1
-       and status = 'active'
+       and status = $2
        and end_date >= CURRENT_DATE
      order by end_date desc
      limit 1`,
-    [client_id]
+    [clientId, SUBSCRIPTION_STATUS.ACTIVE]
   );
 
   if (activeSub.rows.length === 0) {
-    return res.status(409).json({ error: 'No active subscription' });
+    return res.status(HTTP_CONFLICT).json({ error: 'No active subscription' });
   }
 
-  if (schedule_id) {
+  // Якщо вказано конкретне заняття, перевіряємо, чи його вже не зафіксовано —
+  // не створюємо дубль, повертаємо існуючий запис.
+  if (scheduleId) {
     const existing = await query(
-      `select id from visits where client_id = $1 and schedule_id = $2`,
-      [client_id, schedule_id]
+      'select id from visits where client_id = $1 and schedule_id = $2',
+      [clientId, scheduleId]
     );
     if (existing.rows.length > 0) {
       return res.json(existing.rows[0]);
     }
   }
 
-  const resolvedSubscriptionId = subscription_id || activeSub.rows[0].id;
+  const resolvedSubscriptionId = subscriptionId || activeSub.rows[0].id;
   const result = await query(
     `insert into visits (client_id, subscription_id, schedule_id)
      values ($1, $2, $3)
      returning id, client_id, subscription_id, schedule_id, visit_time`,
-    [client_id, resolvedSubscriptionId, schedule_id || null]
+    [clientId, resolvedSubscriptionId, scheduleId || null]
   );
 
-  return res.status(201).json(result.rows[0]);
+  return res.status(HTTP_CREATED).json(result.rows[0]);
 });
 
-router.delete('/:id', requireRole('admin'), async (req, res) => {
+router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
   await query('delete from visits where id = $1', [id]);
   return res.json({ ok: true });

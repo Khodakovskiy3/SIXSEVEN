@@ -1,22 +1,46 @@
+/**
+ * Сторінка клієнта: розклад, бронювання, абонемент, історія візитів, оплата.
+ *
+ * Викликається з public/pages/client.html. Потребує авторизованого користувача
+ * з роллю client; інакше requireAuth робить редирект на /login.
+ */
+
 import { apiFetch, clearAuth, requireAuth, formatDate } from './api.js';
+import { MESSAGE_COLOR, PAGE, ROLE } from './constants.js';
 
-requireAuth(['client']);
+/** Мінімальна допустима сума оплати, грн. */
+const MIN_PAYMENT_AMOUNT = 1;
 
+requireAuth([ROLE.CLIENT]);
+
+// ─── Логаут ──────────────────────────────────────────────────────────────────
 const logoutBtn = document.querySelector('#logout-btn');
 if (logoutBtn) {
   logoutBtn.addEventListener('click', () => {
     clearAuth();
-    window.location.href = '/pages/login.html';
+    window.location.href = PAGE.LOGIN;
   });
 }
 
-function setMessage(id, message, isError = false) {
-  const el = document.querySelector(id);
+/**
+ * Виводить повідомлення в елемент за CSS-селектором.
+ *
+ * @param {string} selector — селектор цільового елемента.
+ * @param {string} message  — текст повідомлення.
+ * @param {boolean} [isError=false]
+ */
+function setMessage(selector, message, isError = false) {
+  const el = document.querySelector(selector);
   if (!el) return;
   el.textContent = message;
-  el.style.color = isError ? '#c0392b' : '#1e8449';
+  el.style.color = isError ? MESSAGE_COLOR.ERROR : MESSAGE_COLOR.SUCCESS;
 }
 
+/**
+ * Завантажує розклад і відображає його у таблиці та у списку для бронювання.
+ *
+ * @returns {Promise<void>}
+ */
 async function loadSchedule() {
   const schedules = await apiFetch('/schedules');
   const tbody = document.querySelector('#schedule-table-body');
@@ -39,11 +63,19 @@ async function loadSchedule() {
     const option = document.createElement('option');
     option.value = schedule.id;
     option.textContent = `${formatDate(schedule.date)} ${schedule.time} — ${schedule.workout_name}`;
-    if (schedule.available === 0) option.disabled = true;
+    // Якщо вільних місць нема — робимо опцію неактивною, але показуємо.
+    if (schedule.available === 0) {
+      option.disabled = true;
+    }
     select.appendChild(option);
   });
 }
 
+/**
+ * Завантажує профіль клієнта і відображає поточний абонемент.
+ *
+ * @returns {Promise<void>}
+ */
 async function loadSubscription() {
   const profile = await apiFetch('/clients/me');
   const statusEl = document.querySelector('#subscription-status');
@@ -53,14 +85,19 @@ async function loadSubscription() {
     return;
   }
 
-  const sub = profile.subscription;
+  const subscription = profile.subscription;
   statusEl.innerHTML = `
-    <strong>Статус абонемента:</strong> ${sub.status}<br>
-    <strong>Тип:</strong> ${sub.type}<br>
-    <strong>Термін дії до:</strong> ${formatDate(sub.end_date)}
+    <strong>Статус абонемента:</strong> ${subscription.status}<br>
+    <strong>Тип:</strong> ${subscription.type}<br>
+    <strong>Термін дії до:</strong> ${formatDate(subscription.end_date)}
   `;
 }
 
+/**
+ * Завантажує історію візитів клієнта і виводить її у таблиці.
+ *
+ * @returns {Promise<void>}
+ */
 async function loadVisits() {
   const visits = await apiFetch('/visits/me');
   const tbody = document.querySelector('#visits-table-body');
@@ -75,6 +112,7 @@ async function loadVisits() {
   });
 }
 
+// ─── Кнопка бронювання ───────────────────────────────────────────────────────
 const bookingBtn = document.querySelector('#booking-btn');
 bookingBtn.addEventListener('click', async () => {
   setMessage('#booking-status', '');
@@ -88,16 +126,17 @@ bookingBtn.addEventListener('click', async () => {
     });
     setMessage('#booking-status', 'Місце заброньовано!');
     await loadSchedule();
-  } catch (err) {
-    setMessage('#booking-status', err.message, true);
+  } catch (error) {
+    setMessage('#booking-status', error.message, true);
   }
 });
 
+// ─── Кнопка оплати ───────────────────────────────────────────────────────────
 const payBtn = document.querySelector('#pay-btn');
 payBtn.addEventListener('click', async () => {
   setMessage('#payment-status', '');
   const amount = Number(document.querySelector('#payment-amount').value) || 0;
-  if (amount <= 0) {
+  if (amount < MIN_PAYMENT_AMOUNT) {
     setMessage('#payment-status', 'Вкажіть суму оплати', true);
     return;
   }
@@ -108,11 +147,17 @@ payBtn.addEventListener('click', async () => {
       body: JSON.stringify({ amount }),
     });
     setMessage('#payment-status', 'Оплата успішна!');
-  } catch (err) {
-    setMessage('#payment-status', err.message, true);
+  } catch (error) {
+    setMessage('#payment-status', error.message, true);
   }
 });
 
+/**
+ * Початкове завантаження даних сторінки.
+ * Викликаємо у трьох потоках паралельно, щоб не блокувати рендер.
+ *
+ * @returns {Promise<void>}
+ */
 async function init() {
   await Promise.all([loadSchedule(), loadSubscription(), loadVisits()]);
 }

@@ -1,21 +1,47 @@
+/**
+ * Маршрути керування абонементами клієнтів.
+ *
+ * GET    /api/subscriptions     — список усіх абонементів (admin, manager).
+ * GET    /api/subscriptions/me  — абонементи поточного клієнта.
+ * POST   /api/subscriptions     — створити абонемент (admin, manager).
+ * PUT    /api/subscriptions/:id — оновити абонемент.
+ * DELETE /api/subscriptions/:id — видалити абонемент (admin).
+ */
+
 import { Router } from 'express';
+
 import { query } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import { getClientIdByUserId } from '../utils/identity.js';
+import {
+  HTTP_BAD_REQUEST,
+  HTTP_CREATED,
+  HTTP_NOT_FOUND,
+  ROLE,
+  SUBSCRIPTION_STATUS,
+} from '../utils/constants.js';
 
 const router = Router();
 
 router.use(authRequired);
 
+/**
+ * Перед видачею абонементів актуалізує їх статуси:
+ * усі, що минули end_date, переводяться в 'expired'.
+ * Виконується лазиво при кожному запиті, щоб не тримати окремого cron-job.
+ *
+ * @returns {Promise<void>}
+ */
 async function refreshSubscriptionStatuses() {
   await query(
     `update subscriptions
-     set status = 'expired'
-     where end_date < CURRENT_DATE and status != 'expired'`
+     set status = $1
+     where end_date < CURRENT_DATE and status != $1`,
+    [SUBSCRIPTION_STATUS.EXPIRED]
   );
 }
 
-router.get('/', requireRole('admin', 'manager'), async (req, res) => {
+router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   await refreshSubscriptionStatuses();
   const result = await query(
     `select s.id, s.client_id, s.type, s.start_date, s.end_date, s.status,
@@ -28,10 +54,12 @@ router.get('/', requireRole('admin', 'manager'), async (req, res) => {
   return res.json(result.rows);
 });
 
-router.get('/me', requireRole('client'), async (req, res) => {
+router.get('/me', requireRole(ROLE.CLIENT), async (req, res) => {
   await refreshSubscriptionStatuses();
   const clientId = await getClientIdByUserId(req.user.id);
-  if (!clientId) return res.status(404).json({ error: 'Client not found' });
+  if (!clientId) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
+  }
 
   const result = await query(
     `select id, type, start_date, end_date, status
@@ -44,25 +72,37 @@ router.get('/me', requireRole('client'), async (req, res) => {
   return res.json(result.rows);
 });
 
-router.post('/', requireRole('admin', 'manager'), async (req, res) => {
-  const { client_id, type, start_date, end_date, status } = req.body || {};
-  if (!client_id || !type || !start_date || !end_date) {
-    return res.status(400).json({ error: 'Missing required fields' });
+router.post('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
+  const {
+    client_id: clientId,
+    type,
+    start_date: startDate,
+    end_date: endDate,
+    status,
+  } = req.body || {};
+
+  if (!clientId || !type || !startDate || !endDate) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
   }
 
   const result = await query(
     `insert into subscriptions (client_id, type, start_date, end_date, status)
      values ($1, $2, $3, $4, $5)
      returning id, client_id, type, start_date, end_date, status`,
-    [client_id, type, start_date, end_date, status || 'active']
+    [clientId, type, startDate, endDate, status || SUBSCRIPTION_STATUS.ACTIVE]
   );
 
-  return res.status(201).json(result.rows[0]);
+  return res.status(HTTP_CREATED).json(result.rows[0]);
 });
 
-router.put('/:id', requireRole('admin', 'manager'), async (req, res) => {
+router.put('/:id', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const { id } = req.params;
-  const { type, start_date, end_date, status } = req.body || {};
+  const {
+    type,
+    start_date: startDate,
+    end_date: endDate,
+    status,
+  } = req.body || {};
 
   const result = await query(
     `update subscriptions
@@ -72,14 +112,16 @@ router.put('/:id', requireRole('admin', 'manager'), async (req, res) => {
          status = coalesce($4, status)
      where id = $5
      returning id, client_id, type, start_date, end_date, status`,
-    [type || null, start_date || null, end_date || null, status || null, id]
+    [type || null, startDate || null, endDate || null, status || null, id]
   );
 
-  if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+  if (result.rows.length === 0) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+  }
   return res.json(result.rows[0]);
 });
 
-router.delete('/:id', requireRole('admin'), async (req, res) => {
+router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
   await query('delete from subscriptions where id = $1', [id]);
   return res.json({ ok: true });

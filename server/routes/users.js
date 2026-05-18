@@ -1,12 +1,27 @@
+/**
+ * Маршрути керування користувачами системи (всі ролі).
+ *
+ * GET    /api/users     — список усіх користувачів (admin, manager).
+ * PUT    /api/users/:id — оновити користувача (admin).
+ * DELETE /api/users/:id — видалити користувача (admin).
+ */
+
 import { Router } from 'express';
+
 import { query } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
+import {
+  HTTP_BAD_REQUEST,
+  HTTP_NOT_FOUND,
+  ROLE,
+  VALID_ROLES,
+} from '../utils/constants.js';
 
 const router = Router();
 
 router.use(authRequired);
 
-router.get('/', requireRole('admin', 'manager'), async (req, res) => {
+router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const result = await query(
     `select u.id, u.name, u.email, u.role, c.id as client_id
      from users u
@@ -16,13 +31,14 @@ router.get('/', requireRole('admin', 'manager'), async (req, res) => {
   return res.json(result.rows);
 });
 
-router.put('/:id', requireRole('admin'), async (req, res) => {
+router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
   const { name, email, role } = req.body || {};
 
+  // Якщо роль передана — нормалізуємо до нижнього регістру і валідуємо.
   const normalizedRole = role ? role.toLowerCase() : null;
-  if (normalizedRole && !['admin', 'trainer', 'manager', 'client'].includes(normalizedRole)) {
-    return res.status(400).json({ error: 'Invalid role' });
+  if (normalizedRole && !VALID_ROLES.includes(normalizedRole)) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid role' });
   }
 
   const result = await query(
@@ -35,11 +51,13 @@ router.put('/:id', requireRole('admin'), async (req, res) => {
     [name || null, email ? email.toLowerCase() : null, normalizedRole, id]
   );
 
-  if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+  if (result.rows.length === 0) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+  }
   return res.json(result.rows[0]);
 });
 
-router.delete('/:id', requireRole('admin'), async (req, res) => {
+router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
   await query('delete from users where id = $1', [id]);
   return res.json({ ok: true });

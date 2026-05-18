@@ -1,24 +1,45 @@
+/**
+ * Сторінка тренера: власний розклад, список клієнтів групи, відмітка візиту.
+ *
+ * Викликається з public/pages/trainer.html. Доступ лише для ролі trainer.
+ */
+
 import { apiFetch, clearAuth, requireAuth, formatDate } from './api.js';
+import { MESSAGE_COLOR, PAGE, ROLE } from './constants.js';
 
-requireAuth(['trainer']);
+requireAuth([ROLE.TRAINER]);
 
+// ─── Логаут ──────────────────────────────────────────────────────────────────
 const logoutBtn = document.querySelector('#logout-btn');
 if (logoutBtn) {
   logoutBtn.addEventListener('click', () => {
     clearAuth();
-    window.location.href = '/pages/login.html';
+    window.location.href = PAGE.LOGIN;
   });
 }
 
-function setMessage(id, message, isError = false) {
-  const el = document.querySelector(id);
+/**
+ * Виводить повідомлення в елемент за CSS-селектором.
+ *
+ * @param {string} selector
+ * @param {string} message
+ * @param {boolean} [isError=false]
+ */
+function setMessage(selector, message, isError = false) {
+  const el = document.querySelector(selector);
   if (!el) return;
   el.textContent = message;
-  el.style.color = isError ? '#c0392b' : '#1e8449';
+  el.style.color = isError ? MESSAGE_COLOR.ERROR : MESSAGE_COLOR.SUCCESS;
 }
 
+// Поточне обране заняття (id з таблиці schedules).
 let currentScheduleId = null;
 
+/**
+ * Завантажує розклад поточного тренера.
+ *
+ * @returns {Promise<void>}
+ */
 async function loadSchedule() {
   const trainer = await apiFetch('/trainers/me');
   const schedules = await apiFetch(`/schedules?trainer_id=${trainer.id}`);
@@ -43,12 +64,18 @@ async function loadSchedule() {
     select.appendChild(option);
   });
 
+  // Якщо у тренера є заняття — обираємо перше для початкового перегляду групи.
   if (schedules.length > 0) {
     currentScheduleId = schedules[0].id;
     select.value = currentScheduleId;
   }
 }
 
+/**
+ * Завантажує учасників обраного заняття у бічну панель.
+ *
+ * @returns {Promise<void>}
+ */
 async function viewGroup() {
   const select = document.querySelector('#training-select');
   const scheduleId = select.value;
@@ -81,11 +108,13 @@ async function viewGroup() {
   groupInfo.style.display = 'block';
 }
 
+// ─── Перегляд групи ──────────────────────────────────────────────────────────
 const viewGroupBtn = document.querySelector('#view-group');
 viewGroupBtn.addEventListener('click', () => {
-  viewGroup().catch((err) => setMessage('#visit-message', err.message, true));
+  viewGroup().catch((error) => setMessage('#visit-message', error.message, true));
 });
 
+// ─── Відмітка візиту ─────────────────────────────────────────────────────────
 const markVisitBtn = document.querySelector('#mark-visit');
 markVisitBtn.addEventListener('click', async () => {
   setMessage('#visit-message', '');
@@ -101,11 +130,16 @@ markVisitBtn.addEventListener('click', async () => {
       body: JSON.stringify({ client_id: Number(clientId) }),
     });
     setMessage('#visit-message', 'Візит зафіксовано');
-  } catch (err) {
-    setMessage('#visit-message', err.message, true);
+  } catch (error) {
+    setMessage('#visit-message', error.message, true);
   }
 });
 
+/**
+ * Початкове завантаження сторінки тренера.
+ *
+ * @returns {Promise<void>}
+ */
 async function init() {
   await loadSchedule();
   await viewGroup();

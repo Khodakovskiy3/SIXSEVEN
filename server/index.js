@@ -1,3 +1,12 @@
+/**
+ * Точка входу серверної частини «Системи обліку спортивного клубу».
+ *
+ * Налаштовує Express-застосунок:
+ *  • CORS і JSON-парсер;
+ *  • роздачу статичних файлів із public/;
+ *  • маршрути API /api/* (по одному модулю на доменну сутність).
+ */
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -14,19 +23,25 @@ import paymentsRoutes from './routes/payments.js';
 import visitsRoutes from './routes/visits.js';
 import reportsRoutes from './routes/reports.js';
 
+import { DEFAULT_HTTP_PORT } from './utils/constants.js';
+
 dotenv.config();
 
+const PORT = Number(process.env.PORT) || DEFAULT_HTTP_PORT;
+const STATIC_DIR = 'public';
+
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(STATIC_DIR));
 
+// Простий health-чек, корисний для моніторингу та deployment-перевірок.
 app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── Реєстрація доменних маршрутів ────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/clients', clientsRoutes);

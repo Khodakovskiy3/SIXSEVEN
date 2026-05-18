@@ -1,22 +1,63 @@
+/**
+ * Сторінка адміністратора: CRUD над усіма доменними сутностями.
+ *
+ * Викликається з public/pages/admin.html. Доступ лише для ролі admin.
+ *
+ * Архітектурно складається з трьох частин:
+ *  1. Завантаження та рендер таблиць (loadX / renderX) з кешем у пам’яті.
+ *  2. Уніфікована форма додавання (#unified-form) з перемиканням полів.
+ *  3. Модальне вікно редагування (#edit-modal) — універсальне для всіх типів.
+ */
+
 import { apiFetch, clearAuth, requireAuth, formatDate } from './api.js';
+import { MESSAGE_COLOR, PAGE, ROLE } from './constants.js';
 
-requireAuth(['admin']);
+// ─── Доменні константи ───────────────────────────────────────────────────────
+const ROLE_FILTER_ALL = 'all';
 
+const SUBSCRIPTION_STATUS = Object.freeze({
+  ACTIVE: 'active',
+  PAUSED: 'paused',
+  EXPIRED: 'expired',
+});
+
+const ENTITY_TYPE = Object.freeze({
+  USER: 'user',
+  WORKOUT: 'workout',
+  SCHEDULE: 'schedule',
+  SUBSCRIPTION: 'subscription',
+  PAYMENT: 'payment',
+  VISIT: 'visit',
+});
+
+requireAuth([ROLE.ADMIN]);
+
+// ─── Логаут ──────────────────────────────────────────────────────────────────
 const logoutBtn = document.querySelector('#logout-btn');
 if (logoutBtn) {
   logoutBtn.addEventListener('click', () => {
     clearAuth();
-    window.location.href = '/pages/login.html';
+    window.location.href = PAGE.LOGIN;
   });
 }
 
-function setMessage(id, message, isError = false) {
-  const el = document.querySelector(id);
+/**
+ * Виводить повідомлення в елемент за CSS-селектором.
+ *
+ * @param {string} selector
+ * @param {string} message
+ * @param {boolean} [isError=false]
+ */
+function setMessage(selector, message, isError = false) {
+  const el = document.querySelector(selector);
   if (!el) return;
   el.textContent = message;
-  el.style.color = isError ? '#c0392b' : '#1e8449';
+  el.style.color = isError ? MESSAGE_COLOR.ERROR : MESSAGE_COLOR.SUCCESS;
 }
 
+// ─── Кеш даних у пам’яті ─────────────────────────────────────────────────────
+// Тримаємо завантажені списки локально, щоб фільтрація та модальні форми
+// не потребували повторних запитів до API.
 let allUsers = [];
 let clientsCache = [];
 let trainersCache = [];
@@ -26,18 +67,27 @@ let subscriptionsCache = [];
 let paymentsCache = [];
 let visitsCache = [];
 
-function getSearchValue(id) {
-  const el = document.querySelector(id);
+/**
+ * Зчитує та нормалізує значення з поля пошуку.
+ *
+ * @param {string} selector
+ * @returns {string} нижній регістр, без пробілів по краях.
+ */
+function getSearchValue(selector) {
+  const el = document.querySelector(selector);
   return el ? el.value.trim().toLowerCase() : '';
 }
 
+// ─── Рендер таблиць ──────────────────────────────────────────────────────────
+
+/** Перерисовує таблицю користувачів з урахуванням фільтрів. */
 function renderUsers() {
   const tbody = document.querySelector('#users-table');
   const roleFilter = document.querySelector('#user-role-filter').value;
   const searchValue = getSearchValue('#user-search');
 
   const filtered = allUsers.filter((user) => {
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+    const matchesRole = roleFilter === ROLE_FILTER_ALL || user.role === roleFilter;
     const haystack = `${user.name} ${user.email}`.toLowerCase();
     const matchesSearch = !searchValue || haystack.includes(searchValue);
     return matchesRole && matchesSearch;
@@ -45,7 +95,7 @@ function renderUsers() {
 
   tbody.innerHTML = '';
   filtered.forEach((user) => {
-    const canMark = user.role === 'client' && user.client_id;
+    const canMarkVisit = user.role === ROLE.CLIENT && user.client_id;
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${user.id}</td>
@@ -54,7 +104,7 @@ function renderUsers() {
       <td>${user.role}</td>
       <td>
         <button class="edit-btn" data-user-id="${user.id}">Редагувати</button>
-        <button class="visit-btn" data-client-id="${user.client_id || ''}" ${canMark ? '' : 'disabled'}>
+        <button class="visit-btn" data-client-id="${user.client_id || ''}" ${canMarkVisit ? '' : 'disabled'}>
           Прийшов
         </button>
         <button class="delete-btn" data-user-id="${user.id}">Видалити</button>
@@ -64,12 +114,24 @@ function renderUsers() {
   });
 }
 
+/**
+ * Перемикає відображення груп полів у уніфікованій формі додавання.
+ *
+ * @param {string} type — поточний тип сутності.
+ */
 function toggleAddGroups(type) {
   document.querySelectorAll('.add-group').forEach((group) => {
     group.style.display = group.dataset.type === type ? 'block' : 'none';
   });
 }
 
+/**
+ * Заповнює <select> переданими опціями HTML.
+ *
+ * @param {string} selector            — селектор <select>.
+ * @param {string[]} options           — масив рядків <option>.
+ * @param {boolean} [includeEmpty=false] — додати пусту опцію «(не вказано)».
+ */
 function fillSelect(selector, options, includeEmpty = false) {
   const select = document.querySelector(selector);
   if (!select) return;
@@ -230,24 +292,24 @@ async function loadSubscriptions() {
 function renderSubscriptions() {
   const tbody = document.querySelector('#subscriptions-table');
   const searchValue = getSearchValue('#subscriptions-search');
-  const filtered = subscriptionsCache.filter((sub) => {
-    const haystack = `${sub.client_name} ${sub.type}`.toLowerCase();
+  const filtered = subscriptionsCache.filter((subscription) => {
+    const haystack = `${subscription.client_name} ${subscription.type}`.toLowerCase();
     return !searchValue || haystack.includes(searchValue);
   });
 
   tbody.innerHTML = '';
-  filtered.forEach((sub) => {
+  filtered.forEach((subscription) => {
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td>${sub.id}</td>
-      <td>${sub.client_name}</td>
-      <td>${sub.type}</td>
-      <td>${formatDate(sub.start_date)}</td>
-      <td>${formatDate(sub.end_date)}</td>
-      <td>${sub.status}</td>
+      <td>${subscription.id}</td>
+      <td>${subscription.client_name}</td>
+      <td>${subscription.type}</td>
+      <td>${formatDate(subscription.start_date)}</td>
+      <td>${formatDate(subscription.end_date)}</td>
+      <td>${subscription.status}</td>
       <td>
-        <button class="edit-btn" data-subscription-id="${sub.id}">Редагувати</button>
-        <button class="delete-btn" data-subscription-id="${sub.id}">Видалити</button>
+        <button class="edit-btn" data-subscription-id="${subscription.id}">Редагувати</button>
+        <button class="delete-btn" data-subscription-id="${subscription.id}">Видалити</button>
       </td>
     `;
     tbody.appendChild(row);
@@ -314,6 +376,7 @@ function renderVisits() {
   });
 }
 
+// ─── Прив’язка пошукових полів ───────────────────────────────────────────────
 const roleFilter = document.querySelector('#user-role-filter');
 const userSearch = document.querySelector('#user-search');
 roleFilter.addEventListener('change', renderUsers);
@@ -326,7 +389,7 @@ document.querySelector('#subscriptions-search').addEventListener('input', render
 document.querySelector('#payments-search').addEventListener('input', renderPayments);
 document.querySelector('#visits-search').addEventListener('input', renderVisits);
 
-// Unified add form
+// ─── Уніфікована форма додавання ─────────────────────────────────────────────
 const addTypeSelect = document.querySelector('#add-type');
 const unifiedForm = document.querySelector('#unified-form');
 addTypeSelect.addEventListener('change', () => toggleAddGroups(addTypeSelect.value));
@@ -337,7 +400,7 @@ unifiedForm.addEventListener('submit', async (event) => {
   const type = addTypeSelect.value;
 
   try {
-    if (type === 'user') {
+    if (type === ENTITY_TYPE.USER) {
       await apiFetch('/auth/register', {
         method: 'POST',
         body: JSON.stringify({
@@ -352,7 +415,7 @@ unifiedForm.addEventListener('submit', async (event) => {
       await Promise.all([loadUsers(), loadClients(), loadTrainers()]);
     }
 
-    if (type === 'workout') {
+    if (type === ENTITY_TYPE.WORKOUT) {
       await apiFetch('/workouts', {
         method: 'POST',
         body: JSON.stringify({
@@ -364,7 +427,7 @@ unifiedForm.addEventListener('submit', async (event) => {
       await loadWorkouts();
     }
 
-    if (type === 'schedule') {
+    if (type === ENTITY_TYPE.SCHEDULE) {
       await apiFetch('/schedules', {
         method: 'POST',
         body: JSON.stringify({
@@ -377,7 +440,7 @@ unifiedForm.addEventListener('submit', async (event) => {
       await loadSchedules();
     }
 
-    if (type === 'subscription') {
+    if (type === ENTITY_TYPE.SUBSCRIPTION) {
       await apiFetch('/subscriptions', {
         method: 'POST',
         body: JSON.stringify({
@@ -391,7 +454,7 @@ unifiedForm.addEventListener('submit', async (event) => {
       await loadSubscriptions();
     }
 
-    if (type === 'payment') {
+    if (type === ENTITY_TYPE.PAYMENT) {
       await apiFetch('/payments', {
         method: 'POST',
         body: JSON.stringify({
@@ -403,7 +466,7 @@ unifiedForm.addEventListener('submit', async (event) => {
       await loadPayments();
     }
 
-    if (type === 'visit') {
+    if (type === ENTITY_TYPE.VISIT) {
       await apiFetch('/visits', {
         method: 'POST',
         body: JSON.stringify({
@@ -416,27 +479,37 @@ unifiedForm.addEventListener('submit', async (event) => {
     unifiedForm.reset();
     toggleAddGroups(addTypeSelect.value);
     setMessage('#add-message', 'Додано успішно');
-  } catch (err) {
-    setMessage('#add-message', err.message, true);
+  } catch (error) {
+    setMessage('#add-message', error.message, true);
   }
 });
 
-// Edit modal
+// ─── Модальне вікно редагування ──────────────────────────────────────────────
 const modal = document.querySelector('#edit-modal');
 const editForm = document.querySelector('#edit-form');
 const editFields = document.querySelector('#edit-fields');
 const editTitle = document.querySelector('#edit-title');
 const editCancel = document.querySelector('#edit-cancel');
+
+// Поточний обробник submit для модалки — підмінюється при відкритті.
 let editState = null;
 
-function openModal(title, fields, onSubmit) {
+/**
+ * Відкриває модальне вікно з полями для редагування.
+ *
+ * @param {string} title          — заголовок діалогу.
+ * @param {string} fieldsHtml     — HTML для контейнера #edit-fields.
+ * @param {() => Promise<void>} onSubmit — функція, що викликається при submit.
+ */
+function openModal(title, fieldsHtml, onSubmit) {
   editTitle.textContent = title;
-  editFields.innerHTML = fields;
+  editFields.innerHTML = fieldsHtml;
   editState = onSubmit;
   setMessage('#edit-message', '');
   modal.style.display = 'flex';
 }
 
+/** Закриває модальне вікно. */
 function closeModal() {
   modal.style.display = 'none';
   editState = null;
@@ -444,6 +517,7 @@ function closeModal() {
 
 editCancel.addEventListener('click', closeModal);
 modal.addEventListener('click', (event) => {
+  // Закриваємо тільки якщо клік був по тлу, а не по самому діалогу.
   if (event.target === modal) closeModal();
 });
 
@@ -453,13 +527,16 @@ editForm.addEventListener('submit', async (event) => {
   try {
     await editState();
     closeModal();
-  } catch (err) {
-    setMessage('#edit-message', err.message, true);
+  } catch (error) {
+    setMessage('#edit-message', error.message, true);
   }
 });
 
-// Edit handlers
+// ─── Делеговані обробники таблиць ────────────────────────────────────────────
+// Кожна таблиця слухає кліки за принципом event delegation,
+// щоб не потрібно було перепідписуватись після кожного renderX.
 
+// Редагування користувача
 document.querySelector('#users-table').addEventListener('click', (event) => {
   const button = event.target.closest('.edit-btn');
   if (!button) return;
@@ -480,10 +557,10 @@ document.querySelector('#users-table').addEventListener('click', (event) => {
     <div class="form-group">
       <label for="edit-role">Роль:</label>
       <select id="edit-role">
-        <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Адміністратор</option>
-        <option value="manager" ${user.role === 'manager' ? 'selected' : ''}>Керівник</option>
-        <option value="trainer" ${user.role === 'trainer' ? 'selected' : ''}>Тренер</option>
-        <option value="client" ${user.role === 'client' ? 'selected' : ''}>Клієнт</option>
+        <option value="admin" ${user.role === ROLE.ADMIN ? 'selected' : ''}>Адміністратор</option>
+        <option value="manager" ${user.role === ROLE.MANAGER ? 'selected' : ''}>Керівник</option>
+        <option value="trainer" ${user.role === ROLE.TRAINER ? 'selected' : ''}>Тренер</option>
+        <option value="client" ${user.role === ROLE.CLIENT ? 'selected' : ''}>Клієнт</option>
       </select>
     </div>
   `, async () => {
@@ -499,6 +576,7 @@ document.querySelector('#users-table').addEventListener('click', (event) => {
   });
 });
 
+// Відмітка візиту прямо зі списку користувачів (кнопка «Прийшов»)
 document.querySelector('#users-table').addEventListener('click', async (event) => {
   const button = event.target.closest('.visit-btn');
   if (!button || button.disabled) return;
@@ -512,11 +590,12 @@ document.querySelector('#users-table').addEventListener('click', async (event) =
       body: JSON.stringify({ client_id: clientId }),
     });
     await loadVisits();
-  } catch (err) {
-    alert(err.message);
+  } catch (error) {
+    alert(error.message);
   }
 });
 
+// Видалення користувача
 document.querySelector('#users-table').addEventListener('click', async (event) => {
   const button = event.target.closest('.delete-btn');
   if (!button) return;
@@ -528,11 +607,12 @@ document.querySelector('#users-table').addEventListener('click', async (event) =
   try {
     await apiFetch(`/users/${userId}`, { method: 'DELETE' });
     await Promise.all([loadUsers(), loadClients(), loadTrainers()]);
-  } catch (err) {
-    alert(err.message);
+  } catch (error) {
+    alert(error.message);
   }
 });
 
+// Видалення клієнта
 document.querySelector('#clients-table').addEventListener('click', async (event) => {
   const button = event.target.closest('.delete-btn');
   if (!button) return;
@@ -544,11 +624,12 @@ document.querySelector('#clients-table').addEventListener('click', async (event)
   try {
     await apiFetch(`/clients/${clientId}`, { method: 'DELETE' });
     await Promise.all([loadClients(), loadUsers()]);
-  } catch (err) {
-    alert(err.message);
+  } catch (error) {
+    alert(error.message);
   }
 });
 
+// Видалення тренера
 document.querySelector('#trainers-table').addEventListener('click', async (event) => {
   const button = event.target.closest('.delete-btn');
   if (!button) return;
@@ -560,11 +641,12 @@ document.querySelector('#trainers-table').addEventListener('click', async (event
   try {
     await apiFetch(`/trainers/${trainerId}`, { method: 'DELETE' });
     await Promise.all([loadTrainers(), loadUsers()]);
-  } catch (err) {
-    alert(err.message);
+  } catch (error) {
+    alert(error.message);
   }
 });
 
+// Видалення тренування
 document.querySelector('#workouts-table').addEventListener('click', async (event) => {
   const button = event.target.closest('.delete-btn');
   if (!button) return;
@@ -576,11 +658,12 @@ document.querySelector('#workouts-table').addEventListener('click', async (event
   try {
     await apiFetch(`/workouts/${workoutId}`, { method: 'DELETE' });
     await Promise.all([loadWorkouts(), loadSchedules()]);
-  } catch (err) {
-    alert(err.message);
+  } catch (error) {
+    alert(error.message);
   }
 });
 
+// Видалення запису розкладу
 document.querySelector('#schedules-table').addEventListener('click', async (event) => {
   const button = event.target.closest('.delete-btn');
   if (!button) return;
@@ -592,11 +675,12 @@ document.querySelector('#schedules-table').addEventListener('click', async (even
   try {
     await apiFetch(`/schedules/${scheduleId}`, { method: 'DELETE' });
     await loadSchedules();
-  } catch (err) {
-    alert(err.message);
+  } catch (error) {
+    alert(error.message);
   }
 });
 
+// Видалення абонемента
 document.querySelector('#subscriptions-table').addEventListener('click', async (event) => {
   const button = event.target.closest('.delete-btn');
   if (!button) return;
@@ -608,11 +692,12 @@ document.querySelector('#subscriptions-table').addEventListener('click', async (
   try {
     await apiFetch(`/subscriptions/${subscriptionId}`, { method: 'DELETE' });
     await loadSubscriptions();
-  } catch (err) {
-    alert(err.message);
+  } catch (error) {
+    alert(error.message);
   }
 });
 
+// Видалення оплати
 document.querySelector('#payments-table').addEventListener('click', async (event) => {
   const button = event.target.closest('.delete-btn');
   if (!button) return;
@@ -624,11 +709,12 @@ document.querySelector('#payments-table').addEventListener('click', async (event
   try {
     await apiFetch(`/payments/${paymentId}`, { method: 'DELETE' });
     await loadPayments();
-  } catch (err) {
-    alert(err.message);
+  } catch (error) {
+    alert(error.message);
   }
 });
 
+// Видалення візиту
 document.querySelector('#visits-table').addEventListener('click', async (event) => {
   const button = event.target.closest('.delete-btn');
   if (!button) return;
@@ -640,11 +726,12 @@ document.querySelector('#visits-table').addEventListener('click', async (event) 
   try {
     await apiFetch(`/visits/${visitId}`, { method: 'DELETE' });
     await loadVisits();
-  } catch (err) {
-    alert(err.message);
+  } catch (error) {
+    alert(error.message);
   }
 });
 
+// Редагування клієнта
 document.querySelector('#clients-table').addEventListener('click', (event) => {
   const button = event.target.closest('.edit-btn');
   if (!button) return;
@@ -680,6 +767,7 @@ document.querySelector('#clients-table').addEventListener('click', (event) => {
   });
 });
 
+// Редагування тренера
 document.querySelector('#trainers-table').addEventListener('click', (event) => {
   const button = event.target.closest('.edit-btn');
   if (!button) return;
@@ -715,6 +803,7 @@ document.querySelector('#trainers-table').addEventListener('click', (event) => {
   });
 });
 
+// Редагування тренування
 document.querySelector('#workouts-table').addEventListener('click', (event) => {
   const button = event.target.closest('.edit-btn');
   if (!button) return;
@@ -750,6 +839,7 @@ document.querySelector('#workouts-table').addEventListener('click', (event) => {
   });
 });
 
+// Редагування запису розкладу
 document.querySelector('#schedules-table').addEventListener('click', (event) => {
   const button = event.target.closest('.edit-btn');
   if (!button) return;
@@ -764,7 +854,8 @@ document.querySelector('#schedules-table').addEventListener('click', (event) => 
   const trainerOptions = ['<option value="">(не вказано)</option>']
     .concat(trainersCache.map((trainer) => `
       <option value="${trainer.id}" ${trainer.id === schedule.trainer_id ? 'selected' : ''}>${trainer.name}</option>
-    `)).join('');
+    `))
+    .join('');
 
   openModal('Редагувати розклад', `
     <div class="form-group">
@@ -797,6 +888,7 @@ document.querySelector('#schedules-table').addEventListener('click', (event) => 
   });
 });
 
+// Відвідуваність групи (по кнопці «Група» в таблиці розкладу)
 document.querySelector('#schedules-table').addEventListener('click', async (event) => {
   const button = event.target.closest('.group-btn');
   if (!button) return;
@@ -826,6 +918,8 @@ document.querySelector('#schedules-table').addEventListener('click', async (even
       </div>
     `, async () => {
       const checkboxes = Array.from(editFields.querySelectorAll('input[type=\"checkbox\"]'));
+      // Розрізняємо два набори: нові візити, які треба створити,
+      // і відмічені раніше — їх треба видалити при знятті прапорця.
       const toCreate = checkboxes.filter((cb) => cb.checked && !cb.dataset.visitId);
       const toDelete = checkboxes.filter((cb) => !cb.checked && cb.dataset.visitId);
 
@@ -844,11 +938,12 @@ document.querySelector('#schedules-table').addEventListener('click', async (even
 
       await loadVisits();
     });
-  } catch (err) {
-    alert(err.message);
+  } catch (error) {
+    alert(error.message);
   }
 });
 
+// Редагування абонемента
 document.querySelector('#subscriptions-table').addEventListener('click', (event) => {
   const button = event.target.closest('.edit-btn');
   if (!button) return;
@@ -873,9 +968,9 @@ document.querySelector('#subscriptions-table').addEventListener('click', (event)
     <div class="form-group">
       <label for="edit-status">Статус:</label>
       <select id="edit-status">
-        <option value="active" ${subscription.status === 'active' ? 'selected' : ''}>Активний</option>
-        <option value="paused" ${subscription.status === 'paused' ? 'selected' : ''}>Призупинений</option>
-        <option value="expired" ${subscription.status === 'expired' ? 'selected' : ''}>Закінчений</option>
+        <option value="active" ${subscription.status === SUBSCRIPTION_STATUS.ACTIVE ? 'selected' : ''}>Активний</option>
+        <option value="paused" ${subscription.status === SUBSCRIPTION_STATUS.PAUSED ? 'selected' : ''}>Призупинений</option>
+        <option value="expired" ${subscription.status === SUBSCRIPTION_STATUS.EXPIRED ? 'selected' : ''}>Закінчений</option>
       </select>
     </div>
   `, async () => {
@@ -892,6 +987,13 @@ document.querySelector('#subscriptions-table').addEventListener('click', (event)
   });
 });
 
+/**
+ * Початкове завантаження адмінської сторінки.
+ * Розбиваємо на дві хвилі: спочатку базові довідники (потрібні для селектів
+ * у формах), потім — операційні дані (розклад, абонементи тощо).
+ *
+ * @returns {Promise<void>}
+ */
 async function init() {
   toggleAddGroups(addTypeSelect.value);
   await Promise.all([

@@ -1,13 +1,34 @@
+/**
+ * Маршрути керування тренерами.
+ *
+ * GET    /api/trainers      — список тренерів (admin, manager).
+ * GET    /api/trainers/me   — профіль поточного тренера.
+ * POST   /api/trainers      — створити тренера (admin).
+ * PUT    /api/trainers/:id  — оновити дані тренера (admin).
+ * DELETE /api/trainers/:id  — видалити тренера (admin).
+ */
+
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+
 import { query, withClient } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
+import {
+  BCRYPT_SALT_ROUNDS,
+  HTTP_BAD_REQUEST,
+  HTTP_CONFLICT,
+  HTTP_CREATED,
+  HTTP_NOT_FOUND,
+  HTTP_SERVER_ERROR,
+  PG_UNIQUE_VIOLATION,
+  ROLE,
+} from '../utils/constants.js';
 
 const router = Router();
 
 router.use(authRequired);
 
-router.get('/me', requireRole('trainer'), async (req, res) => {
+router.get('/me', requireRole(ROLE.TRAINER), async (req, res) => {
   const result = await query(
     `select t.id, u.name, u.email, t.specialization
      from trainers t
@@ -16,11 +37,13 @@ router.get('/me', requireRole('trainer'), async (req, res) => {
     [req.user.id]
   );
 
-  if (result.rows.length === 0) return res.status(404).json({ error: 'Trainer not found' });
+  if (result.rows.length === 0) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Trainer not found' });
+  }
   return res.json(result.rows[0]);
 });
 
-router.get('/', requireRole('admin', 'manager'), async (req, res) => {
+router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const result = await query(
     `select t.id, u.name, u.email, t.specialization
      from trainers t
@@ -30,15 +53,16 @@ router.get('/', requireRole('admin', 'manager'), async (req, res) => {
   return res.json(result.rows);
 });
 
-router.post('/', requireRole('admin'), async (req, res) => {
+router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
   const { name, email, password, specialization } = req.body || {};
   if (!name || !email || !password) {
-    return res.status(400).json({ error: 'Missing required fields' });
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
   try {
+    // Створюємо users і trainers разом, у транзакції.
     const created = await withClient(async (client) => {
       await client.query('begin');
       const userResult = await client.query(
@@ -57,26 +81,30 @@ router.post('/', requireRole('admin'), async (req, res) => {
       );
 
       await client.query('commit');
-      return { ...user, trainer_id: trainerResult.rows[0].id, specialization: trainerResult.rows[0].specialization };
+      return {
+        ...user,
+        trainer_id: trainerResult.rows[0].id,
+        specialization: trainerResult.rows[0].specialization,
+      };
     });
 
-    return res.status(201).json(created);
-  } catch (err) {
-    if (err.code === '23505') {
-      return res.status(409).json({ error: 'Email already registered' });
+    return res.status(HTTP_CREATED).json(created);
+  } catch (error) {
+    if (error.code === PG_UNIQUE_VIOLATION) {
+      return res.status(HTTP_CONFLICT).json({ error: 'Email already registered' });
     }
-    return res.status(500).json({ error: 'Trainer creation failed' });
+    return res.status(HTTP_SERVER_ERROR).json({ error: 'Trainer creation failed' });
   }
 });
 
-router.put('/:id', requireRole('admin'), async (req, res) => {
+router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
   const { name, email, specialization } = req.body || {};
 
-  const result = await withClient(async (client) => {
+  const updated = await withClient(async (client) => {
     await client.query('begin');
     const current = await client.query(
-      `select user_id from trainers where id = $1`,
+      'select user_id from trainers where id = $1',
       [id]
     );
 
@@ -104,19 +132,25 @@ router.put('/:id', requireRole('admin'), async (req, res) => {
     );
 
     const userResult = await client.query(
-      `select id, name, email, role from users where id = $1`,
+      'select id, name, email, role from users where id = $1',
       [userId]
     );
 
     await client.query('commit');
-    return { ...userResult.rows[0], trainer_id: trainerResult.rows[0].id, specialization: trainerResult.rows[0].specialization };
+    return {
+      ...userResult.rows[0],
+      trainer_id: trainerResult.rows[0].id,
+      specialization: trainerResult.rows[0].specialization,
+    };
   });
 
-  if (!result) return res.status(404).json({ error: 'Not found' });
-  return res.json(result);
+  if (!updated) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+  }
+  return res.json(updated);
 });
 
-router.delete('/:id', requireRole('admin'), async (req, res) => {
+router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
   await query('delete from trainers where id = $1', [id]);
   return res.json({ ok: true });

@@ -1,6 +1,22 @@
+/**
+ * Маршрути керування типами тренувань (каталог).
+ *
+ * GET    /api/workouts     — список тренувань.
+ * POST   /api/workouts     — створити тренування (admin).
+ * PUT    /api/workouts/:id — оновити тренування (admin).
+ * DELETE /api/workouts/:id — видалити тренування (admin).
+ */
+
 import { Router } from 'express';
+
 import { query } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
+import {
+  HTTP_BAD_REQUEST,
+  HTTP_CREATED,
+  HTTP_NOT_FOUND,
+  ROLE,
+} from '../utils/constants.js';
 
 const router = Router();
 
@@ -15,25 +31,26 @@ router.get('/', async (req, res) => {
   return res.json(result.rows);
 });
 
-router.post('/', requireRole('admin'), async (req, res) => {
-  const { name, description, max_clients } = req.body || {};
-  if (!name || !max_clients) {
-    return res.status(400).json({ error: 'Missing required fields' });
+router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
+  const { name, description, max_clients: maxClients } = req.body || {};
+  if (!name || !maxClients) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
   }
 
   const result = await query(
     `insert into workouts (name, description, max_clients)
      values ($1, $2, $3)
      returning id, name, description, max_clients`,
-    [name, description || null, max_clients]
+    [name, description || null, maxClients]
   );
 
-  return res.status(201).json(result.rows[0]);
+  return res.status(HTTP_CREATED).json(result.rows[0]);
 });
 
-router.put('/:id', requireRole('admin'), async (req, res) => {
+router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
-  const { name, description, max_clients } = req.body || {};
+  const { name, description, max_clients: maxClients } = req.body || {};
+
   const result = await query(
     `update workouts
      set name = coalesce($1, name),
@@ -41,13 +58,16 @@ router.put('/:id', requireRole('admin'), async (req, res) => {
          max_clients = coalesce($3, max_clients)
      where id = $4
      returning id, name, description, max_clients`,
-    [name || null, description || null, max_clients || null, id]
+    [name || null, description || null, maxClients || null, id]
   );
-  if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+
+  if (result.rows.length === 0) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+  }
   return res.json(result.rows[0]);
 });
 
-router.delete('/:id', requireRole('admin'), async (req, res) => {
+router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
   await query('delete from workouts where id = $1', [id]);
   return res.json({ ok: true });

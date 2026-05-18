@@ -1,18 +1,44 @@
-import { apiFetch, setAuth } from './api.js';
+/**
+ * Обробка форм автентифікації: логін та реєстрація.
+ *
+ * Відстежує submit-події на формах #login-form і #register-form,
+ * викликає відповідні API-методи і робить редирект за роллю.
+ */
 
+import { apiFetch, setAuth } from './api.js';
+import { MESSAGE_COLOR, PAGE, ROLE } from './constants.js';
+
+/**
+ * Відображає повідомлення у DOM-елементі з заданим кольором.
+ *
+ * @param {HTMLElement|null} el     — цільовий елемент (може бути відсутній).
+ * @param {string} message          — текст повідомлення.
+ * @param {boolean} [isError=false] — true — червоний колір, false — зелений.
+ */
 function showMessage(el, message, isError = false) {
   if (!el) return;
   el.textContent = message;
-  el.style.color = isError ? '#c0392b' : '#1e8449';
+  el.style.color = isError ? MESSAGE_COLOR.ERROR : MESSAGE_COLOR.SUCCESS;
 }
 
+/**
+ * Виконує редирект на сторінку відповідно до ролі користувача.
+ *
+ * @param {string} role — роль користувача (admin/manager/trainer/client).
+ */
 function redirectByRole(role) {
-  if (role === 'admin') window.location.href = '/pages/admin.html';
-  else if (role === 'manager') window.location.href = '/pages/manager.html';
-  else if (role === 'trainer') window.location.href = '/pages/trainer.html';
-  else window.location.href = '/pages/client.html';
+  if (role === ROLE.ADMIN) {
+    window.location.href = PAGE.ADMIN;
+  } else if (role === ROLE.MANAGER) {
+    window.location.href = PAGE.MANAGER;
+  } else if (role === ROLE.TRAINER) {
+    window.location.href = PAGE.TRAINER;
+  } else {
+    window.location.href = PAGE.CLIENT;
+  }
 }
 
+// ─── Форма входу ─────────────────────────────────────────────────────────────
 const loginForm = document.querySelector('#login-form');
 if (loginForm) {
   loginForm.addEventListener('submit', async (event) => {
@@ -29,22 +55,25 @@ if (loginForm) {
 
       setAuth(data.token, data.user);
       redirectByRole(data.user.role);
-    } catch (err) {
-      showMessage(messageEl, err.message, true);
+    } catch (error) {
+      showMessage(messageEl, error.message, true);
     }
   });
 }
 
+// ─── Форма реєстрації ────────────────────────────────────────────────────────
 const registerForm = document.querySelector('#register-form');
 if (registerForm) {
   const roleSelect = document.querySelector('#role');
   const phoneGroup = document.querySelector('#phone-group');
   const specializationGroup = document.querySelector('#specialization-group');
 
+  // Поля «телефон» і «спеціалізація» показуємо/ховаємо залежно
+  // від обраної ролі, щоб не вимагати зайвого від інших ролей.
   const updateRoleFields = () => {
     const role = roleSelect.value;
-    phoneGroup.style.display = role === 'client' ? 'block' : 'none';
-    specializationGroup.style.display = role === 'trainer' ? 'block' : 'none';
+    phoneGroup.style.display = role === ROLE.CLIENT ? 'block' : 'none';
+    specializationGroup.style.display = role === ROLE.TRAINER ? 'block' : 'none';
   };
 
   if (roleSelect) {
@@ -76,8 +105,8 @@ if (registerForm) {
 
       setAuth(data.token, data.user);
       redirectByRole(data.user.role);
-    } catch (err) {
-      showMessage(messageEl, err.message, true);
+    } catch (error) {
+      showMessage(messageEl, error.message, true);
     }
   });
 }
