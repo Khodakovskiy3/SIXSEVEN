@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OLIMP - Кабінет клієнта - Профіль</title>
+    <link rel="stylesheet" href="../../styles/client.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#111111">
+</head>
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand brand-sidebar">OLIMP</div>
+            <nav class="side-nav" aria-label="Навігація клієнта">
+                <button class="nav-item" data-screen="home">Головна</button>
+                <button class="nav-item" data-screen="schedule">Розклад</button>
+                <button class="nav-item" data-screen="records">Записи</button>
+                <button class="nav-item active" data-screen="profile">Профіль</button>
+            </nav>
+            <button class="logout ghost">Вийти</button>
+        </aside>
+
+        <main class="client-app">
+            <header class="topbar">
+                <div>
+                    <div class="brand">OLIMP</div>
+                    <h1 id="screen-title">Профіль</h1>
+                </div>
+                <div class="top-actions">
+                    <button class="icon-btn notification-btn" aria-label="Повідомлення">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 22a2.8 2.8 0 0 0 2.7-2h-5.4A2.8 2.8 0 0 0 12 22Z"></path>
+                            <path d="M18.2 16.5c-.9-1-1.4-2.2-1.4-3.6V10a4.8 4.8 0 0 0-3.5-4.6V4a1.3 1.3 0 1 0-2.6 0v1.4A4.8 4.8 0 0 0 7.2 10v2.9c0 1.4-.5 2.7-1.4 3.6l-.6.7c-.6.7-.1 1.8.8 1.8h12c.9 0 1.4-1.1.8-1.8l-.6-.7Z"></path>
+                        </svg>
+                        <span class="notification-dot"></span>
+                    </button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">OK</button>
+                </div>
+            </header>
+
+            <section class="screen active" data-screen-panel="profile">
+                <div class="profile-grid">
+                    <article class="panel profile-card">
+                        <div class="profile-avatar">OK</div>
+                        <h2>Олена Коваль</h2>
+                        <p>olena@mail.com · +380 67 000 00 00</p>
+                    </article>
+                    <article class="panel menu-card">
+                        <button data-screen-link="personal">Особисті дані <span>›</span></button>
+                        <button data-screen-link="activity">Моя активність <span>›</span></button>
+                        <button data-screen-link="subscription">Абонемент <span>›</span></button>
+                        <button data-screen-link="settings">Налаштування <span>›</span></button>
+                        <button class="logout-row">Вийти</button>
+                    </article>
+                </div>
+            </section>
+        </main>
+
+        <nav class="bottom-nav " aria-label="Нижня навігація">
+            <button class="bottom-item" data-screen="home">Головна</button>
+                <button class="bottom-item" data-screen="schedule">Розклад</button>
+                <button class="bottom-item" data-screen="records">Записи</button>
+                <button class="bottom-item active" data-screen="profile">Профіль</button>
+        </nav>
+    </div>
+
+    <div class="sheet-backdrop" id="sheet">
+        <div class="bottom-sheet">
+            <div class="sheet-handle"></div>
+            <h2 id="sheet-title">Йога</h2>
+            <p id="sheet-text">Релаксація, гнучкість та зміцнення тіла через комплекс вправ і дихальних практик.</p>
+            <dl>
+                <div><dt>Тривалість</dt><dd>50 хв</dd></div>
+                <div><dt>Рівень</dt><dd>для всіх</dd></div>
+                <div><dt>Тренер</dt><dd>Анна</dd></div>
+            </dl>
+            <button class="primary-btn sheet-close">Закрити</button>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="purchase-modal">
+        <div class="modal">
+            <h2>Підтвердити покупку</h2>
+            <p>Безліміт “Зал + Групові”</p>
+            <p>Ціна: 1800 грн</p>
+            <p>Термін дії: 30 днів</p>
+            <div class="modal-actions">
+                <button class="ghost-btn modal-close">Скасувати</button>
+                <button class="primary-btn modal-close">Підтвердити</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="../../js/client.js"></script>
+</body>
+</html>

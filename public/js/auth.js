@@ -6,7 +6,7 @@
  */
 
 import { apiFetch, setAuth } from './api.js';
-import { MESSAGE_COLOR, PAGE, ROLE } from './constants.js';
+import { PAGE, ROLE } from './constants.js';
 
 /**
  * Відображає повідомлення у DOM-елементі з заданим кольором.
@@ -18,8 +18,22 @@ import { MESSAGE_COLOR, PAGE, ROLE } from './constants.js';
 function showMessage(el, message, isError = false) {
   if (!el) return;
   el.textContent = message;
-  el.style.color = isError ? MESSAGE_COLOR.ERROR : MESSAGE_COLOR.SUCCESS;
+  el.classList.add('show');
+  el.classList.toggle('success', !isError);
 }
+
+document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const input = document.querySelector(`#${button.dataset.passwordToggle}`);
+    if (!input) return;
+
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    button.setAttribute('aria-label', isHidden ? 'Сховати пароль' : 'Показати пароль');
+    button.querySelector('.eye-icon')?.classList.toggle('eye-visible', isHidden);
+    button.querySelector('.eye-icon')?.classList.toggle('eye-hidden', !isHidden);
+  });
+});
 
 /**
  * Виконує редирект на сторінку відповідно до ролі користувача.
@@ -64,22 +78,8 @@ if (loginForm) {
 // ─── Форма реєстрації ────────────────────────────────────────────────────────
 const registerForm = document.querySelector('#register-form');
 if (registerForm) {
-  const roleSelect = document.querySelector('#role');
   const phoneGroup = document.querySelector('#phone-group');
-  const specializationGroup = document.querySelector('#specialization-group');
-
-  // Поля «телефон» і «спеціалізація» показуємо/ховаємо залежно
-  // від обраної ролі, щоб не вимагати зайвого від інших ролей.
-  const updateRoleFields = () => {
-    const role = roleSelect.value;
-    phoneGroup.style.display = role === ROLE.CLIENT ? 'block' : 'none';
-    specializationGroup.style.display = role === ROLE.TRAINER ? 'block' : 'none';
-  };
-
-  if (roleSelect) {
-    roleSelect.addEventListener('change', updateRoleFields);
-    updateRoleFields();
-  }
+  if (phoneGroup) phoneGroup.style.display = 'block';
 
   registerForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -88,9 +88,7 @@ if (registerForm) {
     const email = document.querySelector('#email').value.trim();
     const password = document.querySelector('#password').value;
     const confirmPassword = document.querySelector('#confirm-password').value;
-    const role = roleSelect.value;
     const phone = document.querySelector('#phone')?.value.trim();
-    const specialization = document.querySelector('#specialization')?.value.trim();
 
     if (password !== confirmPassword) {
       showMessage(messageEl, 'Паролі не співпадають', true);
@@ -100,7 +98,7 @@ if (registerForm) {
     try {
       const data = await apiFetch('/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ name, email, password, role, phone, specialization }),
+        body: JSON.stringify({ name, email, password, phone }),
       });
 
       setAuth(data.token, data.user);

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OLIMP - Вхід</title>
+    <link rel="stylesheet" href="../../styles/login.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0f0f10">
+</head>
+<body class="auth-page">
+    <header class="auth-topbar">
+        <a class="auth-brand" href="../home/index.html">OLIMP</a>
+    </header>
+    <main class="auth-shell">
+        <div class="login-container auth-card">
+        <p class="auth-kicker">Особистий кабінет</p>
+        <h2>Увійти</h2>
+        <p class="auth-subtitle">Увійдіть, щоб керувати тренуваннями, розкладом та абонементами.</p>
+        <form id="login-form" action="#" method="post">
+            <div class="form-group">
+                <label for="username">Email або ім'я користувача</label>
+                <input type="text" id="username" name="username" autocomplete="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Пароль</label>
+                <div class="password-field">
+                    <input type="password" id="password" name="password" autocomplete="current-password" required>
+                    <button type="button" class="password-toggle" data-password-toggle="password" aria-label="Показати пароль">
+                        <span class="eye-icon eye-hidden" aria-hidden="true"></span>
+                    </button>
+                </div>
+            </div>
+            <button type="submit">Увійти</button>
+        </form>
+        <div id="login-message" class="auth-toast" role="alert" aria-live="polite"></div>
+        <p class="auth-switch">Немає акаунту? <a href="register.html">Зареєструватися</a></p>
+        </div>
+    </main>
+    <script type="module" src="../../js/auth.js"></script>
+    <script type="module" src="../../js/pwa.js"></script>
+</body>
+</html>

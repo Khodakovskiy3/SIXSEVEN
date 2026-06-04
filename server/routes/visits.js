@@ -58,7 +58,6 @@ router.post('/', requireRole(ROLE.ADMIN, ROLE.TRAINER), async (req, res) => {
   const {
     client_id: clientId,
     subscription_id: subscriptionId,
-    schedule_id: scheduleId,
   } = req.body || {};
 
   if (!clientId) {
@@ -80,24 +79,12 @@ router.post('/', requireRole(ROLE.ADMIN, ROLE.TRAINER), async (req, res) => {
     return res.status(HTTP_CONFLICT).json({ error: 'No active subscription' });
   }
 
-  // Якщо вказано конкретне заняття, перевіряємо, чи його вже не зафіксовано —
-  // не створюємо дубль, повертаємо існуючий запис.
-  if (scheduleId) {
-    const existing = await query(
-      'select id from visits where client_id = $1 and schedule_id = $2',
-      [clientId, scheduleId]
-    );
-    if (existing.rows.length > 0) {
-      return res.json(existing.rows[0]);
-    }
-  }
-
   const resolvedSubscriptionId = subscriptionId || activeSub.rows[0].id;
   const result = await query(
-    `insert into visits (client_id, subscription_id, schedule_id)
-     values ($1, $2, $3)
-     returning id, client_id, subscription_id, schedule_id, visit_time`,
-    [clientId, resolvedSubscriptionId, scheduleId || null]
+    `insert into visits (client_id, subscription_id)
+     values ($1, $2)
+     returning id, client_id, subscription_id, visit_time`,
+    [clientId, resolvedSubscriptionId]
   );
 
   return res.status(HTTP_CREATED).json(result.rows[0]);

@@ -68,6 +68,41 @@ export function requireAuth(expectedRoles = []) {
   return user;
 }
 
+function getPageByRole(role) {
+  if (role === 'admin') return PAGE.ADMIN;
+  if (role === 'manager') return PAGE.MANAGER;
+  if (role === 'trainer') return PAGE.TRAINER;
+  return PAGE.CLIENT;
+}
+
+/**
+ * Перевіряє актуальну роль на сервері, а не тільки роль зі старого localStorage.
+ *
+ * @param {string[]} [expectedRoles] — дозволені ролі.
+ * @returns {Promise<object|null>} актуальний користувач або null.
+ */
+export async function requireFreshAuth(expectedRoles = []) {
+  const user = requireAuth();
+  if (!user) return null;
+
+  try {
+    const data = await apiFetch('/auth/me');
+    const freshUser = data.user;
+    localStorage.setItem(STORAGE_KEY.USER, JSON.stringify(freshUser));
+
+    if (expectedRoles.length && !expectedRoles.includes(freshUser.role)) {
+      window.location.href = getPageByRole(freshUser.role);
+      return null;
+    }
+
+    return freshUser;
+  } catch {
+    clearAuth();
+    window.location.href = PAGE.LOGIN;
+    return null;
+  }
+}
+
 /**
  * Виконує запит до API з автоматичним додаванням токена та обробкою помилок.
  *

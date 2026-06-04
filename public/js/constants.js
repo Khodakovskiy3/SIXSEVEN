@@ -10,11 +10,12 @@ export const API_BASE = '/api';
 
 /** Шляхи до сторінок ролей. Використовуються для редиректів після логіну. */
 export const PAGE = Object.freeze({
-  LOGIN: '/pages/login.html',
-  ADMIN: '/pages/admin.html',
-  MANAGER: '/pages/manager.html',
-  TRAINER: '/pages/trainer.html',
-  CLIENT: '/pages/client.html',
+  HOME: '/pages/home/index.html',
+  LOGIN: '/pages/auth/login.html',
+  ADMIN: '/pages/admin/index.html',
+  MANAGER: '/pages/manager/index.html',
+  TRAINER: '/pages/trainer/index.html',
+  CLIENT: '/pages/client/index.html',
 });
 
 /** Ключі для зберігання даних автентифікації у localStorage. */

@@ -28,9 +28,20 @@ const router = Router();
 
 router.use(authRequired);
 
+function normalizePhone(phone) {
+  if (!phone) return null;
+  const digits = String(phone).replace(/\D/g, '');
+  const normalized = digits.startsWith('380') ? digits : `380${digits.replace(/^0+/, '')}`;
+  return `+${normalized.slice(0, 12)}`;
+}
+
+function isValidPhone(phone) {
+  return !phone || /^\+380\d{9}$/.test(phone);
+}
+
 router.get('/me', requireRole(ROLE.TRAINER), async (req, res) => {
   const result = await query(
-    `select t.id, u.name, u.email, t.specialization
+    `select t.id, u.name, u.email, t.phone, t.specialization
      from trainers t
      join users u on u.id = t.user_id
      where t.user_id = $1`,
@@ -45,18 +56,135 @@ router.get('/me', requireRole(ROLE.TRAINER), async (req, res) => {
 
 router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const result = await query(
-    `select t.id, u.name, u.email, t.specialization
+    `select t.id, u.id as user_id, u.name, u.email, t.phone, t.specialization,
+            case
+              when exists (
+                select 1
+                from schedules s
+                where s.trainer_id = t.id and s.date >= current_date
+              ) then 'active'
+              else 'inactive'
+            end as status
      from trainers t
      join users u on u.id = t.user_id
-     order by t.id desc`
+     where u.role = $1
+     order by t.id desc`,
+    [ROLE.TRAINER]
   );
   return res.json(result.rows);
 });
 
+router.get('/:id', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
+  const { id } = req.params;
+  const trainerResult = await query(
+    `select t.id, u.id as user_id, u.name, u.email, t.phone, t.specialization,
+            case
+              when exists (
+                select 1
+                from schedules s
+                where s.trainer_id = t.id and s.date >= current_date
+              ) then 'active'
+              else 'inactive'
+            end as status
+     from trainers t
+     join users u on u.id = t.user_id
+     where t.id = $1`,
+    [id]
+  );
+
+  if (trainerResult.rows.length === 0) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Trainer not found' });
+  }
+
+  const schedulesResult = await query(
+    `select s.id, s.date, s.time, w.name as workout_name
+     from schedules s
+     join workouts w on w.id = s.workout_id
+     where s.trainer_id = $1 and s.date >= current_date
+     order by s.date, s.time
+     limit 8`,
+    [id]
+  );
+
+  return res.json({
+    trainer: trainerResult.rows[0],
+    schedules: schedulesResult.rows,
+  });
+});
+
+router.post('/from-client', requireRole(ROLE.ADMIN), async (req, res) => {
+  const {
+    client_id: clientId,
+    specialization,
+  } = req.body || {};
+
+  if (!clientId) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing client_id' });
+  }
+
+  try {
+    const promoted = await withClient(async (client) => {
+      await client.query('begin');
+      const current = await client.query(
+        `select c.id, c.user_id, c.phone, u.name, u.email
+         from clients c
+         join users u on u.id = c.user_id
+         where c.id = $1`,
+        [clientId]
+      );
+
+      if (current.rows.length === 0) {
+        await client.query('rollback');
+        return null;
+      }
+
+      const user = current.rows[0];
+      await client.query(
+        'update users set role = $1 where id = $2',
+        [ROLE.TRAINER, user.user_id]
+      );
+
+      const trainerResult = await client.query(
+        `insert into trainers (user_id, phone, specialization)
+         values ($1, $2, $3)
+         on conflict (user_id) do update
+         set phone = coalesce(excluded.phone, trainers.phone),
+             specialization = coalesce(excluded.specialization, trainers.specialization)
+         returning id, phone, specialization`,
+        [user.user_id, user.phone || null, specialization || null]
+      );
+
+      await client.query('commit');
+      return {
+        id: trainerResult.rows[0].id,
+        user_id: user.user_id,
+        name: user.name,
+        email: user.email,
+        role: ROLE.TRAINER,
+        phone: trainerResult.rows[0].phone,
+        specialization: trainerResult.rows[0].specialization,
+      };
+    });
+
+    if (!promoted) {
+      return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
+    }
+
+    return res.status(HTTP_CREATED).json(promoted);
+  } catch {
+    return res.status(HTTP_SERVER_ERROR).json({ error: 'Trainer promotion failed' });
+  }
+});
+
 router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
-  const { name, email, password, specialization } = req.body || {};
+  const { name, email, password, phone, specialization } = req.body || {};
   if (!name || !email || !password) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
+  }
+
+  const normalizedPhone = normalizePhone(phone);
+  if (!isValidPhone(normalizedPhone)) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid phone format' });
   }
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
@@ -74,16 +202,17 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
 
       const user = userResult.rows[0];
       const trainerResult = await client.query(
-        `insert into trainers (user_id, specialization)
-         values ($1, $2)
-         returning id, specialization`,
-        [user.id, specialization || null]
+        `insert into trainers (user_id, phone, specialization)
+         values ($1, $2, $3)
+         returning id, phone, specialization`,
+        [user.id, normalizedPhone, specialization || null]
       );
 
       await client.query('commit');
       return {
         ...user,
         trainer_id: trainerResult.rows[0].id,
+        phone: trainerResult.rows[0].phone,
         specialization: trainerResult.rows[0].specialization,
       };
     });
@@ -99,7 +228,11 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
 
 router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
-  const { name, email, specialization } = req.body || {};
+  const { name, phone, specialization } = req.body || {};
+  const normalizedPhone = normalizePhone(phone);
+  if (!isValidPhone(normalizedPhone)) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid phone format' });
+  }
 
   const updated = await withClient(async (client) => {
     await client.query('begin');
@@ -117,18 +250,18 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
 
     await client.query(
       `update users
-       set name = coalesce($1, name),
-           email = coalesce($2, email)
-       where id = $3`,
-      [name || null, email ? email.toLowerCase() : null, userId]
+       set name = coalesce($1, name)
+       where id = $2`,
+      [name || null, userId]
     );
 
     const trainerResult = await client.query(
       `update trainers
-       set specialization = coalesce($1, specialization)
-       where id = $2
-       returning id, specialization`,
-      [specialization || null, id]
+       set phone = coalesce($1, phone),
+           specialization = coalesce($2, specialization)
+       where id = $3
+       returning id, phone, specialization`,
+      [normalizedPhone, specialization || null, id]
     );
 
     const userResult = await client.query(
@@ -140,6 +273,7 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
     return {
       ...userResult.rows[0],
       trainer_id: trainerResult.rows[0].id,
+      phone: trainerResult.rows[0].phone,
       specialization: trainerResult.rows[0].specialization,
     };
   });
@@ -152,7 +286,27 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
 
 router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
-  await query('delete from trainers where id = $1', [id]);
+  const current = await query('select user_id, phone from trainers where id = $1', [id]);
+  if (current.rows.length === 0) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+  }
+
+  await withClient(async (client) => {
+    await client.query('begin');
+    await client.query('delete from trainers where id = $1', [id]);
+    await client.query(
+      `insert into clients (user_id, phone)
+       values ($1, $2)
+       on conflict (user_id) do update
+       set phone = coalesce(excluded.phone, clients.phone)`,
+      [current.rows[0].user_id, current.rows[0].phone || null]
+    );
+    await client.query(
+      'update users set role = $1 where id = $2',
+      [ROLE.CLIENT, current.rows[0].user_id]
+    );
+    await client.query('commit');
+  });
   return res.json({ ok: true });
 });
 

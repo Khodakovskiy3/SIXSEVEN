@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OLIMP - Реєстрація</title>
+    <link rel="stylesheet" href="../../styles/register.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0f0f10">
+</head>
+<body class="auth-page">
+    <header class="auth-topbar">
+        <a class="auth-brand" href="../home/index.html">OLIMP</a>
+    </header>
+    <main class="auth-shell">
+        <div class="register-container auth-card">
+        <p class="auth-kicker">Старт у клубі</p>
+        <h2>Реєстрація</h2>
+        <p class="auth-subtitle">Створіть акаунт клієнта, щоб записуватися на тренування та переглядати абонемент.</p>
+        <form id="register-form" action="#" method="post">
+            <div class="form-group">
+                <label for="fullname">Повне ім'я</label>
+                <input type="text" id="fullname" name="fullname" autocomplete="name" required>
+            </div>
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" autocomplete="email" required>
+            </div>
+            <div class="form-group" id="phone-group">
+                <label for="phone">Телефон</label>
+                <input type="text" id="phone" name="phone" autocomplete="tel" placeholder="+380 XX XXX XX XX">
+            </div>
+            <div class="form-group">
+                <label for="password">Пароль</label>
+                <div class="password-field">
+                    <input type="password" id="password" name="password" autocomplete="new-password" required>
+                    <button type="button" class="password-toggle" data-password-toggle="password" aria-label="Показати пароль">
+                        <span class="eye-icon eye-hidden" aria-hidden="true"></span>
+                    </button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="confirm-password">Підтвердити пароль</label>
+                <div class="password-field">
+                    <input type="password" id="confirm-password" name="confirm-password" autocomplete="new-password" required>
+                    <button type="button" class="password-toggle" data-password-toggle="confirm-password" aria-label="Показати пароль">
+                        <span class="eye-icon eye-hidden" aria-hidden="true"></span>
+                    </button>
+                </div>
+            </div>
+            <button type="submit">Зареєструватися</button>
+        </form>
+        <div id="register-message" class="auth-toast" role="alert" aria-live="polite"></div>
+        <p class="auth-switch">Вже є акаунт? <a href="login.html">Увійти</a></p>
+        </div>
+    </main>
+    <script type="module" src="../../js/auth.js"></script>
+    <script type="module" src="../../js/pwa.js"></script>
+</body>
+</html>

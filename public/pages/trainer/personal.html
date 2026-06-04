@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OLIMP - Кабінет тренера - Особисті дані</title>
+    <link rel="stylesheet" href="../../styles/trainer.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#111111">
+</head>
+<body>
+    <div class="app-shell trainer-shell">
+        <aside class="sidebar">
+            <div class="brand brand-sidebar">OLIMP</div>
+            <nav class="side-nav" aria-label="Навігація тренера">
+                <button class="nav-item" data-screen="home">Головна</button>
+                <button class="nav-item" data-screen="schedule">Розклад</button>
+                <button class="nav-item" data-screen="profile">Профіль</button>
+            </nav>
+            <button class="logout ghost">Вийти</button>
+        </aside>
+
+        <main class="client-app trainer-app">
+            <header class="topbar">
+                <div>
+                    <div class="brand">OLIMP</div>
+                    <h1 id="screen-title">Особисті дані</h1>
+                </div>
+                <div class="top-actions">
+                    <button class="icon-btn notification-btn" aria-label="Повідомлення">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 22a2.8 2.8 0 0 0 2.7-2h-5.4A2.8 2.8 0 0 0 12 22Z"></path>
+                            <path d="M18.2 16.5c-.9-1-1.4-2.2-1.4-3.6V10a4.8 4.8 0 0 0-3.5-4.6V4a1.3 1.3 0 1 0-2.6 0v1.4A4.8 4.8 0 0 0 7.2 10v2.9c0 1.4-.5 2.7-1.4 3.6l-.6.7c-.6.7-.1 1.8.8 1.8h12c.9 0 1.4-1.1.8-1.8l-.6-.7Z"></path>
+                        </svg>
+                        <span class="notification-dot"></span>
+                    </button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">IA</button>
+                </div>
+            </header>
+
+            <section class="screen active detail-screen" data-screen-panel="personal">
+                <div class="panel narrow-panel">
+                    <button class="back-btn" data-screen-link="profile">Назад</button>
+                    <h2>Особисті дані</h2>
+                    <label>Ім’я<input type="text" value="Ігор Антонюк"></label>
+                    <label>Телефон<input type="text" value="+380 67 111 22 33"></label>
+                    <label>Email<input type="email" value="igor@olimp.ua"></label>
+                    <button class="primary-btn modal-open">Змінити пароль</button>
+                </div>
+            </section>
+        </main>
+
+        <nav class="bottom-nav " aria-label="Нижня навігація">
+            <button class="bottom-item" data-screen="home">Головна</button>
+                <button class="bottom-item" data-screen="schedule">Розклад</button>
+                <button class="bottom-item active" data-screen="profile">Профіль</button>
+        </nav>
+    </div>
+
+    <div class="sheet-backdrop" id="sheet">
+        <div class="bottom-sheet">
+            <div class="sheet-handle"></div>
+            <h2 id="sheet-title">Фітнес</h2>
+            <p id="sheet-text">Силове функціональне тренування для витривалості та загального тонусу.</p>
+            <dl id="sheet-details"></dl>
+            <button class="primary-btn sheet-close">Закрити</button>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="password-modal">
+        <div class="modal">
+            <h2>Змінити пароль</h2>
+            <label>Поточний пароль<input type="password"></label>
+            <label>Новий пароль<input type="password"></label>
+            <label>Підтвердити пароль<input type="password"></label>
+            <div class="modal-actions">
+                <button class="ghost-btn modal-close">Скасувати</button>
+                <button class="primary-btn modal-close">Зберегти</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="../../js/trainer.js"></script>
+</body>
+</html>

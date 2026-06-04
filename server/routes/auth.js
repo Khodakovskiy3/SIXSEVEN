@@ -1,8 +1,7 @@
 /**
  * Маршрути реєстрації та авторизації користувачів.
  *
- * POST /api/auth/register — створює користувача й пов’язану доменну сутність
- *                          (клієнт / тренер), повертає JWT-токен.
+ * POST /api/auth/register — публічна реєстрація клієнта, повертає JWT-токен.
  * POST /api/auth/login    — перевіряє пароль і повертає JWT-токен.
  */
 
@@ -10,7 +9,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 
 import { query, withClient } from '../db.js';
-import { signToken } from '../middleware/auth.js';
+import { authRequired, signToken } from '../middleware/auth.js';
 import {
   BCRYPT_SALT_ROUNDS,
   HTTP_BAD_REQUEST,
@@ -19,22 +18,24 @@ import {
   HTTP_SERVER_ERROR,
   PG_UNIQUE_VIOLATION,
   ROLE,
-  VALID_ROLES,
 } from '../utils/constants.js';
 
 const router = Router();
 
+router.get('/me', authRequired, async (req, res) => {
+  return res.json({ user: req.user });
+});
+
 router.post('/register', async (req, res) => {
-  const { name, email, password, role, phone, specialization } = req.body || {};
+  const { name, email, password, phone } = req.body || {};
   if (!name || !email || !password) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
   }
 
-  // Якщо роль не вказана — за замовчуванням реєструємо клієнта.
-  const normalizedRole = (role || ROLE.CLIENT).toLowerCase();
-  if (!VALID_ROLES.includes(normalizedRole)) {
-    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid role' });
-  }
+  // Публічна реєстрація завжди створює клієнта.
+  // Службові ролі (admin/manager/trainer) призначаються тільки через захищені
+  // маршрути користувачів, щоб людина не могла видати права сама собі.
+  const normalizedRole = ROLE.CLIENT;
 
   const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
@@ -57,14 +58,6 @@ router.post('/register', async (req, res) => {
           `insert into clients (user_id, phone)
            values ($1, $2)`,
           [created.id, phone || null]
-        );
-      }
-
-      if (normalizedRole === ROLE.TRAINER) {
-        await client.query(
-          `insert into trainers (user_id, specialization)
-           values ($1, $2)`,
-          [created.id, specialization || null]
         );
       }
 

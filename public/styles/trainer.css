@@ -1,93 +1,113 @@
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f0f0f0;
-    margin: 0;
-    padding: 0;
+@import url("./client.css");
+
+.trainer-shell .bottom-nav {
+    grid-template-columns: repeat(3, 1fr);
 }
 
-header {
-    background-color: #333;
-    color: white;
-    padding: 10px;
-    text-align: center;
+.trainer-home-grid {
+    display: grid;
+    gap: 9px;
 }
 
-nav {
-    background-color: #444;
-    padding: 10px;
+.metric-card {
+    position: relative;
+    overflow: hidden;
 }
 
-nav ul {
-    list-style-type: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    justify-content: center;
+.metric-card::after {
+    position: absolute;
+    right: -18px;
+    bottom: -28px;
+    width: 110px;
+    height: 110px;
+    border: 16px solid rgba(255, 100, 36, 0.18);
+    border-radius: 50%;
+    content: "";
 }
 
-nav ul li {
-    margin: 0 15px;
+.metric-value {
+    color: var(--accent);
+    font-size: 42px;
+    font-weight: 900;
+    line-height: 0.95;
 }
 
-nav ul li a {
-    color: white;
-    text-decoration: none;
+.trainer-mini-list {
+    display: grid;
+    gap: 8px;
 }
 
-main {
-    padding: 20px;
-}
-
-section {
-    background-color: white;
-    margin-bottom: 20px;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-}
-
-h2 {
-    margin-top: 0;
-}
-
-table {
+.mini-session {
+    display: grid;
+    grid-template-columns: 52px 1fr;
+    gap: 8px;
+    align-items: center;
     width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 20px;
-}
-
-table th, table td {
-    border: 1px solid #ddd;
-    padding: 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    color: var(--text);
+    padding: 10px;
     text-align: left;
 }
 
-table th {
-    background-color: #f2f2f2;
+.mini-session strong {
+    color: var(--accent);
 }
 
-button {
-    padding: 5px 10px;
-    margin: 2px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
+.mini-session span {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
 }
 
-.mark-btn {
-    background-color: #28a745;
-    color: white;
+.trainer-schedule .class-list {
+    display: none;
 }
 
-.view-btn {
-    background-color: #007bff;
-    color: white;
+.trainer-schedule .class-list.active {
+    display: grid;
 }
 
-.notification {
-    background-color: #fff3cd;
-    border: 1px solid #ffeaa7;
-    padding: 10px;
-    margin-bottom: 10px;
-    border-radius: 4px;
+.training-filters {
+    display: none;
+}
+
+.training-filters.active {
+    display: flex;
+}
+
+.specialization-card {
+    display: grid;
+    gap: 12px;
+}
+
+.chip-row.no-scroll {
+    flex-wrap: wrap;
+    overflow: visible;
+    padding-bottom: 0;
+}
+
+.muted-note {
+    color: #c8c8cf;
+    font-size: 12px;
+}
+
+@media (min-width: 900px) {
+    .trainer-home-grid {
+        grid-template-columns: 0.55fr 1fr;
+        gap: 12px;
+    }
+
+    .trainer-home-grid .today-schedule {
+        grid-column: 1 / -1;
+    }
+
+    .metric-card {
+        min-height: 154px;
+    }
+
+    .trainer-schedule .class-card {
+        grid-template-columns: 72px 1fr auto;
+    }
 }

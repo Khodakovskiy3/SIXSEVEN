@@ -1,10 +1,14 @@
-const CACHE_NAME = 'sports-club-v1';
+const CACHE_NAME = 'sports-club-v3';
 const CORE_ASSETS = [
   '/',
   '/index.html',
-  '/styles/index.css',
-  '/pages/login.html',
-  '/pages/register.html',
+  '/pages/home/index.html',
+  '/styles/home.css',
+  '/js/home.js',
+  '/assets/home/space-bg.png',
+  '/assets/home/olimp-statue.png',
+  '/pages/auth/login.html',
+  '/pages/auth/register.html',
   '/js/pwa.js',
 ];
 
@@ -28,6 +32,12 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api')) return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

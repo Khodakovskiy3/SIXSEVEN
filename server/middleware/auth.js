@@ -10,6 +10,7 @@
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 
+import { query } from '../db.js';
 import {
   AUTH_HEADER_PREFIX,
   HTTP_UNAUTHORIZED,
@@ -29,7 +30,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'change_me';
  * @param {import('express').Response} res
  * @param {import('express').NextFunction} next
  */
-export function authRequired(req, res, next) {
+export async function authRequired(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith(AUTH_HEADER_PREFIX)
     ? header.slice(AUTH_HEADER_PREFIX.length)
@@ -41,7 +42,18 @@ export function authRequired(req, res, next) {
 
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    req.user = payload;
+    const result = await query(
+      `select id, name, email, role
+       from users
+       where id = $1`,
+      [payload.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(HTTP_UNAUTHORIZED).json({ error: 'User not found' });
+    }
+
+    req.user = result.rows[0];
     return next();
   } catch {
     // Будь-яка помилка верифікації (прострочений, підроблений токен)

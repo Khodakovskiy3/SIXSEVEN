@@ -24,7 +24,7 @@ router.use(authRequired);
 
 router.get('/', async (req, res) => {
   const result = await query(
-    `select id, name, description, max_clients
+    `select id, name, description, max_clients, status
      from workouts
      order by id desc`
   );
@@ -32,16 +32,21 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
-  const { name, description, max_clients: maxClients } = req.body || {};
+  const {
+    name,
+    description,
+    max_clients: maxClients,
+    status,
+  } = req.body || {};
   if (!name || !maxClients) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
   }
 
   const result = await query(
-    `insert into workouts (name, description, max_clients)
-     values ($1, $2, $3)
-     returning id, name, description, max_clients`,
-    [name, description || null, maxClients]
+    `insert into workouts (name, description, max_clients, status)
+     values ($1, $2, $3, $4)
+     returning id, name, description, max_clients, status`,
+    [name, description || null, maxClients, status || 'active']
   );
 
   return res.status(HTTP_CREATED).json(result.rows[0]);
@@ -49,16 +54,22 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
 
 router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
-  const { name, description, max_clients: maxClients } = req.body || {};
+  const {
+    name,
+    description,
+    max_clients: maxClients,
+    status,
+  } = req.body || {};
 
   const result = await query(
     `update workouts
      set name = coalesce($1, name),
          description = coalesce($2, description),
-         max_clients = coalesce($3, max_clients)
-     where id = $4
-     returning id, name, description, max_clients`,
-    [name || null, description || null, maxClients || null, id]
+         max_clients = coalesce($3, max_clients),
+         status = coalesce($4, status)
+     where id = $5
+     returning id, name, description, max_clients, status`,
+    [name || null, description || null, maxClients || null, status || null, id]
   );
 
   if (result.rows.length === 0) {
@@ -69,7 +80,7 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
 
 router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
-  await query('delete from workouts where id = $1', [id]);
+  await query('update workouts set status = $1 where id = $2', ['inactive', id]);
   return res.json({ ok: true });
 });
 

@@ -26,6 +26,40 @@ const router = Router();
 
 router.use(authRequired);
 
+function normalizeSpecialization(value = '') {
+  return String(value).trim().toLowerCase();
+}
+
+async function getTargetWorkoutId(workoutId, scheduleId = null) {
+  if (workoutId) return workoutId;
+  if (!scheduleId) return null;
+
+  const result = await query('select workout_id from schedules where id = $1', [scheduleId]);
+  return result.rows[0]?.workout_id || null;
+}
+
+async function trainerCanTeachWorkout(trainerId, workoutId) {
+  if (!trainerId) return true;
+  if (!workoutId) return false;
+
+  const result = await query(
+    `select w.name as workout_name, t.specialization
+     from workouts w
+     cross join trainers t
+     where w.id = $1 and t.id = $2`,
+    [workoutId, trainerId]
+  );
+
+  const row = result.rows[0];
+  if (!row) return false;
+
+  const workoutName = normalizeSpecialization(row.workout_name);
+  return String(row.specialization || '')
+    .split(',')
+    .map(normalizeSpecialization)
+    .some((item) => item === workoutName);
+}
+
 router.get('/', async (req, res) => {
   const { trainer_id: trainerId } = req.query;
   const params = [];
@@ -33,11 +67,14 @@ router.get('/', async (req, res) => {
 
   if (trainerId) {
     params.push(trainerId);
-    whereClause = 'where s.trainer_id = $1';
+    whereClause = 'where s.trainer_id = $1 and w.status = \'active\'';
+  } else {
+    whereClause = 'where w.status = \'active\'';
   }
 
   const result = await query(
     `select s.id, s.date, s.time, s.workout_id, w.name as workout_name,
+            w.description as workout_description,
             s.trainer_id, u.name as trainer_name, w.max_clients,
             coalesce(b.booked, 0) as booked
      from schedules s
@@ -76,6 +113,10 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
   }
 
+  if (!(await trainerCanTeachWorkout(trainerId, workoutId))) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Trainer does not match workout specialization' });
+  }
+
   const result = await query(
     `insert into schedules (workout_id, trainer_id, date, time)
      values ($1, $2, $3, $4)
@@ -95,10 +136,15 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
     time,
   } = req.body || {};
 
+  const targetWorkoutId = await getTargetWorkoutId(workoutId, id);
+  if (!(await trainerCanTeachWorkout(trainerId, targetWorkoutId))) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Trainer does not match workout specialization' });
+  }
+
   const result = await query(
     `update schedules
      set workout_id = coalesce($1, workout_id),
-         trainer_id = coalesce($2, trainer_id),
+         trainer_id = $2,
          date = coalesce($3, date),
          time = coalesce($4, time)
      where id = $5

@@ -1,165 +1,576 @@
-/**
- * Сторінка клієнта: розклад, бронювання, абонемент, історія візитів, оплата.
- *
- * Викликається з public/pages/client.html. Потребує авторизованого користувача
- * з роллю client; інакше requireAuth робить редирект на /login.
- */
+import { apiFetch, clearAuth, formatDate, requireFreshAuth } from './api.js';
+import { PAGE, ROLE } from './constants.js';
 
-import { apiFetch, clearAuth, requireAuth, formatDate } from './api.js';
-import { MESSAGE_COLOR, PAGE, ROLE } from './constants.js';
+const titles = {
+  home: 'Головна',
+  schedule: 'Розклад',
+  records: 'Записи',
+  profile: 'Профіль',
+  subscription: 'Абонемент',
+  personal: 'Особисті дані',
+  activity: 'Моя активність',
+  settings: 'Налаштування',
+};
 
-/** Мінімальна допустима сума оплати, грн. */
-const MIN_PAYMENT_AMOUNT = 1;
+let activePlans = [];
+let currentPlanForPurchase = null;
+let schedules = [];
+let bookings = [];
+let selectedScheduleDate = new Date().toISOString().slice(0, 10);
+let selectedWorkoutFilter = 'all';
 
-requireAuth([ROLE.CLIENT]);
+const planTypeLabels = {
+  subscription: 'Абонемент',
+  single: 'Разовий',
+};
 
-// ─── Логаут ──────────────────────────────────────────────────────────────────
-const logoutBtn = document.querySelector('#logout-btn');
-if (logoutBtn) {
-  logoutBtn.addEventListener('click', () => {
-    clearAuth();
-    window.location.href = PAGE.LOGIN;
-  });
+const accessTypeLabels = {
+  gym: 'Зал',
+  group: 'Групові',
+  personal: 'Персональне',
+  gym_group: 'Зал + групові',
+};
+
+function escapeHtml(value = '') {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
 
-/**
- * Виводить повідомлення в елемент за CSS-селектором.
- *
- * @param {string} selector — селектор цільового елемента.
- * @param {string} message  — текст повідомлення.
- * @param {boolean} [isError=false]
- */
-function setMessage(selector, message, isError = false) {
-  const el = document.querySelector(selector);
-  if (!el) return;
-  el.textContent = message;
-  el.style.color = isError ? MESSAGE_COLOR.ERROR : MESSAGE_COLOR.SUCCESS;
+function formatMoney(value) {
+  const amount = Number(value || 0);
+  return `${amount.toLocaleString('uk-UA', { maximumFractionDigits: 0 })} грн`;
 }
 
-/**
- * Завантажує розклад і відображає його у таблиці та у списку для бронювання.
- *
- * @returns {Promise<void>}
- */
-async function loadSchedule() {
-  const schedules = await apiFetch('/schedules');
-  const tbody = document.querySelector('#schedule-table-body');
-  const select = document.querySelector('#booking-select');
-
-  tbody.innerHTML = '';
-  select.innerHTML = '';
-
-  schedules.forEach((schedule) => {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${formatDate(schedule.date)}</td>
-      <td>${schedule.time}</td>
-      <td>${schedule.workout_name}</td>
-      <td>${schedule.trainer_name || ''}</td>
-      <td>${schedule.available}/${schedule.max_clients}</td>
-    `;
-    tbody.appendChild(row);
-
-    const option = document.createElement('option');
-    option.value = schedule.id;
-    option.textContent = `${formatDate(schedule.date)} ${schedule.time} — ${schedule.workout_name}`;
-    // Якщо вільних місць нема — робимо опцію неактивною, але показуємо.
-    if (schedule.available === 0) {
-      option.disabled = true;
-    }
-    select.appendChild(option);
-  });
+function describePlan(plan) {
+  const access = accessTypeLabels[plan.access_type] || plan.access_type || 'Доступ';
+  const period = plan.plan_type === 'subscription'
+    ? `${plan.duration_days || 30} днів`
+    : `${plan.usage_count || 1} використання`;
+  return `${access} · ${period}`;
 }
 
-/**
- * Завантажує профіль клієнта і відображає поточний абонемент.
- *
- * @returns {Promise<void>}
- */
-async function loadSubscription() {
-  const profile = await apiFetch('/clients/me');
-  const statusEl = document.querySelector('#subscription-status');
+function setSubscriptionFeedback(message = '', type = 'info') {
+  const feedback = document.querySelector('#subscription-feedback');
+  if (!feedback) return;
+  feedback.textContent = message;
+  feedback.dataset.type = type;
+}
 
-  if (!profile.subscription) {
-    statusEl.innerHTML = 'Абонемент відсутній. Зверніться до адміністратора.';
+function setScheduleFeedback(message = '', type = 'info') {
+  const feedback = document.querySelector('#schedule-feedback');
+  if (!feedback) return;
+  feedback.textContent = message;
+  feedback.dataset.type = type;
+}
+
+function formatTime(value = '') {
+  return String(value).slice(0, 5);
+}
+
+function formatShortDate(value) {
+  const date = new Date(value);
+  return date.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' });
+}
+
+function getDayLabel(value, mode = 'short') {
+  return new Date(value).toLocaleDateString('uk-UA', { weekday: mode });
+}
+
+function makeDateOffset(days) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+const pageRoutes = {
+  home: '/pages/client/index.html',
+  schedule: '/pages/client/schedule.html',
+  records: '/pages/client/records.html',
+  profile: '/pages/client/profile.html',
+  subscription: '/pages/client/subscription.html',
+  personal: '/pages/client/personal.html',
+  activity: '/pages/client/activity.html',
+  settings: '/pages/client/settings.html',
+};
+
+const sheetContent = {
+  yoga: {
+    title: 'Йога',
+    text: 'Релаксація, гнучкість та зміцнення тіла через комплекс вправ і дихальних практик.',
+    duration: '50 хв',
+    level: 'для всіх',
+    trainer: 'Анна',
+  },
+  fight: {
+    title: 'Єдиноборства',
+    text: 'Інтенсивне тренування на витривалість, координацію та базову техніку ударів.',
+    duration: '60 хв',
+    level: 'середній',
+    trainer: 'Максим',
+  },
+};
+
+function setScreen(screen) {
+  const nextScreen = titles[screen] ? screen : 'home';
+  if (!document.querySelector(`[data-screen-panel="${nextScreen}"]`) && pageRoutes[nextScreen]) {
+    window.location.href = pageRoutes[nextScreen];
     return;
   }
 
-  const subscription = profile.subscription;
-  statusEl.innerHTML = `
-    <strong>Статус абонемента:</strong> ${subscription.status}<br>
-    <strong>Тип:</strong> ${subscription.type}<br>
-    <strong>Термін дії до:</strong> ${formatDate(subscription.end_date)}
+  document.querySelectorAll('.screen').forEach((panel) => {
+    panel.classList.toggle('active', panel.dataset.screenPanel === nextScreen);
+  });
+
+  document.querySelectorAll('[data-screen]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.screen === nextScreen);
+  });
+
+  document.querySelector('#screen-title').textContent = titles[nextScreen];
+}
+
+function renderCurrentSubscription(subscriptions = []) {
+  const container = document.querySelector('#current-subscription');
+  if (!container) return;
+
+  const activeSubscription = subscriptions.find((item) => item.status === 'active' && new Date(item.end_date) >= new Date());
+  if (!activeSubscription) {
+    container.innerHTML = `
+      <span class="chip">Немає активного</span>
+      <h3>Активний абонемент відсутній</h3>
+      <p>Оберіть один із доступних тарифів нижче.</p>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <span class="chip active">Активний</span>
+    <h3>${escapeHtml(activeSubscription.type || activeSubscription.plan_name || 'Абонемент')}</h3>
+    <p>Початок: ${formatDate(activeSubscription.start_date)}</p>
+    <p>Діє до: ${formatDate(activeSubscription.end_date)}</p>
   `;
 }
 
-/**
- * Завантажує історію візитів клієнта і виводить її у таблиці.
- *
- * @returns {Promise<void>}
- */
-async function loadVisits() {
-  const visits = await apiFetch('/visits/me');
-  const tbody = document.querySelector('#visits-table-body');
-  tbody.innerHTML = '';
-  visits.forEach((visit) => {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${new Date(visit.visit_time).toLocaleDateString()}</td>
-      <td>Відвідав</td>
+function renderAvailablePlans() {
+  const grid = document.querySelector('#client-plans-grid');
+  if (!grid) return;
+
+  if (activePlans.length === 0) {
+    grid.innerHTML = `
+      <article class="plan-card">
+        <h3>Немає доступних тарифів</h3>
+        <p>Адміністратор поки не увімкнув абонементи для купівлі.</p>
+      </article>
     `;
-    tbody.appendChild(row);
-  });
+    return;
+  }
+
+  grid.innerHTML = activePlans.map((plan, index) => `
+    <article class="plan-card ${index === 0 ? 'featured' : ''}">
+      <span class="visual-chip">${planTypeLabels[plan.plan_type] || plan.plan_type}</span>
+      <h3>${escapeHtml(plan.name)}</h3>
+      <p>${escapeHtml(plan.description || describePlan(plan))}</p>
+      <p>${escapeHtml(describePlan(plan))}</p>
+      <strong>${formatMoney(plan.price)}</strong>
+      <button class="primary-btn" data-purchase-plan="${plan.id}">Придбати</button>
+    </article>
+  `).join('');
 }
 
-// ─── Кнопка бронювання ───────────────────────────────────────────────────────
-const bookingBtn = document.querySelector('#booking-btn');
-bookingBtn.addEventListener('click', async () => {
-  setMessage('#booking-status', '');
-  const scheduleId = document.querySelector('#booking-select').value;
-  if (!scheduleId) return;
+function renderDateStrip() {
+  const strip = document.querySelector('#client-date-strip');
+  if (!strip) return;
 
+  strip.innerHTML = Array.from({ length: 7 }, (_, index) => {
+    const date = makeDateOffset(index);
+    const isActive = date === selectedScheduleDate;
+    return `
+      <button class="date-pill ${isActive ? 'active' : ''}" data-schedule-date="${date}">
+        <strong>${formatShortDate(date)}</strong>
+        <span>${getDayLabel(date)}</span>
+        ${index === 0 ? '<small>Сьогодні</small>' : ''}
+      </button>
+    `;
+  }).join('');
+}
+
+function renderScheduleFilters() {
+  const filterRow = document.querySelector('#client-schedule-filters');
+  if (!filterRow) return;
+
+  const workoutNames = [...new Set(schedules.map((item) => item.workout_name).filter(Boolean))];
+  filterRow.innerHTML = [
+    `<button class="chip ${selectedWorkoutFilter === 'all' ? 'active' : ''}" data-workout-filter="all">Усі</button>`,
+    ...workoutNames.map((name) => `
+      <button class="chip ${selectedWorkoutFilter === name ? 'active' : ''}" data-workout-filter="${escapeHtml(name)}">
+        ${escapeHtml(name)}
+      </button>
+    `),
+  ].join('');
+}
+
+function isAlreadyBooked(scheduleId) {
+  return bookings.some((booking) => (
+    String(booking.schedule_id) === String(scheduleId)
+    && booking.status === 'active'
+  ));
+}
+
+function renderScheduleList() {
+  const list = document.querySelector('#client-schedule-list');
+  if (!list) return;
+
+  const visibleSchedules = schedules.filter((item) => {
+    const date = formatDate(item.date);
+    const matchesDate = date === selectedScheduleDate;
+    const matchesFilter = selectedWorkoutFilter === 'all' || item.workout_name === selectedWorkoutFilter;
+    return matchesDate && matchesFilter;
+  });
+
+  if (visibleSchedules.length === 0) {
+    list.innerHTML = `
+      <article class="record-card">
+        <h3>Занять не знайдено</h3>
+        <p>Оберіть іншу дату або фільтр.</p>
+      </article>
+    `;
+    return;
+  }
+
+  list.innerHTML = visibleSchedules.map((item) => {
+    const booked = isAlreadyBooked(item.id);
+    const available = Number(item.available || 0);
+    const disabled = available <= 0 || booked;
+    const actionText = booked ? 'Записано' : (available > 0 ? 'Записатися' : 'Недоступно');
+
+    return `
+      <div class="class-card ${disabled && !booked ? 'disabled' : ''}">
+        <div class="class-time">${formatTime(item.time)}</div>
+        <div class="class-info">
+          <h3>${escapeHtml(item.workout_name)}</h3>
+          <p>Тренер ${escapeHtml(item.trainer_name || 'не призначений')}</p>
+          <p>${available > 0 ? `${available} місць` : 'місць немає'}</p>
+        </div>
+        <div class="class-actions">
+          <button class="ghost-btn" data-schedule-details="${item.id}">Опис</button>
+          <button class="primary-btn" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${actionText}</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadSchedulePage() {
+  if (!document.querySelector('#client-schedule-list')) return;
+
+  try {
+    setScheduleFeedback('Завантаження розкладу...');
+    [schedules, bookings] = await Promise.all([
+      apiFetch('/schedules'),
+      apiFetch('/bookings/me'),
+    ]);
+    renderDateStrip();
+    renderScheduleFilters();
+    renderScheduleList();
+    setScheduleFeedback(`Занять у розкладі: ${schedules.length}`, 'success');
+  } catch (error) {
+    setScheduleFeedback(`Не вдалося завантажити розклад: ${error.message}`, 'error');
+  }
+}
+
+function openScheduleDetails(scheduleId) {
+  const item = schedules.find((schedule) => String(schedule.id) === String(scheduleId))
+    || bookings.find((booking) => String(booking.schedule_id) === String(scheduleId));
+  if (!item || !sheet) return;
+
+  document.querySelector('#sheet-title').textContent = item.workout_name || 'Заняття';
+  document.querySelector('#sheet-text').textContent = item.workout_description || 'Опис заняття ще не додано.';
+  const details = sheet.querySelectorAll('dd');
+  if (details.length >= 3) {
+    details[0].textContent = formatTime(item.time);
+    details[1].textContent = formatDate(item.date);
+    details[2].textContent = item.trainer_name || 'Не призначено';
+  }
+  sheet.classList.add('active');
+}
+
+async function bookSchedule(scheduleId) {
   try {
     await apiFetch('/bookings', {
       method: 'POST',
       body: JSON.stringify({ schedule_id: Number(scheduleId) }),
     });
-    setMessage('#booking-status', 'Місце заброньовано!');
-    await loadSchedule();
+    setScheduleFeedback('Запис створено', 'success');
+    await loadSchedulePage();
   } catch (error) {
-    setMessage('#booking-status', error.message, true);
+    setScheduleFeedback(`Не вдалося записатися: ${error.message}`, 'error');
+  }
+}
+
+function renderBookingsPage() {
+  const futureList = document.querySelector('#future-bookings-list');
+  const historyList = document.querySelector('#history-bookings-list');
+  if (!futureList || !historyList) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const future = bookings.filter((booking) => booking.status === 'active' && formatDate(booking.date) >= today);
+  const history = bookings.filter((booking) => booking.status !== 'active' || formatDate(booking.date) < today);
+
+  futureList.innerHTML = future.length ? future.map((booking) => `
+    <article class="record-card">
+      <h3>${escapeHtml(booking.workout_name)}</h3>
+      <p>${formatDate(booking.date)} · ${formatTime(booking.time)}</p>
+      <p>Тренер ${escapeHtml(booking.trainer_name || 'не призначений')}</p>
+      <div class="record-actions">
+        <button class="ghost-btn" data-booking-details="${booking.schedule_id}">Деталі</button>
+        <button class="danger-btn" data-cancel-booking="${booking.id}">Скасувати</button>
+      </div>
+    </article>
+  `).join('') : `
+    <article class="record-card">
+      <h3>Немає майбутніх записів</h3>
+      <p>Перейдіть у розклад, щоб записатися на заняття.</p>
+      <button class="primary-btn" data-screen-link="schedule">Перейти до розкладу</button>
+    </article>
+  `;
+
+  historyList.innerHTML = history.length ? history.map((booking) => `
+    <article class="record-card">
+      <h3>${escapeHtml(booking.workout_name)}</h3>
+      <p>${formatDate(booking.date)} · ${formatTime(booking.time)}</p>
+      <p>${booking.status === 'active' ? 'Завершено' : 'Скасовано'}</p>
+    </article>
+  `).join('') : `
+    <article class="record-card">
+      <h3>Історія порожня</h3>
+      <p>Минулі тренування з’являться тут автоматично.</p>
+    </article>
+  `;
+}
+
+async function loadRecordsPage() {
+  if (!document.querySelector('#future-bookings-list')) return;
+  try {
+    bookings = await apiFetch('/bookings/me');
+    renderBookingsPage();
+  } catch {
+    const futureList = document.querySelector('#future-bookings-list');
+    if (futureList) {
+      futureList.innerHTML = '<article class="record-card"><h3>Не вдалося завантажити записи</h3></article>';
+    }
+  }
+}
+
+async function cancelBooking(bookingId) {
+  try {
+    await apiFetch(`/bookings/${bookingId}`, { method: 'DELETE' });
+    await loadRecordsPage();
+  } catch {
+    const futureList = document.querySelector('#future-bookings-list');
+    if (futureList) {
+      futureList.insertAdjacentHTML('afterbegin', '<p class="form-error">Не вдалося скасувати запис</p>');
+    }
+  }
+}
+
+async function loadSubscriptionPage() {
+  if (!document.querySelector('#client-plans-grid')) return;
+
+  try {
+    setSubscriptionFeedback('Завантаження абонементів...');
+    const [plans, subscriptions] = await Promise.all([
+      apiFetch('/subscriptions/plans/active'),
+      apiFetch('/subscriptions/me'),
+    ]);
+    activePlans = plans;
+    renderCurrentSubscription(subscriptions);
+    renderAvailablePlans();
+    setSubscriptionFeedback(`Доступно тарифів: ${activePlans.length}`, 'success');
+  } catch (error) {
+    setSubscriptionFeedback(`Не вдалося завантажити абонементи: ${error.message}`, 'error');
+    const grid = document.querySelector('#client-plans-grid');
+    if (grid) {
+      grid.innerHTML = `
+        <article class="plan-card">
+          <h3>Помилка завантаження</h3>
+          <p>Спробуйте оновити сторінку.</p>
+        </article>
+      `;
+    }
+  }
+}
+
+function openPurchaseModal(plan) {
+  currentPlanForPurchase = plan;
+  const content = document.querySelector('#purchase-modal-content');
+  if (!content || !modal) return;
+
+  content.innerHTML = `
+    <p>${escapeHtml(plan.name)}</p>
+    <p>Ціна: ${formatMoney(plan.price)}</p>
+    <p>${escapeHtml(describePlan(plan))}</p>
+    <div class="modal-actions">
+      <button class="ghost-btn modal-close">Скасувати</button>
+      <button class="primary-btn" id="confirm-purchase">Підтвердити</button>
+    </div>
+  `;
+  modal.classList.add('active');
+}
+
+async function purchaseSelectedPlan() {
+  if (!currentPlanForPurchase) return;
+
+  try {
+    await apiFetch('/subscriptions/purchase', {
+      method: 'POST',
+      body: JSON.stringify({ plan_id: currentPlanForPurchase.id }),
+    });
+    modal.classList.remove('active');
+    setSubscriptionFeedback('Абонемент придбано. Оплату створено.', 'success');
+    await loadSubscriptionPage();
+  } catch (error) {
+    setSubscriptionFeedback(`Не вдалося придбати абонемент: ${error.message}`, 'error');
+  }
+}
+
+document.querySelectorAll('[data-screen], [data-screen-link]').forEach((button) => {
+  button.addEventListener('click', () => {
+    setScreen(button.dataset.screen || button.dataset.screenLink);
+  });
+});
+
+document.querySelectorAll('[data-record-tab]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const tab = button.dataset.recordTab;
+    document.querySelectorAll('[data-record-tab]').forEach((item) => {
+      item.classList.toggle('active', item.dataset.recordTab === tab);
+    });
+    document.querySelectorAll('[data-record-panel]').forEach((panel) => {
+      panel.classList.toggle('active', panel.dataset.recordPanel === tab);
+    });
+  });
+});
+
+document.querySelectorAll('[data-club-dot]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const slide = button.dataset.clubDot;
+    document.querySelectorAll('[data-club-slide]').forEach((item) => {
+      item.classList.toggle('active', item.dataset.clubSlide === slide);
+    });
+    document.querySelectorAll('[data-club-dot]').forEach((item) => {
+      item.classList.toggle('active', item.dataset.clubDot === slide);
+    });
+  });
+});
+
+const sheet = document.querySelector('#sheet');
+
+document.querySelectorAll('.sheet-open').forEach((button) => {
+  button.addEventListener('click', () => {
+    const content = sheetContent[button.dataset.sheet] || sheetContent.yoga;
+    document.querySelector('#sheet-title').textContent = content.title;
+    document.querySelector('#sheet-text').textContent = content.text;
+    const details = sheet.querySelectorAll('dd');
+    details[0].textContent = content.duration;
+    details[1].textContent = content.level;
+    details[2].textContent = content.trainer;
+    sheet.classList.add('active');
+  });
+});
+
+document.querySelector('.sheet-close').addEventListener('click', () => {
+  sheet.classList.remove('active');
+});
+
+sheet.addEventListener('click', (event) => {
+  if (event.target === sheet) {
+    sheet.classList.remove('active');
   }
 });
 
-// ─── Кнопка оплати ───────────────────────────────────────────────────────────
-const payBtn = document.querySelector('#pay-btn');
-payBtn.addEventListener('click', async () => {
-  setMessage('#payment-status', '');
-  const amount = Number(document.querySelector('#payment-amount').value) || 0;
-  if (amount < MIN_PAYMENT_AMOUNT) {
-    setMessage('#payment-status', 'Вкажіть суму оплати', true);
+const modal = document.querySelector('#purchase-modal');
+
+document.addEventListener('click', (event) => {
+  if (event.target.closest('.logout, .logout-row')) {
+    clearAuth();
+    window.location.href = PAGE.HOME;
     return;
   }
 
-  try {
-    await apiFetch('/payments', {
-      method: 'POST',
-      body: JSON.stringify({ amount }),
-    });
-    setMessage('#payment-status', 'Оплата успішна!');
-  } catch (error) {
-    setMessage('#payment-status', error.message, true);
+  const dynamicScreenButton = event.target.closest('[data-screen-link]');
+  if (dynamicScreenButton) {
+    setScreen(dynamicScreenButton.dataset.screenLink);
+    return;
+  }
+
+  const dateButton = event.target.closest('[data-schedule-date]');
+  if (dateButton) {
+    selectedScheduleDate = dateButton.dataset.scheduleDate;
+    renderDateStrip();
+    renderScheduleList();
+    return;
+  }
+
+  const workoutFilterButton = event.target.closest('[data-workout-filter]');
+  if (workoutFilterButton) {
+    selectedWorkoutFilter = workoutFilterButton.dataset.workoutFilter;
+    renderScheduleFilters();
+    renderScheduleList();
+    return;
+  }
+
+  const scheduleDetailsButton = event.target.closest('[data-schedule-details], [data-booking-details]');
+  if (scheduleDetailsButton) {
+    openScheduleDetails(scheduleDetailsButton.dataset.scheduleDetails || scheduleDetailsButton.dataset.bookingDetails);
+    return;
+  }
+
+  const bookButton = event.target.closest('[data-book-schedule]');
+  if (bookButton) {
+    bookSchedule(bookButton.dataset.bookSchedule);
+    return;
+  }
+
+  const cancelButton = event.target.closest('[data-cancel-booking]');
+  if (cancelButton) {
+    cancelBooking(cancelButton.dataset.cancelBooking);
+    return;
+  }
+
+  const purchaseButton = event.target.closest('[data-purchase-plan]');
+  if (purchaseButton) {
+    const plan = activePlans.find((item) => String(item.id) === purchaseButton.dataset.purchasePlan);
+    if (plan) openPurchaseModal(plan);
+    return;
+  }
+
+  if (event.target.closest('#confirm-purchase')) {
+    purchaseSelectedPlan();
+    return;
+  }
+
+  if (event.target.closest('.modal-open')) {
+    modal?.classList.add('active');
+    return;
+  }
+
+  if (event.target.closest('.modal-close')) {
+    modal?.classList.remove('active');
   }
 });
 
-/**
- * Початкове завантаження даних сторінки.
- * Викликаємо у трьох потоках паралельно, щоб не блокувати рендер.
- *
- * @returns {Promise<void>}
- */
-async function init() {
-  await Promise.all([loadSchedule(), loadSubscription(), loadVisits()]);
-}
+modal?.addEventListener('click', (event) => {
+  if (event.target === modal) {
+    modal.classList.remove('active');
+  }
+});
 
-init();
+const currentUser = await requireFreshAuth([ROLE.CLIENT]);
+if (currentUser) {
+  loadSchedulePage();
+  loadRecordsPage();
+  loadSubscriptionPage();
+}

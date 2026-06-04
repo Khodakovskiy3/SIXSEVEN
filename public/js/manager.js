@@ -1,111 +1,162 @@
-/**
- * Сторінка керівника: список користувачів і трійка зведених звітів.
- *
- * Викликається з public/pages/manager.html. Доступ для ролей manager та admin.
- */
+import { clearAuth } from './api.js';
+import { PAGE } from './constants.js';
 
-import { apiFetch, clearAuth, requireAuth, formatDate } from './api.js';
-import { PAGE, ROLE } from './constants.js';
+const titles = {
+  dashboard: 'Панель керування',
+  users: 'Користувачі',
+  analytics: 'Аналітика',
+  profile: 'Мій профіль',
+  personal: 'Особисті дані',
+  'profile-settings': 'Сповіщення',
+};
 
-/** Множник для перетворення частки у відсотки. */
-const PERCENT_MULTIPLIER = 100;
+const pageRoutes = {
+  dashboard: '/pages/manager/index.html',
+  users: '/pages/manager/users.html',
+  analytics: '/pages/manager/analytics.html',
+  profile: '/pages/manager/profile.html',
+  personal: '/pages/manager/personal.html',
+  'profile-settings': '/pages/manager/settings.html',
+};
 
-requireAuth([ROLE.MANAGER, ROLE.ADMIN]);
+const sheetContent = {
+  client: {
+    title: 'Олена Коваль',
+    html: `
+      <p>Телефон: +380 67 000 00 00</p>
+      <p>Email: olena@mail.com</p>
+      <p>Роль: Клієнт · статус: активний</p>
+      <p>Абонемент: Безліміт “Зал + Групові” · до 24.06.2026</p>
+      <h3>Історія ролей</h3>
+      <ul><li>23.05 · Надано права адміністратора</li><li>25.05 · Забрано права адміністратора</li></ul>
+    `,
+  },
+  trainer: {
+    title: 'Анна Мельник',
+    html: `
+      <p>Телефон: +380 67 222 11 00</p>
+      <p>Email: anna@mail.com</p>
+      <p>Роль: Тренер · статус: активний</p>
+      <p>Спеціалізація: Йога, Фітнес</p>
+    `,
+  },
+  admin: {
+    title: 'Ігор Кравець',
+    html: `
+      <p>Телефон: +380 63 444 55 66</p>
+      <p>Email: ihor@mail.com</p>
+      <p>Поточна роль: Адміністратор</p>
+      <p>Після зняття адмінських прав користувач залишиться у своїй основній ролі.</p>
+    `,
+  },
+};
 
-// ─── Логаут ──────────────────────────────────────────────────────────────────
-const logoutBtn = document.querySelector('#logout-btn');
-if (logoutBtn) {
-  logoutBtn.addEventListener('click', () => {
+const modalText = {
+  'Надати права адміністратора':
+    'Користувач отримає доступ до адмін-панелі: клієнти, тренери, розклад, послуги, абонементи, повідомлення.',
+  'Забрати права адміністратора':
+    'Користувач більше не матиме доступу до адмін-панелі. Його основна роль залишиться без змін.',
+  'Сформувати звіт':
+    'Оберіть тип звіту: фінансовий, відвідуваність, продажі абонементів, робота тренерів або повний звіт.',
+  'Змінити пароль': 'Введіть поточний пароль, новий пароль і підтвердження нового пароля.',
+};
+
+function setScreen(screen) {
+  const nextScreen = titles[screen] ? screen : 'dashboard';
+  if (!document.querySelector(`[data-screen-panel="${nextScreen}"]`) && pageRoutes[nextScreen]) {
+    window.location.href = pageRoutes[nextScreen];
+    return;
+  }
+  const activeNav = ['personal', 'profile-settings'].includes(nextScreen) ? 'profile' : nextScreen;
+
+  document.querySelectorAll('.screen').forEach((panel) => {
+    panel.classList.toggle('active', panel.dataset.screenPanel === nextScreen);
+  });
+
+  document.querySelectorAll('[data-screen]').forEach((button) => {
+    button.classList.toggle('active', button.dataset.screen === activeNav);
+  });
+
+  document.querySelector('#screen-title').textContent = titles[nextScreen];
+}
+
+document.querySelectorAll('[data-screen], [data-screen-link]').forEach((button) => {
+  button.addEventListener('click', () => {
+    setScreen(button.dataset.screen || button.dataset.screenLink);
+  });
+});
+
+document.querySelectorAll('.logout, .logout-row').forEach((button) => {
+  button.addEventListener('click', () => {
     clearAuth();
-    window.location.href = PAGE.LOGIN;
+    window.location.href = PAGE.HOME;
   });
-}
+});
 
-/**
- * Завантажує і відображає таблицю користувачів.
- *
- * @returns {Promise<void>}
- */
-async function loadUsers() {
-  const users = await apiFetch('/users');
-  const tbody = document.querySelector('#users-table');
-  tbody.innerHTML = '';
-  users.forEach((user) => {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${user.id}</td>
-      <td>${user.name}</td>
-      <td>${user.email}</td>
-      <td>${user.role}</td>
-    `;
-    tbody.appendChild(row);
+document.querySelectorAll('.chip').forEach((button) => {
+  button.addEventListener('click', () => {
+    const row = button.closest('.chip-row');
+    row.querySelectorAll('.chip').forEach((item) => item.classList.remove('active'));
+    button.classList.add('active');
   });
-}
+});
 
-/**
- * Завантажує зведену статистику (виручка, активні абонементи, клієнти).
- *
- * @returns {Promise<void>}
- */
-async function loadSummary() {
-  const summary = await apiFetch('/reports/summary');
-  document.querySelector('#revenue-total').textContent = summary.revenue;
-  document.querySelector('#active-subs').textContent = summary.active_subscriptions;
-  document.querySelector('#total-clients').textContent = summary.total_clients;
-}
+document.querySelectorAll('[data-analytics-tab]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const tab = button.dataset.analyticsTab;
 
-/**
- * Завантажує звіт відвідуваності: для кожного запису рахуємо завантаженість групи.
- *
- * @returns {Promise<void>}
- */
-async function loadAttendance() {
-  const rows = await apiFetch('/reports/attendance');
-  const tbody = document.querySelector('#attendance-table tbody');
-  tbody.innerHTML = '';
-  rows.forEach((row) => {
-    // Уникаємо ділення на нуль, якщо у тренування невказана місткість.
-    const attendancePercent = row.max_clients
-      ? Math.round((Number(row.attendees) / Number(row.max_clients)) * PERCENT_MULTIPLIER)
-      : 0;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${row.workout_name}</td>
-      <td>${formatDate(row.date)}</td>
-      <td>${row.attendees}</td>
-      <td>${attendancePercent}%</td>
-    `;
-    tbody.appendChild(tr);
+    document.querySelectorAll('[data-analytics-tab]').forEach((item) => {
+      item.classList.toggle('active', item.dataset.analyticsTab === tab);
+    });
+
+    document.querySelectorAll('[data-analytics-panel]').forEach((panel) => {
+      panel.classList.toggle('active', panel.dataset.analyticsPanel === tab);
+    });
   });
-}
+});
 
-/**
- * Завантажує звіт по тренерах: скільки сесій провів кожен.
- *
- * @returns {Promise<void>}
- */
-async function loadStaff() {
-  const rows = await apiFetch('/reports/staff');
-  const tbody = document.querySelector('#staff-table');
-  tbody.innerHTML = '';
-  rows.forEach((row) => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${row.trainer_name}</td>
-      <td>${row.sessions}</td>
-    `;
-    tbody.appendChild(tr);
+const sheet = document.querySelector('#sheet');
+const sheetTitle = document.querySelector('#sheet-title');
+const sheetContentBox = document.querySelector('#sheet-content');
+
+document.querySelectorAll('.sheet-open').forEach((button) => {
+  button.addEventListener('click', () => {
+    const content = sheetContent[button.dataset.sheet] || sheetContent.client;
+    sheetTitle.textContent = content.title;
+    sheetContentBox.innerHTML = content.html;
+    sheet.classList.add('active');
   });
-}
+});
 
-/**
- * Початкове завантаження сторінки.
- * Усі чотири запити запускаємо паралельно — вони незалежні.
- *
- * @returns {Promise<void>}
- */
-async function init() {
-  await Promise.all([loadUsers(), loadSummary(), loadAttendance(), loadStaff()]);
-}
+document.querySelector('.sheet-close').addEventListener('click', () => {
+  sheet.classList.remove('active');
+});
 
-init();
+sheet.addEventListener('click', (event) => {
+  if (event.target === sheet) {
+    sheet.classList.remove('active');
+  }
+});
+
+const modal = document.querySelector('#manager-modal');
+const modalTitle = document.querySelector('#modal-title');
+const modalTextBox = document.querySelector('#modal-text');
+
+document.querySelectorAll('.modal-open').forEach((button) => {
+  button.addEventListener('click', () => {
+    const title = button.dataset.modalTitle || 'Підтвердження';
+    modalTitle.textContent = title;
+    modalTextBox.textContent = modalText[title] || 'Дія буде застосована після підтвердження.';
+    modal.classList.add('active');
+  });
+});
+
+document.querySelectorAll('.modal-close').forEach((button) => {
+  button.addEventListener('click', () => modal.classList.remove('active'));
+});
+
+modal.addEventListener('click', (event) => {
+  if (event.target === modal) {
+    modal.classList.remove('active');
+  }
+});

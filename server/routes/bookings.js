@@ -53,10 +53,14 @@ router.get('/me', requireRole(ROLE.CLIENT), async (req, res) => {
 
   const result = await query(
     `select b.id, b.status, b.schedule_id,
-            s.date, s.time, w.name as workout_name
+            s.date, s.time, w.name as workout_name,
+            w.description as workout_description,
+            u.name as trainer_name
      from bookings b
      join schedules s on s.id = b.schedule_id
      join workouts w on w.id = s.workout_id
+     left join trainers t on t.id = s.trainer_id
+     left join users u on u.id = t.user_id
      where b.client_id = $1
      order by s.date desc, s.time desc`,
     [clientId]

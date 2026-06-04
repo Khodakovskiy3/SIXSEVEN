@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OLIMP - Кабінет адміністратора - Клієнти</title>
+    <link rel="stylesheet" href="../../styles/admin.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#111111">
+</head>
+<body>
+    <div class="app-shell admin-shell">
+        <aside class="sidebar">
+            <div class="brand brand-sidebar">OLIMP</div>
+            <nav class="side-nav" aria-label="Навігація адміністратора">
+                <button class="nav-item" data-screen="dashboard">Головна</button>
+                <button class="nav-item active" data-screen="clients">Клієнти</button>
+                <button class="nav-item" data-screen="trainers">Тренери</button>
+                <button class="nav-item" data-screen="schedule">Розклад</button>
+                <button class="nav-item" data-screen="services">Послуги</button>
+                <button class="nav-item" data-screen="plans">Абонементи</button>
+                <button class="nav-item" data-screen="messages">Повідомлення</button>
+                <button class="nav-item" data-screen="profile">Профіль</button>
+            </nav>
+            <button class="logout ghost">Вийти</button>
+        </aside>
+
+        <main class="client-app admin-app">
+            <header class="topbar">
+                <div>
+                    <div class="brand">OLIMP</div>
+                    <h1 id="screen-title">Клієнти</h1>
+                </div>
+                <div class="top-actions">
+                    <button class="icon-btn notification-btn" aria-label="Повідомлення">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 22a2.8 2.8 0 0 0 2.7-2h-5.4A2.8 2.8 0 0 0 12 22Z"></path>
+                            <path d="M18.2 16.5c-.9-1-1.4-2.2-1.4-3.6V10a4.8 4.8 0 0 0-3.5-4.6V4a1.3 1.3 0 1 0-2.6 0v1.4A4.8 4.8 0 0 0 7.2 10v2.9c0 1.4-.5 2.7-1.4 3.6l-.6.7c-.6.7-.1 1.8.8 1.8h12c.9 0 1.4-1.1.8-1.8l-.6-.7Z"></path>
+                        </svg>
+                        <span class="notification-dot"></span>
+                    </button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">AD</button>
+                </div>
+            </header>
+
+            <section class="screen active" data-screen-panel="clients">
+                <div class="panel admin-section">
+                    <div class="admin-toolbar">
+                        <input id="clients-search" type="search" placeholder="Пошук за ім’ям, телефоном або email">
+                        <button class="ghost-btn" id="open-visit-modal">Відмітити візит</button>
+                        <button class="primary-btn" id="open-client-modal">Додати клієнта</button>
+                    </div>
+                    <div class="chip-row" id="clients-filter">
+                        <button class="chip active" data-client-filter="all">Усі</button>
+                        <button class="chip" data-client-filter="active">Активні</button>
+                        <button class="chip" data-client-filter="inactive">Неактивні</button>
+                    </div>
+                    <p class="admin-feedback" id="clients-feedback" role="status" aria-live="polite"></p>
+                    <div class="admin-table" id="clients-table">
+                        <div class="table-row table-head"><span>Ім’я</span><span>Телефон</span><span>Email</span><span>Абонемент</span><span>Статус</span><span>Діє до</span><span>Дії</span></div>
+                        <div id="clients-table-body"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <nav class="bottom-nav admin-bottom-nav" aria-label="Нижня навігація">
+            <button class="bottom-item" data-screen="dashboard">Головна</button>
+                <button class="bottom-item active" data-screen="clients">Клієнти</button>
+                <button class="bottom-item" data-screen="trainers">Тренери</button>
+                <button class="bottom-item" data-screen="schedule">Розклад</button>
+                <button class="bottom-item" data-screen="profile">Профіль</button>
+        </nav>
+    </div>
+
+    <div class="sheet-backdrop" id="sheet">
+        <div class="bottom-sheet">
+            <div class="sheet-handle"></div>
+            <h2 id="sheet-title">Деталі</h2>
+            <div id="sheet-content" class="sheet-content"></div>
+            <button class="primary-btn sheet-close">Закрити</button>
+        </div>
+    </div>
+
+    <div class="modal-backdrop" id="admin-modal">
+        <div class="modal admin-modal">
+            <h2 id="modal-title">Форма</h2>
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <script type="module" src="../../js/admin.js"></script>
+</body>
+</html>

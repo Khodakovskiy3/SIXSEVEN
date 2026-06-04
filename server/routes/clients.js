@@ -29,12 +29,44 @@ const router = Router();
 
 router.use(authRequired);
 
+function normalizePhone(phone) {
+  if (!phone) return null;
+  const digits = String(phone).replace(/\D/g, '');
+  const normalized = digits.startsWith('380') ? digits : `380${digits.replace(/^0+/, '')}`;
+  return `+${normalized.slice(0, 12)}`;
+}
+
+function isValidPhone(phone) {
+  return !phone || /^\+380\d{9}$/.test(phone);
+}
+
 router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const result = await query(
-    `select c.id, u.name, u.email, c.phone
+    `select c.id, u.name, u.email, c.phone,
+            s.id as subscription_id,
+            s.plan_id as subscription_plan_id,
+            s.type as subscription_type,
+            sp.price as subscription_price,
+            sp.plan_type as subscription_plan_type,
+            s.end_date as subscription_end_date,
+            case
+              when s.id is null then 'inactive'
+              when s.status = 'active' and s.end_date >= current_date then 'active'
+              else 'inactive'
+            end as status
      from clients c
      join users u on u.id = c.user_id
-     order by c.id desc`
+     left join lateral (
+       select id, plan_id, type, end_date, status
+       from subscriptions
+       where client_id = c.id
+       order by end_date desc
+       limit 1
+     ) s on true
+     left join subscription_plans sp on sp.id = s.plan_id
+     where u.role = $1
+     order by c.id desc`,
+    [ROLE.CLIENT]
   );
   return res.json(result.rows);
 });
@@ -75,6 +107,11 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
   }
 
+  const normalizedPhone = normalizePhone(phone);
+  if (!isValidPhone(normalizedPhone)) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid phone format' });
+  }
+
   const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
   try {
@@ -93,7 +130,7 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
         `insert into clients (user_id, phone)
          values ($1, $2)
          returning id, phone`,
-        [user.id, phone || null]
+        [user.id, normalizedPhone]
       );
 
       await client.query('commit');
@@ -115,7 +152,11 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
 
 router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
-  const { name, email, phone } = req.body || {};
+  const { name, phone } = req.body || {};
+  const normalizedPhone = normalizePhone(phone);
+  if (!isValidPhone(normalizedPhone)) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid phone format' });
+  }
 
   // Оновлення зачіпає одразу дві таблиці (users + clients),
   // тому виконуємо його в транзакції.
@@ -135,10 +176,9 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
 
     await client.query(
       `update users
-       set name = coalesce($1, name),
-           email = coalesce($2, email)
-       where id = $3`,
-      [name || null, email ? email.toLowerCase() : null, userId]
+       set name = coalesce($1, name)
+       where id = $2`,
+      [name || null, userId]
     );
 
     const clientResult = await client.query(
@@ -146,7 +186,7 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
        set phone = coalesce($1, phone)
        where id = $2
        returning id, phone`,
-      [phone || null, id]
+      [normalizedPhone, id]
     );
 
     const userResult = await client.query(
@@ -170,8 +210,63 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
 
 router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
-  await query('delete from clients where id = $1', [id]);
+  const current = await query('select user_id from clients where id = $1', [id]);
+  if (current.rows.length === 0) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+  }
+
+  await query('delete from users where id = $1', [current.rows[0].user_id]);
   return res.json({ ok: true });
+});
+
+router.get('/:id', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
+  const { id } = req.params;
+
+  const clientResult = await query(
+    `select c.id, u.name, u.email, c.phone,
+            s.id as subscription_id,
+            s.plan_id as subscription_plan_id,
+            s.type as subscription_type,
+            sp.price as subscription_price,
+            sp.plan_type as subscription_plan_type,
+            s.start_date as subscription_start_date,
+            s.end_date as subscription_end_date,
+            case
+              when s.id is null then 'inactive'
+              when s.status = 'active' and s.end_date >= current_date then 'active'
+              else 'inactive'
+            end as status
+     from clients c
+     join users u on u.id = c.user_id
+     left join lateral (
+       select id, plan_id, type, start_date, end_date, status
+       from subscriptions
+       where client_id = c.id
+       order by end_date desc
+       limit 1
+     ) s on true
+     left join subscription_plans sp on sp.id = s.plan_id
+     where c.id = $1`,
+    [id]
+  );
+
+  if (clientResult.rows.length === 0) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
+  }
+
+  const visitsResult = await query(
+    `select v.id, v.visit_time, null as workout_name
+     from visits v
+     where v.client_id = $1
+     order by v.visit_time desc
+     limit 8`,
+    [id]
+  );
+
+  return res.json({
+    client: clientResult.rows[0],
+    visits: visitsResult.rows,
+  });
 });
 
 export default router;
