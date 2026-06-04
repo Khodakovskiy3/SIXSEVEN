@@ -43,10 +43,14 @@
                 <div class="panel narrow-panel">
                     <button class="back-btn" data-screen-link="profile">Назад</button>
                     <h2>Особисті дані</h2>
-                    <label>Ім’я<input type="text" data-account-field="name"></label>
-                    <label>Телефон<input type="text" data-account-field="phone"></label>
-                    <label>Email<input type="email" data-account-field="email" disabled></label>
-                    <button class="primary-btn" data-change-password disabled>Змінити пароль</button>
+                    <form id="client-profile-form">
+                        <label>Ім’я<input type="text" name="name" data-account-field="name"></label>
+                        <label>Телефон<input type="text" name="phone" data-account-field="phone" placeholder="+380XXXXXXXXX"></label>
+                        <label>Email<input type="email" data-account-field="email" disabled></label>
+                        <p class="form-note" id="profile-feedback" role="status"></p>
+                        <button type="submit" class="primary-btn">Зберегти</button>
+                        <button type="button" class="ghost-btn" data-change-password>Змінити пароль</button>
+                    </form>
                 </div>
             </section>
         </main>
@@ -73,16 +77,19 @@
         </div>
     </div>
 
-    <div class="modal-backdrop" id="purchase-modal">
+    <div class="modal-backdrop" id="password-modal">
         <div class="modal">
-            <h2>Підтвердити покупку</h2>
-            <p>Безліміт “Зал + Групові”</p>
-            <p>Ціна: 1800 грн</p>
-            <p>Термін дії: 30 днів</p>
-            <div class="modal-actions">
-                <button class="ghost-btn modal-close">Скасувати</button>
-                <button class="primary-btn modal-close">Підтвердити</button>
-            </div>
+            <h2>Змінити пароль</h2>
+            <form id="password-form">
+                <label>Поточний пароль<input type="password" name="currentPassword" required autocomplete="current-password"></label>
+                <label>Новий пароль<input type="password" name="newPassword" required autocomplete="new-password"></label>
+                <label>Підтвердьте пароль<input type="password" name="confirmPassword" required autocomplete="new-password"></label>
+                <p class="form-note" id="password-feedback" role="status"></p>
+                <div class="modal-actions">
+                    <button type="button" class="ghost-btn" data-password-cancel>Скасувати</button>
+                    <button type="submit" class="primary-btn">Зберегти</button>
+                </div>
+            </form>
         </div>
     </div>
 

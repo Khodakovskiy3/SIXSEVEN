@@ -1,4 +1,4 @@
-import { apiFetch, clearAuth, formatDate, requireFreshAuth } from './api.js';
+import { apiFetch, clearAuth, formatDate, requireFreshAuth, setAuth } from './api.js';
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
 
@@ -79,6 +79,28 @@ function formatShortDate(value) {
 
 function getDayLabel(value, mode = 'short') {
   return new Date(value).toLocaleDateString('uk-UA', { weekday: mode });
+}
+
+/**
+ * Описує день людською мовою: «Сьогодні», «Завтра» або дата у форматі 'дд.мм'.
+ *
+ * @param {string|Date} value
+ * @returns {string}
+ */
+function describeDay(value) {
+  const date = formatDate(value);
+  const today = new Date();
+  if (date === today.toISOString().slice(0, 10)) {
+    return 'Сьогодні';
+  }
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (date === tomorrow.toISOString().slice(0, 10)) {
+    return 'Завтра';
+  }
+
+  return new Date(value).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' });
 }
 
 /**
@@ -341,7 +363,9 @@ async function bookSchedule(scheduleId) {
       body: JSON.stringify({ schedule_id: Number(scheduleId) }),
     });
     setScheduleFeedback('Запис створено', 'success');
-    await loadSchedulePage();
+    // Оновлюємо ту сторінку, що відкрита: розклад або головну
+    // (кожна функція сама нічого не робить, якщо її блоків немає в DOM).
+    await Promise.all([loadSchedulePage(), loadHomePage()]);
   } catch (error) {
     setScheduleFeedback(`Не вдалося записатися: ${error.message}`, 'error');
   }
@@ -409,6 +433,164 @@ async function cancelBooking(bookingId) {
     const futureList = document.querySelector('#future-bookings-list');
     if (futureList) {
       futureList.insertAdjacentHTML('afterbegin', '<p class="form-error">Не вдалося скасувати запис</p>');
+    }
+  }
+}
+
+/**
+ * Малює блок «Найближче тренування» на головній — найближче майбутнє
+ * заняття, на яке клієнт записаний. Якщо записів немає — пропонує розклад.
+ */
+function renderNextTraining() {
+  const container = document.querySelector('#client-next-training');
+  if (!container) {
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const upcomingBookings = bookings
+    .filter((booking) => booking.status === 'active' && formatDate(booking.date) >= today)
+    .sort((first, second) => (
+      `${formatDate(first.date)} ${first.time}`.localeCompare(`${formatDate(second.date)} ${second.time}`)
+    ));
+
+  const nextBooking = upcomingBookings[0];
+  if (!nextBooking) {
+    container.innerHTML = `
+      <div class="training-main">
+        <div>
+          <h2>Немає записів</h2>
+          <p>Запишіться на заняття у розкладі.</p>
+        </div>
+        <button class="primary-btn" data-screen-link="schedule">До розкладу</button>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="training-main">
+      <div>
+        <h2>${escapeHtml(nextBooking.workout_name)}</h2>
+        <p>${describeDay(nextBooking.date)} · ${formatTime(nextBooking.time)}</p>
+        <p>Тренер ${escapeHtml(nextBooking.trainer_name || 'не призначений')}</p>
+      </div>
+      <button class="primary-btn" data-booking-details="${nextBooking.schedule_id}">Деталі</button>
+    </div>
+  `;
+}
+
+/**
+ * Малює короткий блок «Мій абонемент» на головній за активним абонементом.
+ *
+ * @param {object[]} [subscriptions]
+ */
+function renderHomeSubscription(subscriptions = []) {
+  const container = document.querySelector('#client-subscription-summary');
+  if (!container) {
+    return;
+  }
+
+  const activeSubscription = subscriptions.find((item) => (
+    item.status === 'active' && new Date(item.end_date) >= new Date()
+  ));
+
+  if (!activeSubscription) {
+    container.innerHTML = `
+      <div>
+        <h2>Немає активного</h2>
+        <p>Оберіть тариф у розділі «Абонемент».</p>
+      </div>
+      <span class="chevron">›</span>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <div>
+      <h2>${escapeHtml(activeSubscription.type || 'Абонемент')}</h2>
+      <p><span class="status-dot"></span>Активний · до ${formatDate(activeSubscription.end_date)}</p>
+    </div>
+    <span class="chevron">›</span>
+  `;
+}
+
+/**
+ * Малює блок «Розклад на сьогодні» з можливістю запису на заняття.
+ */
+function renderTodaySchedule() {
+  const list = document.querySelector('#client-today-list');
+  if (!list) {
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todaySchedules = schedules
+    .filter((item) => formatDate(item.date) === today)
+    .sort((first, second) => formatTime(first.time).localeCompare(formatTime(second.time)));
+
+  if (todaySchedules.length === 0) {
+    list.innerHTML = `
+      <div class="class-card">
+        <div class="class-info">
+          <h3>Сьогодні занять немає</h3>
+          <p>Перегляньте розклад на інші дні.</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  list.innerHTML = todaySchedules.map((item) => {
+    const isBooked = isAlreadyBooked(item.id);
+    const available = Number(item.available || 0);
+    const disabled = available <= 0 || isBooked;
+    const actionText = isBooked ? 'Записано' : (available > 0 ? 'Запис' : '—');
+
+    return `
+      <div class="class-card ${disabled && !isBooked ? 'disabled' : ''}">
+        <div class="class-time">${formatTime(item.time)}</div>
+        <div class="class-info">
+          <h3>${escapeHtml(item.workout_name)}</h3>
+          <p>${escapeHtml(item.trainer_name || 'без тренера')} · ${available > 0 ? `${available} місць` : 'місць немає'}</p>
+        </div>
+        <button class="primary-btn small" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${actionText}</button>
+      </div>
+    `;
+  }).join('');
+}
+
+/**
+ * Завантажує дані для головної сторінки клієнта (розклад, записи, абонемент)
+ * і наповнює всі її блоки. Нічого не робить на інших сторінках.
+ */
+async function loadHomePage() {
+  if (!document.querySelector('#client-today-list')) {
+    return;
+  }
+
+  try {
+    const [loadedSchedules, loadedBookings, subscriptions] = await Promise.all([
+      apiFetch('/schedules'),
+      apiFetch('/bookings/me'),
+      apiFetch('/subscriptions/me'),
+    ]);
+    schedules = loadedSchedules;
+    bookings = loadedBookings;
+    renderNextTraining();
+    renderHomeSubscription(subscriptions);
+    renderTodaySchedule();
+  } catch (error) {
+    const list = document.querySelector('#client-today-list');
+    if (list) {
+      list.innerHTML = `
+        <div class="class-card">
+          <div class="class-info">
+            <h3>Не вдалося завантажити дані</h3>
+            <p>${escapeHtml(error.message)}</p>
+          </div>
+        </div>
+      `;
     }
   }
 }
@@ -605,9 +787,122 @@ modal?.addEventListener('click', (event) => {
   }
 });
 
+// ─── Особисті дані: збереження профілю та зміна пароля ───────────────────────
+
+/**
+ * Встановлює текст і тип повідомлення (info/success/error) у полі-нотатці.
+ *
+ * @param {HTMLElement|null} element
+ * @param {string} message
+ * @param {string} [type]
+ */
+function setFormNote(element, message, type = 'info') {
+  if (!element) {
+    return;
+  }
+  element.textContent = message;
+  element.dataset.type = type;
+}
+
+/**
+ * Зберігає змінені ім'я та телефон клієнта через PUT /auth/profile
+ * і оновлює відображені дані.
+ *
+ * @param {HTMLFormElement} form
+ */
+async function saveClientProfile(form) {
+  const formData = new FormData(form);
+  const feedback = document.querySelector('#profile-feedback');
+
+  try {
+    const data = await apiFetch('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: formData.get('name')?.trim(),
+        phone: formData.get('phone')?.trim(),
+      }),
+    });
+    // Оновлюємо токен і кеш користувача, бо ім'я могло змінитися.
+    if (data && data.token && data.user) {
+      setAuth(data.token, data.user);
+    }
+    await hydrateAccount({ role: ROLE.CLIENT });
+    setFormNote(feedback, 'Дані збережено', 'success');
+  } catch (error) {
+    setFormNote(feedback, `Не вдалося зберегти: ${error.message}`, 'error');
+  }
+}
+
+const passwordModal = document.querySelector('#password-modal');
+
+function openPasswordModal() {
+  passwordModal?.classList.add('active');
+}
+
+function closePasswordModal() {
+  if (!passwordModal) {
+    return;
+  }
+  passwordModal.classList.remove('active');
+  passwordModal.querySelector('form')?.reset();
+  setFormNote(document.querySelector('#password-feedback'), '');
+}
+
+/**
+ * Змінює пароль клієнта через PUT /auth/password після перевірки збігу
+ * нового пароля та його підтвердження.
+ *
+ * @param {HTMLFormElement} form
+ */
+async function changePassword(form) {
+  const formData = new FormData(form);
+  const feedback = document.querySelector('#password-feedback');
+  const newPassword = formData.get('newPassword');
+
+  if (newPassword !== formData.get('confirmPassword')) {
+    setFormNote(feedback, 'Паролі не співпадають', 'error');
+    return;
+  }
+
+  try {
+    await apiFetch('/auth/password', {
+      method: 'PUT',
+      body: JSON.stringify({
+        currentPassword: formData.get('currentPassword'),
+        newPassword,
+      }),
+    });
+    closePasswordModal();
+    setFormNote(document.querySelector('#profile-feedback'), 'Пароль змінено', 'success');
+  } catch (error) {
+    setFormNote(feedback, `Не вдалося змінити пароль: ${error.message}`, 'error');
+  }
+}
+
+const clientProfileForm = document.querySelector('#client-profile-form');
+clientProfileForm?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  saveClientProfile(clientProfileForm);
+});
+
+const passwordForm = document.querySelector('#password-form');
+passwordForm?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  changePassword(passwordForm);
+});
+
+document.querySelector('[data-change-password]')?.addEventListener('click', openPasswordModal);
+document.querySelector('[data-password-cancel]')?.addEventListener('click', closePasswordModal);
+passwordModal?.addEventListener('click', (event) => {
+  if (event.target === passwordModal) {
+    closePasswordModal();
+  }
+});
+
 const currentUser = await requireFreshAuth([ROLE.CLIENT]);
 if (currentUser) {
   hydrateAccount({ role: ROLE.CLIENT });
+  loadHomePage();
   loadSchedulePage();
   loadRecordsPage();
   loadSubscriptionPage();

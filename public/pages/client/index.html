@@ -35,7 +35,7 @@
                         </svg>
                         <span class="notification-dot"></span>
                     </button>
-                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">OK</button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль" data-account-field="initials"></button>
                 </div>
             </header>
 
@@ -43,25 +43,12 @@
                 <div class="dashboard-grid">
                     <article class="panel next-training">
                         <div class="section-label">Найближче тренування</div>
-                        <div class="training-main">
-                            <div>
-                                <h2>Йога</h2>
-                                <p>Сьогодні · 18:30</p>
-                                <p>Тренер Анна · зал 2</p>
-                            </div>
-                            <button class="primary-btn sheet-open" data-sheet="yoga">Деталі</button>
-                        </div>
+                        <div id="client-next-training"></div>
                     </article>
 
                     <article class="panel subscription-card" data-screen-link="subscription">
                         <div class="section-label">Мій абонемент</div>
-                        <div class="row-between">
-                            <div>
-                                <h2>Безлімітний</h2>
-                                <p><span class="status-dot"></span>Активний · до 24.06.2026</p>
-                            </div>
-                            <span class="chevron">›</span>
-                        </div>
+                        <div class="row-between" id="client-subscription-summary"></div>
                     </article>
 
                     <article class="panel club-news">
@@ -95,24 +82,7 @@
                             <div class="section-label">Розклад на сьогодні</div>
                             <button class="link-btn" data-screen-link="schedule">Весь розклад</button>
                         </div>
-                        <div class="class-list compact">
-                            <div class="class-card">
-                                <div class="class-time">18:30</div>
-                                <div class="class-info">
-                                    <h3>Йога</h3>
-                                    <p>Анна · зал 2 · 5 місць</p>
-                                </div>
-                                <button class="primary-btn small">Запис</button>
-                            </div>
-                            <div class="class-card">
-                                <div class="class-time">20:00</div>
-                                <div class="class-info">
-                                    <h3>Єдиноборства</h3>
-                                    <p>Максим · зал 3 · 3 місця</p>
-                                </div>
-                                <button class="primary-btn small">Запис</button>
-                            </div>
-                        </div>
+                        <div class="class-list compact" id="client-today-list"></div>
                     </article>
                 </div>
             </section>
