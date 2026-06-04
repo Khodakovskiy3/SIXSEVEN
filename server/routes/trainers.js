@@ -310,4 +310,242 @@ router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   return res.json({ ok: true });
 });
 
+// ======================================================
+// GET /api/trainers/me
+// Отримати поточного тренера
+// ======================================================
+
+router.get('/me', authRequired, requireRole(ROLE.TRAINER), async (req, res) => {
+  try {
+    const result = await query(
+      `
+      select
+        t.id,
+        t.user_id,
+        t.phone,
+        t.specialization,
+        u.name,
+        u.email
+      from trainers t
+      join users u on u.id = t.user_id
+      where t.user_id = $1
+      `,
+      [req.user.id]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({
+        error: 'Тренера не знайдено',
+      });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: 'Помилка отримання тренера',
+    });
+  }
+});
+
+
+// ======================================================
+// GET /api/trainers/me/schedule
+// Розклад тренувань поточного тренера
+// ======================================================
+
+router.get('/me/schedule', authRequired, requireRole(ROLE.TRAINER), async (req, res) => {
+  try {
+    const result = await query(
+      `
+      select
+        s.id,
+        s.date,
+        s.time,
+        w.name as workout_name,
+        w.description as workout_description,
+        w.max_clients,
+
+        count(b.id) as booked_count
+
+      from schedules s
+
+      join trainers t
+        on t.id = s.trainer_id
+
+      join workouts w
+        on w.id = s.workout_id
+
+      left join bookings b
+        on b.schedule_id = s.id
+        and b.status = 'active'
+
+      where t.user_id = $1
+
+      group by
+        s.id,
+        s.date,
+        s.time,
+        w.name,
+        w.description,
+        w.max_clients
+
+      order by s.date, s.time
+      `,
+      [req.user.id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: 'Помилка отримання розкладу тренера',
+    });
+  }
+});
+
+
+// ======================================================
+// GET /api/trainers/me/schedule/:id/clients
+// Список клієнтів, записаних на тренування
+// ======================================================
+
+router.get('/me/schedule/:id/clients', authRequired, requireRole(ROLE.TRAINER), async (req, res) => {
+  try {
+    const scheduleId = Number(req.params.id);
+
+    const access = await query(
+      `
+      select s.id
+      from schedules s
+      join trainers t on t.id = s.trainer_id
+      where s.id = $1
+        and t.user_id = $2
+      `,
+      [scheduleId, req.user.id]
+    );
+
+    if (!access.rows.length) {
+      return res.status(403).json({
+        error: 'Немає доступу до цього тренування',
+      });
+    }
+
+    const result = await query(
+      `
+      select
+        b.id as booking_id,
+        b.status,
+        u.name as client_name,
+        u.email as client_email,
+        c.phone as client_phone
+      from bookings b
+      join clients c on c.id = b.client_id
+      join users u on u.id = c.user_id
+      where b.schedule_id = $1
+      order by u.name
+      `,
+      [scheduleId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: 'Помилка отримання клієнтів заняття',
+    });
+  }
+});
+
+
+// ======================================================
+// GET /api/trainers/me/visits
+// Історія відвідувань занять тренера
+// ======================================================
+
+router.get('/me/visits', authRequired, requireRole(ROLE.TRAINER), async (req, res) => {
+  try {
+    const result = await query(
+      `
+      select
+        v.id,
+        v.visit_time,
+        u.name as client_name,
+        w.name as workout_name,
+        s.date,
+        s.time
+      from visits v
+      join clients c on c.id = v.client_id
+      join users u on u.id = c.user_id
+      left join schedules s on s.id = v.schedule_id
+      left join workouts w on w.id = s.workout_id
+      left join trainers t on t.id = s.trainer_id
+      where t.user_id = $1
+      order by v.visit_time desc
+      limit 30
+      `,
+      [req.user.id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: 'Помилка отримання історії відвідувань',
+    });
+  }
+});
+
+
+// ======================================================
+// GET /api/trainers/me/notifications
+// Сповіщення тренера
+// ======================================================
+
+router.get('/me/notifications', authRequired, requireRole(ROLE.TRAINER), async (req, res) => {
+  try {
+    const newBookings = await query(
+      `
+      select
+        b.id,
+        b.created_at,
+        u.name as client_name,
+        w.name as workout_name,
+        s.date,
+        s.time
+      from bookings b
+      join schedules s on s.id = b.schedule_id
+      join workouts w on w.id = s.workout_id
+      join clients c on c.id = b.client_id
+      join users u on u.id = c.user_id
+      join trainers t on t.id = s.trainer_id
+      where t.user_id = $1
+      order by b.created_at desc
+      limit 10
+      `,
+      [req.user.id]
+    );
+
+    const notifications = newBookings.rows.map((item) => ({
+      id: item.id,
+      type: 'booking',
+      title: 'Новий запис клієнта',
+      message: `${item.client_name} записався на тренування "${item.workout_name}"`,
+      date: item.created_at,
+    }));
+
+    res.json(notifications);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: 'Помилка отримання сповіщень',
+    });
+  }
+});
+
 export default router;

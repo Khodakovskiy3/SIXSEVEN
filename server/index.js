@@ -22,9 +22,10 @@ import subscriptionsRoutes from './routes/subscriptions.js';
 import paymentsRoutes from './routes/payments.js';
 import visitsRoutes from './routes/visits.js';
 import reportsRoutes from './routes/reports.js';
+import publicRoutes from './routes/public.js';
 
 import { DEFAULT_HTTP_PORT, HTTP_SERVER_ERROR } from './utils/constants.js';
-
+console.log('SERVER INDEX JS STARTED');
 dotenv.config();
 
 const PORT = Number(process.env.PORT) || DEFAULT_HTTP_PORT;
@@ -64,6 +65,7 @@ app.use('/api/subscriptions', subscriptionsRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/visits', visitsRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/public', publicRoutes);
 
 // ─── Глобальна обробка помилок ────────────────────────────────────────────────
 // Будь-яка помилка, передана через next(err), повертається клієнту як 500,
@@ -88,6 +90,9 @@ process.on('uncaughtException', (error) => {
   console.error('Необроблений виняток:', error);
 });
 
+console.log('ROUTES REGISTERED');
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
+

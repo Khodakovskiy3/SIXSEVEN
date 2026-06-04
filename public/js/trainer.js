@@ -1,6 +1,7 @@
 import { clearAuth, requireFreshAuth } from './api.js';
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
+import './trainer-functionality.js';
 
 const titles = {
   home: 'Головна',
