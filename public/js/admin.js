@@ -386,12 +386,69 @@ function renderScheduleDayList() {
           <p>Записано ${booked}/${maxClients} · вільно ${available}</p>
         </div>
         <div class="class-actions">
+          <button class="ghost-btn" data-schedule-view="${schedule.id}">Деталі</button>
           <button class="ghost-btn" data-schedule-edit="${schedule.id}">Редагувати</button>
           <button class="danger-btn" data-schedule-delete="${schedule.id}">Видалити</button>
         </div>
       </div>
     `;
   }).join('');
+}
+
+/**
+ * Відкриває панель з повною інформацією про заплановане заняття:
+ * послуга, опис, дата й час, тренер, заповнення груп і список записаних
+ * клієнтів. Базові дані беремо з уже завантаженого розкладу, а список
+ * записаних — окремим запитом до /bookings/schedule/:id.
+ *
+ * @param {string|number} scheduleId
+ */
+async function openScheduleDetails(scheduleId) {
+  const schedule = schedules.find((item) => String(item.id) === String(scheduleId));
+  if (!schedule) {
+    return;
+  }
+
+  const maxClients = Number(schedule.max_clients || 0);
+  const booked = Number(schedule.booked || 0);
+  const available = typeof schedule.available === 'number'
+    ? schedule.available
+    : Math.max(maxClients - booked, 0);
+
+  sheetTitle.textContent = schedule.workout_name || 'Заняття';
+  sheetBody.innerHTML = `
+    <dl>
+      <div><dt>Дата</dt><dd>${formatDate(schedule.date)}</dd></div>
+      <div><dt>Час</dt><dd>${formatTime(schedule.time)}</dd></div>
+      <div><dt>Тренер</dt><dd>${escapeHtml(schedule.trainer_name || 'Не призначений')}</dd></div>
+      <div><dt>Заповнення</dt><dd>${booked}/${maxClients} · вільно ${available}</dd></div>
+    </dl>
+    <p>${escapeHtml(schedule.workout_description || 'Опис заняття не додано.')}</p>
+    <h3>Записані клієнти</h3>
+    <ul id="schedule-attendees"><li>Завантаження...</li></ul>
+  `;
+  sheet.classList.add('active');
+
+  try {
+    const attendees = await apiFetch(`/bookings/schedule/${scheduleId}`);
+    // Показуємо лише активні записи (скасовані до уваги не беремо).
+    const activeAttendees = attendees.filter((item) => item.status === 'active');
+    const attendeeList = document.querySelector('#schedule-attendees');
+    if (!attendeeList) {
+      return;
+    }
+
+    attendeeList.innerHTML = activeAttendees.length
+      ? activeAttendees
+        .map((item) => `<li>${escapeHtml(item.client_name)}${item.visit_id ? ' · відвідав' : ''}</li>`)
+        .join('')
+      : '<li>Ще ніхто не записався</li>';
+  } catch (error) {
+    const attendeeList = document.querySelector('#schedule-attendees');
+    if (attendeeList) {
+      attendeeList.innerHTML = `<li>Не вдалося завантажити список: ${escapeHtml(error.message)}</li>`;
+    }
+  }
 }
 
 /**
@@ -1737,6 +1794,12 @@ document.addEventListener('click', async (event) => {
   if (scheduleDateButton) {
     selectedScheduleDate = scheduleDateButton.dataset.scheduleDate;
     renderSchedules();
+    return;
+  }
+
+  const scheduleViewButton = event.target.closest('[data-schedule-view]');
+  if (scheduleViewButton) {
+    openScheduleDetails(scheduleViewButton.dataset.scheduleView);
     return;
   }
 

@@ -17,7 +17,7 @@ let activePlans = [];
 let currentPlanForPurchase = null;
 let schedules = [];
 let bookings = [];
-let selectedScheduleDate = new Date().toISOString().slice(0, 10);
+let selectedScheduleDate = '';
 let selectedWorkoutFilter = 'all';
 
 const planTypeLabels = {
@@ -81,10 +81,36 @@ function getDayLabel(value, mode = 'short') {
   return new Date(value).toLocaleDateString('uk-UA', { weekday: mode });
 }
 
-function makeDateOffset(days) {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+/**
+ * Формує відсортований перелік майбутніх днів (від сьогодні), на які є заняття.
+ * Минулі дні до стрічки не потрапляють — клієнт бачить лише актуальний розклад.
+ *
+ * @returns {string[]} дати у форматі 'YYYY-MM-DD'.
+ */
+function getScheduleDates() {
+  const today = new Date().toISOString().slice(0, 10);
+  const dates = new Set(
+    schedules
+      .map((item) => formatDate(item.date))
+      .filter((date) => date >= today)
+  );
+  dates.add(today);
+  return [...dates].sort();
+}
+
+/**
+ * Обирає день за замовчуванням — найближчий день із заняттями,
+ * інакше сьогодні.
+ *
+ * @param {string[]} dates — відсортовані дати з getScheduleDates().
+ * @returns {string} обрана дата.
+ */
+function pickDefaultScheduleDate(dates) {
+  const today = new Date().toISOString().slice(0, 10);
+  const firstDateWithClasses = dates.find((date) => (
+    schedules.some((item) => formatDate(item.date) === date)
+  ));
+  return firstDateWithClasses || today;
 }
 
 const pageRoutes = {
@@ -183,16 +209,20 @@ function renderAvailablePlans() {
 
 function renderDateStrip() {
   const strip = document.querySelector('#client-date-strip');
-  if (!strip) return;
+  if (!strip) {
+    return;
+  }
 
-  strip.innerHTML = Array.from({ length: 7 }, (_, index) => {
-    const date = makeDateOffset(index);
+  const today = new Date().toISOString().slice(0, 10);
+  strip.innerHTML = getScheduleDates().map((date) => {
     const isActive = date === selectedScheduleDate;
+    const dayCount = schedules.filter((item) => formatDate(item.date) === date).length;
+    const badge = date === today ? 'Сьогодні' : `${dayCount} зан.`;
     return `
       <button class="date-pill ${isActive ? 'active' : ''}" data-schedule-date="${date}">
         <strong>${formatShortDate(date)}</strong>
         <span>${getDayLabel(date)}</span>
-        ${index === 0 ? '<small>Сьогодні</small>' : ''}
+        <small>${badge}</small>
       </button>
     `;
   }).join('');
@@ -273,6 +303,12 @@ async function loadSchedulePage() {
       apiFetch('/schedules'),
       apiFetch('/bookings/me'),
     ]);
+    // На першому завантаженні починаємо з найближчого дня із заняттями,
+    // а після запису зберігаємо вже обраний день, якщо він ще доступний.
+    const dates = getScheduleDates();
+    if (!selectedScheduleDate || !dates.includes(selectedScheduleDate)) {
+      selectedScheduleDate = pickDefaultScheduleDate(dates);
+    }
     renderDateStrip();
     renderScheduleFilters();
     renderScheduleList();
