@@ -26,6 +26,104 @@ router.get('/me', authRequired, async (req, res) => {
   return res.json({ user: req.user });
 });
 
+router.get('/profile', authRequired, async (req, res) => {
+  const result = await query(
+    `select id, name, email, role from users where id = $1`,
+    [req.user.id]
+  );
+
+  const user = result.rows[0];
+
+  if (!user) {
+    return res.status(401).json({ error: 'Користувача не знайдено' });
+  }
+
+  if (user.role === ROLE.CLIENT) {
+    const client = await query(
+      `select phone from clients where user_id = $1`,
+      [user.id]
+    );
+
+    user.phone = client.rows[0]?.phone || '';
+  }
+
+  if (user.role === ROLE.TRAINER) {
+    const trainer = await query(
+      `select phone, specialization from trainers where user_id = $1`,
+      [user.id]
+    );
+
+    user.phone = trainer.rows[0]?.phone || '';
+    user.specialization = trainer.rows[0]?.specialization || '';
+  }
+
+  res.json({ user });
+});
+
+router.put('/profile', authRequired, async (req, res) => {
+  const { name, phone, specialization } = req.body;
+
+  await query(
+    `update users set name = coalesce($1, name) where id = $2`,
+    [name || null, req.user.id]
+  );
+
+  if (req.user.role === ROLE.CLIENT) {
+    await query(
+      `update clients set phone = coalesce($1, phone) where user_id = $2`,
+      [phone || null, req.user.id]
+    );
+  }
+
+  if (req.user.role === ROLE.TRAINER) {
+    await query(
+      `update trainers
+       set phone = coalesce($1, phone),
+           specialization = coalesce($2, specialization)
+       where user_id = $3`,
+      [phone || null, specialization || null, req.user.id]
+    );
+  }
+
+  const result = await query(
+    `select id, name, email, role from users where id = $1`,
+    [req.user.id]
+  );
+
+  const user = result.rows[0];
+  const token = signToken(user);
+
+  res.json({ token, user });
+});
+
+router.put('/password', authRequired, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: 'Пароль має бути мінімум 6 символів' });
+  }
+
+  const result = await query(
+    `select password from users where id = $1`,
+    [req.user.id]
+  );
+
+  const isValid = await bcrypt.compare(currentPassword, result.rows[0].password);
+
+  if (!isValid) {
+    return res.status(401).json({ error: 'Неправильний поточний пароль' });
+  }
+
+  const hash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
+
+  await query(
+    `update users set password = $1 where id = $2`,
+    [hash, req.user.id]
+  );
+
+  res.json({ ok: true });
+});
+
 router.post('/register', async (req, res) => {
   const { name, email, password, phone } = req.body || {};
   if (!name || !email || !password) {
