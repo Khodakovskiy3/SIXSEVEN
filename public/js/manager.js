@@ -1,6 +1,6 @@
-import { clearAuth } from './api.js';
+import { clearAuth, requireFreshAuth } from './api.js';
 import { hydrateAccount } from './account.js';
-import { PAGE } from './constants.js';
+import { PAGE, ROLE } from './constants.js';
 
 const titles = {
   dashboard: 'Панель керування',
@@ -162,4 +162,10 @@ modal.addEventListener('click', (event) => {
   }
 });
 
-hydrateAccount({ role: 'manager' });
+// Перевіряємо актуальну роль на сервері: без валідного токена керівника
+// сторінку буде перенаправлено на вхід, а дані акаунта підтягнуться лише
+// для авторизованого користувача.
+const currentUser = await requireFreshAuth([ROLE.MANAGER]);
+if (currentUser) {
+  hydrateAccount({ role: ROLE.MANAGER });
+}

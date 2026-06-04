@@ -1,6 +1,6 @@
-import { clearAuth } from './api.js';
+import { clearAuth, requireFreshAuth } from './api.js';
 import { hydrateAccount } from './account.js';
-import { PAGE } from './constants.js';
+import { PAGE, ROLE } from './constants.js';
 
 const titles = {
   home: 'Головна',
@@ -162,4 +162,10 @@ modal.addEventListener('click', (event) => {
   }
 });
 
-hydrateAccount({ role: 'trainer' });
+// Перевіряємо актуальну роль на сервері: без валідного токена тренера
+// сторінку буде перенаправлено на вхід, а дані акаунта підтягнуться лише
+// для авторизованого користувача.
+const currentUser = await requireFreshAuth([ROLE.TRAINER]);
+if (currentUser) {
+  hydrateAccount({ role: ROLE.TRAINER });
+}
