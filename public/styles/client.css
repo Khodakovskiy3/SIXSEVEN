@@ -573,6 +573,23 @@ p {
     font-weight: 700;
 }
 
+/* Форма у вузькій панелі повторює вертикальний ритм самої панелі. */
+.detail-screen form {
+    display: grid;
+    gap: 14px;
+}
+
+.form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* Порожнє поле-нотатка не займає рядок і не створює зайвого відступу. */
+.form-note:empty {
+    display: none;
+}
+
 input {
     width: 100%;
     border: 1px solid var(--line);
