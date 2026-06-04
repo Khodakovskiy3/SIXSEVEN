@@ -1,4 +1,5 @@
 import { apiFetch, clearAuth, formatDate, requireFreshAuth } from './api.js';
+import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
 
 const titles = {
@@ -1787,6 +1788,9 @@ servicesSearch?.addEventListener('input', renderServices);
 plansSearch?.addEventListener('input', renderPlans);
 
 const currentUser = await requireFreshAuth([ROLE.ADMIN]);
+if (currentUser) {
+  hydrateAccount({ role: ROLE.ADMIN });
+}
 if (currentUser && clientsPage) {
   loadClients();
 }

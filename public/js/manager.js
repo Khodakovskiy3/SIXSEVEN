@@ -1,4 +1,5 @@
 import { clearAuth } from './api.js';
+import { hydrateAccount } from './account.js';
 import { PAGE } from './constants.js';
 
 const titles = {
@@ -160,3 +161,5 @@ modal.addEventListener('click', (event) => {
     modal.classList.remove('active');
   }
 });
+
+hydrateAccount({ role: 'manager' });

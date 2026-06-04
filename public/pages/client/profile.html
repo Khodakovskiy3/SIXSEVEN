@@ -35,16 +35,16 @@
                         </svg>
                         <span class="notification-dot"></span>
                     </button>
-                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">OK</button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль" data-account-field="initials"></button>
                 </div>
             </header>
 
             <section class="screen active" data-screen-panel="profile">
                 <div class="profile-grid">
                     <article class="panel profile-card">
-                        <div class="profile-avatar">OK</div>
-                        <h2>Олена Коваль</h2>
-                        <p>olena@mail.com · +380 67 000 00 00</p>
+                        <div class="profile-avatar" data-account-field="initials"></div>
+                        <h2 data-account-field="name">Завантаження…</h2>
+                        <p><span data-account-field="email"></span> · <span data-account-field="phone" data-account-fallback="телефон не вказано"></span></p>
                     </article>
                     <article class="panel menu-card">
                         <button data-screen-link="personal">Особисті дані <span>›</span></button>

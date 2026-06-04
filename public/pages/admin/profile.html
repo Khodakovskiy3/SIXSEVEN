@@ -39,16 +39,16 @@
                         </svg>
                         <span class="notification-dot"></span>
                     </button>
-                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">AD</button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль" data-account-field="initials"></button>
                 </div>
             </header>
 
             <section class="screen active" data-screen-panel="profile">
                 <div class="profile-grid">
                     <article class="panel profile-card">
-                        <div class="profile-avatar">AD</div>
-                        <h2>Адміністратор</h2>
-                        <p>admin@olimp.ua · +380 67 777 88 99</p>
+                        <div class="profile-avatar" data-account-field="initials"></div>
+                        <h2 data-account-field="name">Завантаження…</h2>
+                        <p><span data-account-field="email"></span> · <span data-account-field="phone" data-account-fallback="—"></span></p>
                     </article>
                     <article class="panel menu-card">
                         <button data-screen-link="admin-personal">Особисті дані <span>›</span></button>

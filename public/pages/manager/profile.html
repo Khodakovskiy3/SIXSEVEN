@@ -34,16 +34,16 @@
                         </svg>
                         <span class="notification-dot"></span>
                     </button>
-                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">KR</button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль" data-account-field="initials"></button>
                 </div>
             </header>
 
             <section class="screen active" data-screen-panel="profile">
                 <div class="profile-grid">
                     <article class="panel profile-card">
-                        <div class="profile-avatar">KR</div>
-                        <h2>Керівник клубу</h2>
-                        <p>manager@olimp.ua · +380 67 999 88 77</p>
+                        <div class="profile-avatar" data-account-field="initials"></div>
+                        <h2 data-account-field="name">Завантаження…</h2>
+                        <p><span data-account-field="email"></span> · <span data-account-field="phone" data-account-fallback="—"></span></p>
                     </article>
                     <article class="panel menu-card">
                         <button data-screen-link="personal">Особисті дані <span>›</span></button>

@@ -34,7 +34,7 @@
                         </svg>
                         <span class="notification-dot"></span>
                     </button>
-                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">IA</button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль" data-account-field="initials"></button>
                 </div>
             </header>
 
@@ -42,9 +42,9 @@
                 <div class="panel narrow-panel">
                     <button class="back-btn" data-screen-link="profile">Назад</button>
                     <h2>Особисті дані</h2>
-                    <label>Ім’я<input type="text" value="Ігор Антонюк"></label>
-                    <label>Телефон<input type="text" value="+380 67 111 22 33"></label>
-                    <label>Email<input type="email" value="igor@olimp.ua"></label>
+                    <label>Ім’я<input type="text" data-account-field="name"></label>
+                    <label>Телефон<input type="text" data-account-field="phone"></label>
+                    <label>Email<input type="email" data-account-field="email"></label>
                     <button class="primary-btn modal-open">Змінити пароль</button>
                 </div>
             </section>

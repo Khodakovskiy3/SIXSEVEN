@@ -1,4 +1,5 @@
 import { apiFetch, clearAuth, formatDate, requireFreshAuth } from './api.js';
+import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
 
 const titles = {
@@ -570,6 +571,7 @@ modal?.addEventListener('click', (event) => {
 
 const currentUser = await requireFreshAuth([ROLE.CLIENT]);
 if (currentUser) {
+  hydrateAccount({ role: ROLE.CLIENT });
   loadSchedulePage();
   loadRecordsPage();
   loadSubscriptionPage();
