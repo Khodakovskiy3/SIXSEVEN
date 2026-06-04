@@ -35,7 +35,7 @@
                         </svg>
                         <span class="notification-dot"></span>
                     </button>
-                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">OK</button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль" data-account-field="initials"></button>
                 </div>
             </header>
 
@@ -43,11 +43,7 @@
                 <div class="panel">
                     <button class="back-btn" data-screen-link="profile">Назад</button>
                     <h2>Моя активність</h2>
-                    <div class="activity-list">
-                        <p><strong>23.05</strong> · Відвідування залу · 14:30 · Відвідано</p>
-                        <p><strong>20.05</strong> · Йога · Тренер Анна · Відвідано</p>
-                        <p><strong>18.05</strong> · Персональне · Тренер Максим · Відвідано</p>
-                    </div>
+                    <div class="activity-list" id="client-activity-list"></div>
                 </div>
             </section>
         </main>

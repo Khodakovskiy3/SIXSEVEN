@@ -1,4 +1,4 @@
-import { apiFetch, clearAuth, formatDate, requireFreshAuth } from './api.js';
+import { apiFetch, clearAuth, formatDate, requireFreshAuth, setAuth } from './api.js';
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
 
@@ -101,6 +101,13 @@ const plansGrid = document.querySelector('#plans-grid');
 const plansSearch = document.querySelector('#plans-search');
 const plansFeedback = document.querySelector('#plans-feedback');
 const subscriptionsTableBody = document.querySelector('#subscriptions-table-body');
+const dashboardPage = document.querySelector('[data-screen-panel="dashboard"]');
+
+// Заняття вважається «майже заповненим», якщо вільних місць не більше цього.
+const ALMOST_FULL_THRESHOLD = 2;
+
+// Скільки днів уперед вважати «цим тижнем» для абонементів, що завершуються.
+const ENDING_SOON_DAYS = 7;
 
 const statusLabels = {
   active: 'Активний',
@@ -1914,6 +1921,20 @@ document.addEventListener('change', (event) => {
 });
 
 document.addEventListener('submit', (event) => {
+  const adminProfileForm = event.target.closest('#admin-profile-form');
+  if (adminProfileForm) {
+    event.preventDefault();
+    saveAdminProfile(adminProfileForm);
+    return;
+  }
+
+  const passwordForm = event.target.closest('#password-form');
+  if (passwordForm) {
+    event.preventDefault();
+    changeAdminPassword(passwordForm);
+    return;
+  }
+
   const clientForm = event.target.closest('#client-form');
   if (clientForm) {
     event.preventDefault();
@@ -1963,7 +1984,7 @@ document.addEventListener('submit', (event) => {
   }
 });
 
-modal.addEventListener('click', (event) => {
+modal?.addEventListener('click', (event) => {
   if (event.target === modal) {
     closeModal();
   }
@@ -1975,9 +1996,262 @@ scheduleSearch?.addEventListener('input', renderSchedules);
 servicesSearch?.addEventListener('input', renderServices);
 plansSearch?.addEventListener('input', renderPlans);
 
+/**
+ * Записує числове значення метрики у відповідний елемент дашборду.
+ *
+ * @param {string} selector — CSS-селектор елемента метрики.
+ * @param {number} value
+ */
+function setMetric(selector, value) {
+  const element = document.querySelector(selector);
+  if (element) {
+    element.textContent = String(value);
+  }
+}
+
+/**
+ * Повертає дату, зсунуту на задану кількість днів, у форматі 'YYYY-MM-DD'.
+ *
+ * @param {string} baseIso — базова дата 'YYYY-MM-DD'.
+ * @param {number} days
+ * @returns {string}
+ */
+function addDaysIso(baseIso, days) {
+  const date = new Date(baseIso);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Малює дашборд: метрики, сьогоднішній розклад і блок «Потребує уваги»
+ * на основі реальних даних клубу.
+ *
+ * @param {{clients: object[], trainers: object[], services: object[],
+ *          schedules: object[], subscriptions: object[]}} data
+ */
+function renderDashboard(data) {
+  const today = todayIso();
+  const weekAhead = addDaysIso(today, ENDING_SOON_DAYS);
+
+  const activeClients = data.clients.filter((client) => client.status === 'active').length;
+  const activeServices = data.services.filter((service) => (service.status || 'active') === 'active').length;
+  const todaySchedules = data.schedules
+    .filter((schedule) => formatDate(schedule.date) === today)
+    .sort((first, second) => formatTime(first.time).localeCompare(formatTime(second.time)));
+
+  setMetric('#metric-clients', activeClients);
+  setMetric('#metric-trainers', data.trainers.length);
+  setMetric('#metric-today', todaySchedules.length);
+  setMetric('#metric-services', activeServices);
+
+  const todayList = document.querySelector('#dashboard-today-list');
+  if (todayList) {
+    todayList.innerHTML = todaySchedules.length
+      ? todaySchedules
+        .map((schedule) => (
+          `<p><strong>${formatTime(schedule.time)}</strong> `
+          + `${escapeHtml(schedule.workout_name || '—')} · `
+          + `${escapeHtml(schedule.trainer_name || 'без тренера')}</p>`
+        ))
+        .join('')
+      : '<p>Сьогодні занять немає.</p>';
+  }
+
+  const endingSubscriptions = data.subscriptions.filter((subscription) => (
+    subscription.status === 'active'
+    && formatDate(subscription.end_date) >= today
+    && formatDate(subscription.end_date) <= weekAhead
+  )).length;
+
+  const clientsWithoutSubscription = data.clients.filter((client) => client.status !== 'active').length;
+
+  const almostFullClasses = data.schedules.filter((schedule) => {
+    const available = Math.max(Number(schedule.max_clients || 0) - Number(schedule.booked || 0), 0);
+    return formatDate(schedule.date) >= today && available > 0 && available <= ALMOST_FULL_THRESHOLD;
+  }).length;
+
+  const attention = document.querySelector('#dashboard-attention');
+  if (attention) {
+    attention.innerHTML = `
+      <div class="attention-item warning">
+        <strong>${endingSubscriptions} абонементів</strong>
+        <span>закінчуються цього тижня</span>
+      </div>
+      <div class="attention-item danger">
+        <strong>${clientsWithoutSubscription} клієнтів</strong>
+        <span>без активного абонемента</span>
+      </div>
+      <div class="attention-item">
+        <strong>${almostFullClasses} занять</strong>
+        <span>майже заповнені</span>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Завантажує дані для дашборду й малює його. Працює лише на головній сторінці.
+ */
+async function loadDashboard() {
+  if (!dashboardPage) {
+    return;
+  }
+
+  try {
+    const [clientsData, trainersData, servicesData, schedulesData, subscriptionsData] = await Promise.all([
+      apiFetch('/clients'),
+      apiFetch('/trainers'),
+      apiFetch('/workouts'),
+      apiFetch('/schedules'),
+      apiFetch('/subscriptions'),
+    ]);
+    renderDashboard({
+      clients: clientsData,
+      trainers: trainersData,
+      services: servicesData,
+      schedules: schedulesData,
+      subscriptions: subscriptionsData,
+    });
+  } catch (error) {
+    console.error('Не вдалося завантажити дашборд:', error);
+  }
+}
+
+// ─── Особисті дані та налаштування адміністратора ────────────────────────────
+
+const ADMIN_SETTINGS_KEY = 'adminSettings';
+
+/**
+ * Встановлює текст і тип повідомлення у вказаному полі-нотатці.
+ *
+ * @param {string} selector
+ * @param {string} message
+ * @param {string} [type]
+ */
+function setNote(selector, message, type = 'info') {
+  const element = document.querySelector(selector);
+  if (element) {
+    element.textContent = message;
+    element.dataset.type = type;
+  }
+}
+
+/**
+ * Зберігає ім'я та телефон адміністратора через PUT /auth/profile.
+ *
+ * @param {HTMLFormElement} form
+ */
+async function saveAdminProfile(form) {
+  const formData = new FormData(form);
+  try {
+    const data = await apiFetch('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: formData.get('name')?.trim(),
+        phone: formData.get('phone')?.trim(),
+      }),
+    });
+    if (data && data.token && data.user) {
+      setAuth(data.token, data.user);
+    }
+    await hydrateAccount({ role: ROLE.ADMIN });
+    setNote('#admin-profile-feedback', 'Дані збережено', 'success');
+  } catch (error) {
+    setNote('#admin-profile-feedback', `Не вдалося зберегти: ${error.message}`, 'error');
+  }
+}
+
+const passwordModal = document.querySelector('#password-modal');
+
+function openPasswordModal() {
+  passwordModal?.classList.add('active');
+}
+
+function closePasswordModal() {
+  if (!passwordModal) {
+    return;
+  }
+  passwordModal.classList.remove('active');
+  passwordModal.querySelector('form')?.reset();
+  setNote('#password-feedback', '');
+}
+
+/**
+ * Змінює пароль адміністратора через PUT /auth/password.
+ *
+ * @param {HTMLFormElement} form
+ */
+async function changeAdminPassword(form) {
+  const formData = new FormData(form);
+  const newPassword = formData.get('newPassword');
+  if (newPassword !== formData.get('confirmPassword')) {
+    setNote('#password-feedback', 'Паролі не співпадають', 'error');
+    return;
+  }
+
+  try {
+    await apiFetch('/auth/password', {
+      method: 'PUT',
+      body: JSON.stringify({
+        currentPassword: formData.get('currentPassword'),
+        newPassword,
+      }),
+    });
+    closePasswordModal();
+    setNote('#admin-profile-feedback', 'Пароль змінено', 'success');
+  } catch (error) {
+    setNote('#password-feedback', `Не вдалося змінити пароль: ${error.message}`, 'error');
+  }
+}
+
+/**
+ * Відновлює та зберігає налаштування адміністратора у localStorage
+ * (окремого серверного сховища налаштувань немає).
+ */
+function loadAdminSettings() {
+  const panel = document.querySelector('[data-screen-panel="admin-settings"]');
+  if (!panel) {
+    return;
+  }
+
+  const saved = JSON.parse(localStorage.getItem(ADMIN_SETTINGS_KEY) || '{}');
+  panel.querySelectorAll('[data-setting]').forEach((input) => {
+    const key = input.dataset.setting;
+    if (!(key in saved)) {
+      return;
+    }
+    if (input.type === 'checkbox') {
+      input.checked = Boolean(saved[key]);
+    } else {
+      input.value = saved[key];
+    }
+  });
+
+  panel.querySelector('#save-admin-settings')?.addEventListener('click', () => {
+    const next = {};
+    panel.querySelectorAll('[data-setting]').forEach((input) => {
+      next[input.dataset.setting] = input.type === 'checkbox' ? input.checked : input.value;
+    });
+    localStorage.setItem(ADMIN_SETTINGS_KEY, JSON.stringify(next));
+    setNote('#admin-settings-feedback', 'Налаштування збережено', 'success');
+  });
+}
+
+document.querySelector('[data-change-password]')?.addEventListener('click', openPasswordModal);
+document.querySelector('[data-password-cancel]')?.addEventListener('click', closePasswordModal);
+passwordModal?.addEventListener('click', (event) => {
+  if (event.target === passwordModal) {
+    closePasswordModal();
+  }
+});
+
 const currentUser = await requireFreshAuth([ROLE.ADMIN]);
 if (currentUser) {
   hydrateAccount({ role: ROLE.ADMIN });
+  loadAdminSettings();
+}
+if (currentUser && dashboardPage) {
+  loadDashboard();
 }
 if (currentUser && clientsPage) {
   loadClients();

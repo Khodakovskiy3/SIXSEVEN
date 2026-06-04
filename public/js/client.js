@@ -1,6 +1,6 @@
 import { apiFetch, clearAuth, formatDate, requireFreshAuth, setAuth } from './api.js';
 import { hydrateAccount } from './account.js';
-import { PAGE, ROLE } from './constants.js';
+import { PAGE, ROLE, STORAGE_KEY } from './constants.js';
 
 const titles = {
   home: 'Головна',
@@ -595,6 +595,104 @@ async function loadHomePage() {
   }
 }
 
+/**
+ * Витягує час 'гг:хв' із повного часового штампа візиту.
+ *
+ * @param {string} value — ISO-час (наприклад, visit_time).
+ * @returns {string}
+ */
+function formatTimeFromTimestamp(value) {
+  return new Date(value).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * Малює стрічку активності: візити в зал і минулі заняття,
+ * відсортовані за датою (новіші зверху).
+ *
+ * @param {object[]} visits — записи з /visits/me.
+ * @param {object[]} clientBookings — записи з /bookings/me.
+ */
+function renderActivity(visits, clientBookings) {
+  const list = document.querySelector('#client-activity-list');
+  if (!list) {
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const visitEntries = visits.map((visit) => ({
+    sortKey: `${formatDate(visit.visit_time)} ${formatTimeFromTimestamp(visit.visit_time)}`,
+    html: `<p><strong>${formatShortDate(visit.visit_time)}</strong> · Відвідування залу · ${formatTimeFromTimestamp(visit.visit_time)}</p>`,
+  }));
+
+  const classEntries = clientBookings
+    .filter((booking) => formatDate(booking.date) < today)
+    .map((booking) => {
+      const statusLabel = booking.status === 'active' ? 'Відвідано' : 'Скасовано';
+      return {
+        sortKey: `${formatDate(booking.date)} ${formatTime(booking.time)}`,
+        html: `<p><strong>${formatShortDate(booking.date)}</strong> · ${escapeHtml(booking.workout_name)} · Тренер ${escapeHtml(booking.trainer_name || 'не призначений')} · ${statusLabel}</p>`,
+      };
+    });
+
+  const entries = [...visitEntries, ...classEntries]
+    .sort((first, second) => second.sortKey.localeCompare(first.sortKey));
+
+  list.innerHTML = entries.length
+    ? entries.map((entry) => entry.html).join('')
+    : '<p>Активності ще немає. Відвідайте зал або запишіться на заняття.</p>';
+}
+
+/**
+ * Завантажує дані для сторінки «Моя активність» (візити + минулі записи).
+ */
+async function loadActivityPage() {
+  const list = document.querySelector('#client-activity-list');
+  if (!list) {
+    return;
+  }
+
+  try {
+    const [visits, clientBookings] = await Promise.all([
+      apiFetch('/visits/me'),
+      apiFetch('/bookings/me'),
+    ]);
+    renderActivity(visits, clientBookings);
+  } catch (error) {
+    list.innerHTML = `<p>Не вдалося завантажити активність: ${escapeHtml(error.message)}</p>`;
+  }
+}
+
+/**
+ * Налаштування клієнта: відновлює збережені перемикачі сповіщень і зберігає
+ * зміни у localStorage (окремого серверного сховища налаштувань немає).
+ */
+function loadSettingsPage() {
+  const settingsList = document.querySelector('#client-settings-list');
+  if (!settingsList) {
+    return;
+  }
+
+  const savedSettings = JSON.parse(localStorage.getItem(STORAGE_KEY.SETTINGS) || '{}');
+  settingsList.querySelectorAll('[data-setting]').forEach((input) => {
+    const key = input.dataset.setting;
+    if (key in savedSettings) {
+      input.checked = Boolean(savedSettings[key]);
+    }
+  });
+
+  settingsList.addEventListener('change', (event) => {
+    const input = event.target.closest('[data-setting]');
+    if (!input) {
+      return;
+    }
+    const current = JSON.parse(localStorage.getItem(STORAGE_KEY.SETTINGS) || '{}');
+    current[input.dataset.setting] = input.checked;
+    localStorage.setItem(STORAGE_KEY.SETTINGS, JSON.stringify(current));
+    setFormNote(document.querySelector('#settings-feedback'), 'Налаштування збережено', 'success');
+  });
+}
+
 async function loadSubscriptionPage() {
   if (!document.querySelector('#client-plans-grid')) return;
 
@@ -906,4 +1004,6 @@ if (currentUser) {
   loadSchedulePage();
   loadRecordsPage();
   loadSubscriptionPage();
+  loadActivityPage();
+  loadSettingsPage();
 }
