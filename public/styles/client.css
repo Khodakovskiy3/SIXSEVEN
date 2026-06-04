@@ -341,13 +341,27 @@ p {
     display: flex;
     gap: 8px;
     overflow-x: auto;
-    padding-bottom: 8px;
-    scrollbar-width: none;
+    padding-bottom: 10px;
+    /* Тонкий видимий горизонтальний скролбар для навігації по днях. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent) transparent;
 }
 
-.chip-row::-webkit-scrollbar,
-.date-strip::-webkit-scrollbar {
+.chip-row::-webkit-scrollbar {
     display: none;
+}
+
+.date-strip::-webkit-scrollbar {
+    height: 6px;
+}
+
+.date-strip::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: var(--accent);
+}
+
+.date-strip::-webkit-scrollbar-track {
+    background: transparent;
 }
 
 .chip {

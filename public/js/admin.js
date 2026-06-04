@@ -70,7 +70,7 @@ let clientsFilter = 'all';
 let trainers = [];
 let trainersFilter = 'all';
 let schedules = [];
-let scheduleFilter = 'upcoming';
+let selectedScheduleDate = '';
 let scheduleServices = [];
 let scheduleTrainers = [];
 let services = [];
@@ -88,7 +88,8 @@ const trainersTableBody = document.querySelector('#trainers-table-body');
 const trainersSearch = document.querySelector('#trainers-search');
 const trainersFeedback = document.querySelector('#trainers-feedback');
 const schedulePage = document.querySelector('[data-screen-panel="schedule"]');
-const scheduleTableBody = document.querySelector('#schedule-table-body');
+const scheduleDateStrip = document.querySelector('#schedule-date-strip');
+const scheduleDayList = document.querySelector('#schedule-day-list');
 const scheduleSearch = document.querySelector('#schedule-search');
 const scheduleFeedback = document.querySelector('#schedule-feedback');
 const servicesPage = document.querySelector('[data-screen-panel="services"]');
@@ -235,19 +236,72 @@ function getFilteredTrainers() {
   });
 }
 
-function getFilteredSchedules() {
-  const query = normalizeText(scheduleSearch?.value);
-  const today = todayIso();
+/**
+ * Формує відсортований перелік днів для стрічки вибору дати:
+ * усі дні, на які є заняття, плюс сьогоднішній день.
+ *
+ * @returns {string[]} дати у форматі 'YYYY-MM-DD'.
+ */
+function getScheduleDates() {
+  const dates = new Set(schedules.map((schedule) => formatDate(schedule.date)));
+  dates.add(todayIso());
+  return [...dates].sort();
+}
 
-  return schedules.filter((schedule) => {
-    const date = formatDate(schedule.date);
-    const matchesFilter = scheduleFilter === 'all'
-      || (scheduleFilter === 'today' && date === today)
-      || (scheduleFilter === 'upcoming' && date >= today)
-      || (scheduleFilter === 'past' && date < today);
-    const haystack = normalizeText(`${schedule.workout_name} ${schedule.trainer_name} ${schedule.date} ${schedule.time}`);
-    return matchesFilter && (!query || haystack.includes(query));
-  });
+/**
+ * Обирає день за замовчуванням: сьогодні, якщо на нього є заняття або це
+ * єдиний варіант; інакше найближчий майбутній день, а як останній варіант —
+ * найпізніший доступний.
+ *
+ * @param {string[]} dates — відсортовані дати з getScheduleDates().
+ * @returns {string} обрана дата.
+ */
+function pickDefaultScheduleDate(dates) {
+  const today = todayIso();
+  if (dates.includes(today)) {
+    return today;
+  }
+
+  const upcomingDate = dates.find((date) => date >= today);
+  return upcomingDate || dates[dates.length - 1] || today;
+}
+
+/**
+ * Форматує дату для пігулки дня у вигляді 'дд.мм'.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+function formatScheduleDay(value) {
+  return new Date(value).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' });
+}
+
+/**
+ * Повертає скорочену назву дня тижня для пігулки дня.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+function formatScheduleWeekday(value) {
+  return new Date(value).toLocaleDateString('uk-UA', { weekday: 'short' });
+}
+
+/**
+ * Повертає заняття обраного дня з урахуванням пошукового запиту,
+ * відсортовані за часом початку.
+ *
+ * @returns {object[]}
+ */
+function getSchedulesForSelectedDay() {
+  const query = normalizeText(scheduleSearch?.value);
+
+  return schedules
+    .filter((schedule) => formatDate(schedule.date) === selectedScheduleDate)
+    .filter((schedule) => {
+      const haystack = normalizeText(`${schedule.workout_name} ${schedule.trainer_name} ${schedule.time}`);
+      return !query || haystack.includes(query);
+    })
+    .sort((first, second) => formatTime(first.time).localeCompare(formatTime(second.time)));
 }
 
 function getFilteredServices() {
@@ -270,20 +324,53 @@ function getFilteredPlans() {
   });
 }
 
-function renderSchedules() {
-  if (!scheduleTableBody) return;
+/**
+ * Малює горизонтальну стрічку днів. Кожна пігулка показує дату, день тижня
+ * і кількість занять (або позначку «Сьогодні»), активний день підсвічено.
+ */
+function renderScheduleDateStrip() {
+  if (!scheduleDateStrip) {
+    return;
+  }
 
-  const visibleSchedules = getFilteredSchedules();
-  if (visibleSchedules.length === 0) {
-    scheduleTableBody.innerHTML = `
-      <div class="table-row table-empty">
-        <span>Занять не знайдено</span>
+  const today = todayIso();
+  scheduleDateStrip.innerHTML = getScheduleDates().map((date) => {
+    const isActive = date === selectedScheduleDate;
+    const dayCount = schedules.filter((schedule) => formatDate(schedule.date) === date).length;
+    const badge = date === today ? 'Сьогодні' : `${dayCount} зан.`;
+    return `
+      <button class="date-pill ${isActive ? 'active' : ''}" data-schedule-date="${date}">
+        <strong>${formatScheduleDay(date)}</strong>
+        <span>${formatScheduleWeekday(date)}</span>
+        <small>${badge}</small>
+      </button>
+    `;
+  }).join('');
+}
+
+/**
+ * Малює список занять обраного дня з діями адміністратора
+ * (редагувати / видалити).
+ */
+function renderScheduleDayList() {
+  if (!scheduleDayList) {
+    return;
+  }
+
+  const daySchedules = getSchedulesForSelectedDay();
+  if (daySchedules.length === 0) {
+    scheduleDayList.innerHTML = `
+      <div class="class-card class-empty">
+        <div class="class-info">
+          <h3>Занять немає</h3>
+          <p>На обраний день розклад порожній.</p>
+        </div>
       </div>
     `;
     return;
   }
 
-  scheduleTableBody.innerHTML = visibleSchedules.map((schedule) => {
+  scheduleDayList.innerHTML = daySchedules.map((schedule) => {
     const maxClients = Number(schedule.max_clients || 0);
     const booked = Number(schedule.booked || 0);
     const available = typeof schedule.available === 'number'
@@ -291,33 +378,68 @@ function renderSchedules() {
       : Math.max(maxClients - booked, 0);
 
     return `
-      <div class="table-row">
-        <span>${formatDate(schedule.date)}</span>
-        <span>${formatTime(schedule.time)}</span>
-        <span>${escapeHtml(schedule.workout_name || '—')}</span>
-        <span>${escapeHtml(schedule.trainer_name || 'Без тренера')}</span>
-        <span>${booked}/${maxClients} · вільно ${available}</span>
-        <span>
+      <div class="class-card">
+        <div class="class-time">${formatTime(schedule.time)}</div>
+        <div class="class-info">
+          <h3>${escapeHtml(schedule.workout_name || '—')}</h3>
+          <p>Тренер ${escapeHtml(schedule.trainer_name || 'не призначений')}</p>
+          <p>Записано ${booked}/${maxClients} · вільно ${available}</p>
+        </div>
+        <div class="class-actions">
           <button class="ghost-btn" data-schedule-edit="${schedule.id}">Редагувати</button>
           <button class="danger-btn" data-schedule-delete="${schedule.id}">Видалити</button>
-        </span>
+        </div>
       </div>
     `;
   }).join('');
 }
 
-async function loadSchedules() {
-  if (scheduleTableBody) {
-    scheduleTableBody.innerHTML = '<div class="table-row table-empty"><span>Завантаження розкладу...</span></div>';
+/**
+ * Оновлює весь блок розкладу: стрічку днів і список занять обраного дня.
+ * Якщо обраний день зник із розкладу (наприклад, після видалення),
+ * автоматично переходить на найближчий доступний день.
+ */
+function renderSchedules() {
+  if (!scheduleDayList) {
+    return;
   }
+
+  const dates = getScheduleDates();
+  if (!dates.includes(selectedScheduleDate)) {
+    selectedScheduleDate = pickDefaultScheduleDate(dates);
+  }
+
+  renderScheduleDateStrip();
+  renderScheduleDayList();
+}
+
+async function loadSchedules() {
+  if (scheduleDayList) {
+    scheduleDayList.innerHTML = `
+      <div class="class-card class-empty">
+        <div class="class-info"><h3>Завантаження розкладу...</h3></div>
+      </div>
+    `;
+  }
+
   try {
     schedules = await apiFetch('/schedules');
+    // Зберігаємо обраний день між перезавантаженнями (після save/delete),
+    // а день за замовчуванням обираємо лише на першому завантаженні.
+    const dates = getScheduleDates();
+    if (!selectedScheduleDate || !dates.includes(selectedScheduleDate)) {
+      selectedScheduleDate = pickDefaultScheduleDate(dates);
+    }
     renderSchedules();
     setScheduleFeedback(`Завантажено занять: ${schedules.length}`, 'success');
   } catch (error) {
     setScheduleFeedback(`Не вдалося завантажити розклад: ${error.message}`, 'error');
-    if (scheduleTableBody) {
-      scheduleTableBody.innerHTML = '<div class="table-row table-empty"><span>Помилка завантаження</span></div>';
+    if (scheduleDayList) {
+      scheduleDayList.innerHTML = `
+        <div class="class-card class-empty">
+          <div class="class-info"><h3>Помилка завантаження</h3></div>
+        </div>
+      `;
     }
   }
 }
@@ -1443,11 +1565,6 @@ document.querySelectorAll('.chip').forEach((button) => {
       renderTrainers();
     }
 
-    if (button.dataset.scheduleFilter) {
-      scheduleFilter = button.dataset.scheduleFilter;
-      renderSchedules();
-    }
-
     if (button.dataset.serviceFilter) {
       servicesFilter = button.dataset.serviceFilter;
       renderServices();
@@ -1612,6 +1729,14 @@ document.addEventListener('click', async (event) => {
   const trainerRevokeButton = event.target.closest('[data-trainer-revoke]');
   if (trainerRevokeButton) {
     revokeTrainer(trainerRevokeButton.dataset.trainerRevoke);
+    return;
+  }
+
+  // Вибір дня у стрічці дат: перемикаємо активний день і перемальовуємо список.
+  const scheduleDateButton = event.target.closest('[data-schedule-date]');
+  if (scheduleDateButton) {
+    selectedScheduleDate = scheduleDateButton.dataset.scheduleDate;
+    renderSchedules();
     return;
   }
 

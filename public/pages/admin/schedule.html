@@ -49,17 +49,9 @@
                         <input id="schedule-search" type="search" placeholder="Пошук за послугою, тренером або датою">
                         <button class="primary-btn" id="open-schedule-modal">Створити заняття</button>
                     </div>
-                    <div class="chip-row" id="schedule-filter">
-                        <button class="chip" data-schedule-filter="all">Усі</button>
-                        <button class="chip" data-schedule-filter="today">Сьогодні</button>
-                        <button class="chip active" data-schedule-filter="upcoming">Майбутні</button>
-                        <button class="chip" data-schedule-filter="past">Минулі</button>
-                    </div>
                     <p class="admin-feedback" id="schedule-feedback" role="status" aria-live="polite"></p>
-                    <div class="admin-table schedule-table">
-                        <div class="table-row table-head"><span>Дата</span><span>Час</span><span>Послуга</span><span>Тренер</span><span>Місця</span><span>Дії</span></div>
-                        <div id="schedule-table-body"></div>
-                    </div>
+                    <div class="date-strip" id="schedule-date-strip" aria-label="Вибір дати"></div>
+                    <div class="class-list" id="schedule-day-list"></div>
                 </div>
             </section>
         </main>
