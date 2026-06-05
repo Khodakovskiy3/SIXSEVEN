@@ -23,6 +23,8 @@ import paymentsRoutes from './routes/payments.js';
 import visitsRoutes from './routes/visits.js';
 import reportsRoutes from './routes/reports.js';
 import publicRoutes from './routes/public.js';
+import clubRoutes from './routes/club.js';
+import messagesRoutes from './routes/messages.js';
 
 import { DEFAULT_HTTP_PORT, HTTP_SERVER_ERROR } from './utils/constants.js';
 console.log('SERVER INDEX JS STARTED');
@@ -66,6 +68,8 @@ app.use('/api/payments', paymentsRoutes);
 app.use('/api/visits', visitsRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/public', publicRoutes);
+app.use('/api/club', clubRoutes);
+app.use('/api/messages', messagesRoutes);
 
 // ─── Глобальна обробка помилок ────────────────────────────────────────────────
 // Будь-яка помилка, передана через next(err), повертається клієнту як 500,

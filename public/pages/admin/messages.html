@@ -39,18 +39,27 @@
                         </svg>
                         <span class="notification-dot"></span>
                     </button>
-                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">AD</button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль" data-account-field="initials"></button>
                 </div>
             </header>
 
             <section class="screen active" data-screen-panel="messages">
                 <div class="panel admin-section">
-                    <div class="admin-toolbar"><input type="search" placeholder="Пошук повідомлення"><button class="primary-btn modal-open" data-modal-title="Створити повідомлення">Створити повідомлення</button></div>
-                    <div class="chip-row"><button class="chip active">Усі</button><button class="chip">Клієнтам</button><button class="chip">Тренерам</button><button class="chip">Заплановані</button><button class="chip">Надіслані</button></div>
+                    <div class="admin-toolbar">
+                        <input id="messages-search" type="search" placeholder="Пошук за темою">
+                        <button class="primary-btn" id="open-message-modal">Створити повідомлення</button>
+                    </div>
+                    <div class="chip-row" id="messages-filter">
+                        <button class="chip active" data-message-filter="all">Усі</button>
+                        <button class="chip" data-message-filter="clients">Клієнтам</button>
+                        <button class="chip" data-message-filter="trainers">Тренерам</button>
+                        <button class="chip" data-message-filter="planned">Заплановані</button>
+                        <button class="chip" data-message-filter="sent">Надіслані</button>
+                    </div>
+                    <p class="admin-feedback" id="messages-feedback" role="status" aria-live="polite"></p>
                     <div class="admin-table message-table">
                         <div class="table-row table-head"><span>Тема</span><span>Кому</span><span>Статус</span><span>Створено</span><span>Надсилання</span><span>Дії</span></div>
-                        <div class="table-row"><span>Зміна графіку на вихідні</span><span>Клієнтам</span><span class="status active">Надіслано</span><span>20.05.2026</span><span>20.05.2026</span><span><button class="ghost-btn sheet-open" data-sheet="message">Деталі</button></span></div>
-                        <div class="table-row"><span>Нове групове заняття</span><span>Клієнтам</span><span class="status planned">Заплановано</span><span>21.05.2026</span><span>24.05.2026</span><span><button class="ghost-btn sheet-open" data-sheet="message">Деталі</button><button class="ghost-btn modal-open" data-modal-title="Редагувати повідомлення">Редагувати</button></span></div>
+                        <div id="messages-table-body"></div>
                     </div>
                 </div>
             </section>
@@ -77,13 +86,7 @@
     <div class="modal-backdrop" id="admin-modal">
         <div class="modal admin-modal">
             <h2 id="modal-title">Форма</h2>
-            <label>Назва / ім’я<input type="text"></label>
-            <label>Телефон або email<input type="text"></label>
-            <label>Статус<input type="text" value="Активний"></label>
-            <div class="modal-actions">
-                <button class="ghost-btn modal-close">Скасувати</button>
-                <button class="primary-btn modal-close">Зберегти</button>
-            </div>
+            <div id="modal-content"></div>
         </div>
     </div>
 

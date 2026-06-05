@@ -13,8 +13,10 @@ import { query } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import {
   HTTP_BAD_REQUEST,
+  HTTP_CONFLICT,
   HTTP_CREATED,
   HTTP_NOT_FOUND,
+  PG_FOREIGN_KEY_VIOLATION,
   ROLE,
 } from '../utils/constants.js';
 
@@ -80,8 +82,18 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
 
 router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
-  await query('update workouts set status = $1 where id = $2', ['inactive', id]);
-  return res.json({ ok: true });
+  try {
+    await query('delete from workouts where id = $1', [id]);
+    return res.json({ ok: true });
+  } catch (error) {
+    // Послугу не можна видалити, поки на неї посилаються заняття у розкладі.
+    if (error.code === PG_FOREIGN_KEY_VIOLATION) {
+      return res.status(HTTP_CONFLICT).json({
+        error: 'Послугу використано в розкладі — спершу видаліть відповідні заняття',
+      });
+    }
+    throw error;
+  }
 });
 
 export default router;

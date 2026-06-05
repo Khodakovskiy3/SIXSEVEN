@@ -15,8 +15,10 @@ import { authRequired, requireRole } from '../middleware/auth.js';
 import { getClientIdByUserId } from '../utils/identity.js';
 import {
   HTTP_BAD_REQUEST,
+  HTTP_CONFLICT,
   HTTP_CREATED,
   HTTP_NOT_FOUND,
+  PG_FOREIGN_KEY_VIOLATION,
   ROLE,
   SUBSCRIPTION_STATUS,
 } from '../utils/constants.js';
@@ -196,6 +198,25 @@ router.put('/plans/:id', requireRole(ROLE.ADMIN), async (req, res) => {
     return res.status(HTTP_NOT_FOUND).json({ error: 'Plan not found' });
   }
   return res.json(result.rows[0]);
+});
+
+router.delete('/plans/:id', requireRole(ROLE.ADMIN), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await query('delete from subscription_plans where id = $1', [id]);
+    if (result.rowCount === 0) {
+      return res.status(HTTP_NOT_FOUND).json({ error: 'Plan not found' });
+    }
+    return res.json({ ok: true });
+  } catch (error) {
+    // На випадок, якщо тариф жорстко повʼязаний з іншими записами.
+    if (error.code === PG_FOREIGN_KEY_VIOLATION) {
+      return res.status(HTTP_CONFLICT).json({
+        error: 'Тариф використовується — спершу приберіть повʼязані абонементи',
+      });
+    }
+    throw error;
+  }
 });
 
 router.patch('/plans/:id/status', requireRole(ROLE.ADMIN), async (req, res) => {

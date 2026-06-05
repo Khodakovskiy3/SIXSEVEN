@@ -47,11 +47,14 @@
                 <div class="panel narrow-panel">
                     <button class="back-btn" data-screen-link="profile">Назад</button>
                     <h2>Дані клубу</h2>
-                    <label>Назва клубу<input type="text" value="OLIMP"></label>
-                    <label>Адреса<input type="text" value="вул. Спортивна, 10, Київ"></label>
-                    <label>Телефон<input type="text" value="+380 44 123 45 67"></label>
-                    <label>Email<input type="email" value="info@olimp.ua"></label>
-                    <button class="primary-btn">Зберегти зміни</button>
+                    <form id="club-form">
+                        <label>Назва клубу<input type="text" name="name"></label>
+                        <label>Адреса<input type="text" name="address"></label>
+                        <label>Телефон<input type="text" name="phone"></label>
+                        <label>Email<input type="email" name="email"></label>
+                        <p class="form-note" id="club-feedback" role="status"></p>
+                        <button type="submit" class="primary-btn">Зберегти зміни</button>
+                    </form>
                 </div>
             </section>
         </main>
