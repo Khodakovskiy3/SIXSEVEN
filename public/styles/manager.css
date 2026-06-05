@@ -470,3 +470,239 @@
         font-size: 13px;
     }
 }
+.manager-page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.manager-page-head h2 {
+  margin: 0 0 8px;
+  font-size: 28px;
+}
+
+.manager-page-head p {
+  margin: 0;
+  color: #aaa;
+}
+
+.manager-period {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.manager-period input,
+.manager-table select {
+  background: #1d1d22;
+  color: #fff;
+  border: 1px solid #333;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.manager-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.manager-stats-grid article {
+  background: #1a1a1f;
+  border: 1px solid #2f2f35;
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.manager-stats-grid span {
+  display: block;
+  color: #aaa;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.manager-stats-grid strong {
+  color: #ff6b2c;
+  font-size: 28px;
+}
+
+.manager-two-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.manager-chart {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.manager-chart-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 90px;
+  align-items: center;
+  gap: 12px;
+}
+
+.manager-chart-row span {
+  color: #bbb;
+  font-size: 14px;
+}
+
+.manager-chart-row b {
+  color: #fff;
+  font-size: 14px;
+  text-align: right;
+}
+
+.manager-chart-line {
+  height: 12px;
+  background: #2b2b31;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.manager-chart-line i {
+  display: block;
+  height: 100%;
+  background: #ff6b2c;
+  border-radius: 999px;
+}
+
+.manager-table {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.manager-table-head,
+.manager-table-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.4fr 1fr 1.5fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.manager-table-head {
+  color: #ff6b2c;
+  font-weight: 700;
+  padding: 0 14px;
+}
+
+.manager-table-row {
+  background: #1d1d22;
+  border: 1px solid #303038;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.manager-table-row span {
+  color: #ddd;
+}
+
+.manager-table-row button {
+  margin-right: 6px;
+}
+
+@media (max-width: 900px) {
+  .manager-page-head {
+    flex-direction: column;
+  }
+
+  .manager-two-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-table-head {
+    display: none;
+  }
+
+  .manager-table-row {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-chart-row {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-chart-row b {
+    text-align: left;
+  }
+}
+.manager-search {
+  margin-bottom: 18px;
+}
+
+.manager-search input {
+  width: 100%;
+  background: #1d1d22;
+  color: #fff;
+  border: 1px solid #333;
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 15px;
+  outline: none;
+}
+
+.manager-search input:focus {
+  border-color: #ff6b2c;
+}
+
+.manager-click-card {
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.manager-click-card:hover {
+  border-color: #ff6b2c;
+  transform: translateY(-2px);
+}
+
+.manager-click-card small {
+  display: block;
+  margin-top: 8px;
+  color: #aaa;
+  font-size: 12px;
+}
+
+.manager-payments-list {
+  display: grid;
+  gap: 12px;
+}
+
+.manager-payment-card {
+  background: #1d1d22;
+  border: 1px solid #303038;
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.manager-payment-card h3 {
+  margin: 0 0 8px;
+  color: #ff6b2c;
+}
+
+.manager-payment-card p {
+  margin: 5px 0;
+}
+
+#sheet {
+  overflow-y: auto;
+}
+
+#sheet .sheet-panel,
+#sheet .sheet-content,
+#sheet-content {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.manager-payments-list {
+  max-height: 65vh;
+  overflow-y: auto;
+  padding-right: 8px;
+}

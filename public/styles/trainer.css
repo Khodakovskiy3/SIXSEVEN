@@ -110,4 +110,155 @@
     .trainer-schedule .class-card {
         grid-template-columns: 72px 1fr auto;
     }
+    .trainer-schedule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.trainer-schedule-card {
+  background: #1c1c21;
+  border: 1px solid #2c2c33;
+  border-radius: 16px;
+  padding: 20px;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.trainer-schedule-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.trainer-schedule-header h3 {
+  margin: 0;
+  font-size: 22px;
+  color: #ffffff;
+}
+
+.trainer-schedule-header span {
+  background: #ff6b2c;
+  color: #111;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.trainer-schedule-info {
+  display: grid;
+  gap: 8px;
+  color: #b9b9c3;
+  font-size: 15px;
+}
+
+.trainer-schedule-info p {
+  margin: 0;
+}
+
+.trainer-schedule-info b {
+  color: #ffffff;
+}
+
+.trainer-schedule-btn {
+  margin-top: 18px;
+  width: 100%;
+  justify-content: center;
+}
+}
+
+.trainer-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.trainer-modal.active {
+  display: flex;
+}
+
+.trainer-modal-box {
+  width: min(620px, 100%);
+  max-height: 82vh;
+  overflow-y: auto;
+  background: #17171b;
+  border: 1px solid #33333a;
+  border-radius: 22px;
+  padding: 26px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  position: relative;
+}
+
+.trainer-modal-box h2 {
+  margin: 0 0 18px;
+  color: #ffffff;
+  font-size: 26px;
+}
+
+.trainer-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #33333a;
+  border-radius: 50%;
+  background: #202026;
+  color: #ffffff;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.trainer-modal-close:hover {
+  background: #ff6b2c;
+  color: #111111;
+}
+
+.trainer-client-list {
+  display: grid;
+  gap: 14px;
+}
+
+.trainer-client-card {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 14px;
+  align-items: center;
+  background: #1d1d22;
+  border: 1px solid #303038;
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.trainer-client-card span {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #ff6b2c;
+  color: #111111;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+
+.trainer-client-card h3 {
+  margin: 0 0 6px;
+  color: #ff6b2c;
+}
+
+.trainer-client-card p {
+  margin: 3px 0;
+  color: #c8c8d0;
 }

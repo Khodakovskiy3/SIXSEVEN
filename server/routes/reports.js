@@ -107,4 +107,248 @@ router.get('/staff', async (req, res) => {
   return res.json(result.rows);
 });
 
+// ======================================================
+// GET /api/reports/manager
+// Повний звіт для АРМ менеджера
+// ======================================================
+
+router.get('/manager', async (req, res) => {
+  try {
+    const { startDate, endDate } = parseDateRange(req.query);
+
+    // ------------------------------------------------------
+    // 1. Загальна статистика
+    // ------------------------------------------------------
+
+    const summary = await query(
+      `
+      select
+        (select count(*) from users) as total_users,
+
+        (select count(*) from clients) as total_clients,
+
+        (select count(*) from trainers) as total_trainers,
+
+        (select count(*) from subscriptions
+         where status = $3 and end_date >= current_date) as active_subscriptions,
+
+        (select count(*) from visits
+         where visit_time::date between $1 and $2) as visits_count,
+
+        (select count(*) from payments
+         where date between $1 and $2) as payments_count,
+
+        (select coalesce(sum(amount), 0) from payments
+         where date between $1 and $2) as revenue,
+
+        (select coalesce(avg(amount), 0) from payments
+         where date between $1 and $2) as average_payment
+      `,
+      [
+        startDate,
+        endDate,
+        SUBSCRIPTION_STATUS.ACTIVE,
+      ]
+    );
+
+
+    // ------------------------------------------------------
+    // 2. Дохід по днях
+    // ------------------------------------------------------
+
+    const revenueByDay = await query(
+      `
+      select
+        date,
+        coalesce(sum(amount), 0) as revenue,
+        count(*) as payments_count
+      from payments
+      where date between $1 and $2
+      group by date
+      order by date
+      `,
+      [
+        startDate,
+        endDate,
+      ]
+    );
+
+
+    // ------------------------------------------------------
+    // 3. Відвідуваність по днях
+    // ------------------------------------------------------
+
+    const visitsByDay = await query(
+      `
+      select
+        visit_time::date as date,
+        count(*) as visits_count
+      from visits
+      where visit_time::date between $1 and $2
+      group by visit_time::date
+      order by visit_time::date
+      `,
+      [
+        startDate,
+        endDate,
+      ]
+    );
+
+
+    // ------------------------------------------------------
+    // 4. Завантаженість тренерів
+    // ------------------------------------------------------
+
+    const trainerLoad = await query(
+      `
+      select
+        u.name as trainer_name,
+        count(distinct s.id) as sessions_count,
+        count(b.id) as bookings_count,
+        coalesce(avg(w.max_clients), 0) as average_capacity
+      from trainers t
+
+      join users u
+        on u.id = t.user_id
+
+      left join schedules s
+        on s.trainer_id = t.id
+        and s.date between $1 and $2
+
+      left join workouts w
+        on w.id = s.workout_id
+
+      left join bookings b
+        on b.schedule_id = s.id
+        and b.status = $3
+
+      group by u.name
+      order by sessions_count desc, bookings_count desc
+      `,
+      [
+        startDate,
+        endDate,
+        BOOKING_STATUS.ACTIVE,
+      ]
+    );
+
+
+    // ------------------------------------------------------
+    // 5. Популярність тренувань
+    // ------------------------------------------------------
+
+    const workoutStats = await query(
+      `
+      select
+        w.name as workout_name,
+        count(distinct s.id) as sessions_count,
+        count(b.id) as bookings_count
+      from workouts w
+
+      left join schedules s
+        on s.workout_id = w.id
+        and s.date between $1 and $2
+
+      left join bookings b
+        on b.schedule_id = s.id
+        and b.status = $3
+
+      group by w.name
+      order by bookings_count desc
+      `,
+      [
+        startDate,
+        endDate,
+        BOOKING_STATUS.ACTIVE,
+      ]
+    );
+
+
+    // ------------------------------------------------------
+    // Відповідь для frontend
+    // ------------------------------------------------------
+
+    res.json({
+      period: {
+        start: startDate,
+        end: endDate,
+      },
+
+      summary: {
+        total_users: Number(summary.rows[0].total_users || 0),
+        total_clients: Number(summary.rows[0].total_clients || 0),
+        total_trainers: Number(summary.rows[0].total_trainers || 0),
+        active_subscriptions: Number(summary.rows[0].active_subscriptions || 0),
+        visits_count: Number(summary.rows[0].visits_count || 0),
+        payments_count: Number(summary.rows[0].payments_count || 0),
+        revenue: Number(summary.rows[0].revenue || 0),
+        average_payment: Number(summary.rows[0].average_payment || 0),
+      },
+
+      revenueByDay: revenueByDay.rows.map((item) => ({
+        date: item.date,
+        revenue: Number(item.revenue || 0),
+        payments_count: Number(item.payments_count || 0),
+      })),
+
+      visitsByDay: visitsByDay.rows.map((item) => ({
+        date: item.date,
+        visits_count: Number(item.visits_count || 0),
+      })),
+
+      trainerLoad: trainerLoad.rows.map((item) => ({
+        trainer_name: item.trainer_name,
+        sessions_count: Number(item.sessions_count || 0),
+        bookings_count: Number(item.bookings_count || 0),
+        average_capacity: Number(item.average_capacity || 0),
+      })),
+
+      workoutStats: workoutStats.rows.map((item) => ({
+        workout_name: item.workout_name,
+        sessions_count: Number(item.sessions_count || 0),
+        bookings_count: Number(item.bookings_count || 0),
+      })),
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: 'Помилка формування звіту менеджера',
+    });
+  }
+});
+
+
+// ======================================================
+// GET /api/reports/payments-list
+// Список оплат для менеджера
+// ======================================================
+
+router.get('/payments-list', authRequired, requireRole(ROLE.MANAGER, ROLE.ADMIN), async (req, res) => {
+  try {
+    const result = await query(`
+      select
+        p.id,
+        p.amount,
+        p.date,
+        p.status,
+        u.name as client_name,
+        u.email as client_email
+      from payments p
+      left join clients c on c.id = p.client_id
+      left join users u on u.id = c.user_id
+      order by p.date desc, p.id desc
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: 'Помилка отримання списку оплат',
+    });
+  }
+});
+
 export default router;
