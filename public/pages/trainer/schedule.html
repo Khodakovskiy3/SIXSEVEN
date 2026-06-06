@@ -34,7 +34,7 @@
                         </svg>
                         <span class="notification-dot"></span>
                     </button>
-                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">IA</button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль" data-account-field="initials"></button>
                 </div>
             </header>
 
@@ -45,93 +45,11 @@
                         <button class="tab" data-mode-tab="all">Усі тренування</button>
                     </div>
 
-                    <div class="date-strip" aria-label="Вибір дати">
-                        <button class="date-pill active"><strong>22 Тра</strong><span>Пт</span><small>Сьогодні</small></button>
-                        <button class="date-pill"><strong>23 Тра</strong><span>Сб</span></button>
-                        <button class="date-pill"><strong>24 Тра</strong><span>Нд</span></button>
-                        <button class="date-pill"><strong>25 Тра</strong><span>Пн</span></button>
-                        <button class="date-pill"><strong>26 Тра</strong><span>Вт</span></button>
-                    </div>
+                    <div class="date-strip" id="trainer-date-strip" aria-label="Вибір дати"></div>
+                    <p class="form-note" id="trainer-schedule-feedback" role="status"></p>
 
-                    <div class="chip-row training-filters" aria-label="Фільтр тренувань">
-                        <button class="chip active">Усі</button>
-                        <button class="chip">Фітнес</button>
-                        <button class="chip">Йога</button>
-                        <button class="chip">Персональні</button>
-                        <button class="chip">Єдиноборства</button>
-                    </div>
-
-                    <div class="class-list active" data-mode-panel="mine">
-                        <div class="class-card">
-                            <div class="class-time">10:00</div>
-                            <div class="class-info">
-                                <h3>Фітнес</h3>
-                                <p>Зал 1 · 12 клієнтів</p>
-                                <p>Тривалість: 45 хв</p>
-                            </div>
-                            <div class="class-actions">
-                                <button class="primary-btn sheet-open" data-sheet="fitness">Деталі</button>
-                            </div>
-                        </div>
-                        <div class="class-card">
-                            <div class="class-time">14:00</div>
-                            <div class="class-info">
-                                <h3>Персональне</h3>
-                                <p>Клієнт: Марія Іваненко</p>
-                                <p>Зал 4 · 60 хв</p>
-                            </div>
-                            <div class="class-actions">
-                                <button class="primary-btn sheet-open" data-sheet="personal">Деталі</button>
-                            </div>
-                        </div>
-                        <div class="class-card">
-                            <div class="class-time">18:30</div>
-                            <div class="class-info">
-                                <h3>Йога</h3>
-                                <p>Зал 2 · 8 клієнтів</p>
-                                <p>Тривалість: 50 хв</p>
-                            </div>
-                            <div class="class-actions">
-                                <button class="primary-btn sheet-open" data-sheet="yoga">Деталі</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="class-list" data-mode-panel="all">
-                        <div class="class-card">
-                            <div class="class-time">10:00</div>
-                            <div class="class-info">
-                                <h3>Фітнес</h3>
-                                <p>Тренер Ігор · зал 1</p>
-                                <p>45 хв · 12 клієнтів</p>
-                            </div>
-                            <div class="class-actions">
-                                <button class="ghost-btn sheet-open" data-sheet="fitness">Опис</button>
-                            </div>
-                        </div>
-                        <div class="class-card">
-                            <div class="class-time">18:30</div>
-                            <div class="class-info">
-                                <h3>Йога</h3>
-                                <p>Тренер Анна · зал 2</p>
-                                <p>50 хв · 8 клієнтів</p>
-                            </div>
-                            <div class="class-actions">
-                                <button class="ghost-btn sheet-open" data-sheet="yoga">Опис</button>
-                            </div>
-                        </div>
-                        <div class="class-card">
-                            <div class="class-time">20:00</div>
-                            <div class="class-info">
-                                <h3>Єдиноборства</h3>
-                                <p>Тренер Максим · зал 3</p>
-                                <p>60 хв · 10 клієнтів</p>
-                            </div>
-                            <div class="class-actions">
-                                <button class="ghost-btn sheet-open" data-sheet="fight">Опис</button>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="class-list active" data-mode-panel="mine" id="trainer-list-mine"></div>
+                    <div class="class-list" data-mode-panel="all" id="trainer-list-all"></div>
                 </div>
             </section>
         </main>

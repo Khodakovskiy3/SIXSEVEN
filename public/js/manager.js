@@ -3,6 +3,7 @@ import {
   clearAuth,
   formatDate,
   requireFreshAuth,
+  setAuth,
 } from './api.js';
 
 import { hydrateAccount } from './account.js';
@@ -490,6 +491,135 @@ function bindBaseActions() {
   });
 }
 
+// ─── Особисті дані та налаштування менеджера ────────────────────────────────
+
+const MANAGER_SETTINGS_KEY = 'managerSettings';
+const managerPasswordModal = document.querySelector('#password-modal');
+
+function setManagerNote(selector, message, type = 'info') {
+  const element = document.querySelector(selector);
+  if (element) {
+    element.textContent = message;
+    element.dataset.type = type;
+  }
+}
+
+/**
+ * Зберігає ім'я та телефон менеджера через PUT /auth/profile.
+ *
+ * @param {HTMLFormElement} form
+ */
+async function saveManagerProfile(form) {
+  const formData = new FormData(form);
+  try {
+    const data = await apiFetch('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: formData.get('name')?.trim(),
+        phone: formData.get('phone')?.trim(),
+      }),
+    });
+    if (data && data.token && data.user) {
+      setAuth(data.token, data.user);
+    }
+    await hydrateAccount({ role: ROLE.MANAGER });
+    setManagerNote('#manager-profile-feedback', 'Дані збережено', 'success');
+  } catch (error) {
+    setManagerNote('#manager-profile-feedback', `Не вдалося зберегти: ${error.message}`, 'error');
+  }
+}
+
+function openManagerPasswordModal() {
+  managerPasswordModal?.classList.add('active');
+}
+
+function closeManagerPasswordModal() {
+  if (!managerPasswordModal) {
+    return;
+  }
+  managerPasswordModal.classList.remove('active');
+  managerPasswordModal.querySelector('form')?.reset();
+  setManagerNote('#password-feedback', '');
+}
+
+/**
+ * Змінює пароль менеджера через PUT /auth/password.
+ *
+ * @param {HTMLFormElement} form
+ */
+async function changeManagerPassword(form) {
+  const formData = new FormData(form);
+  const newPassword = formData.get('newPassword');
+  if (newPassword !== formData.get('confirmPassword')) {
+    setManagerNote('#password-feedback', 'Паролі не співпадають', 'error');
+    return;
+  }
+
+  try {
+    await apiFetch('/auth/password', {
+      method: 'PUT',
+      body: JSON.stringify({
+        currentPassword: formData.get('currentPassword'),
+        newPassword,
+      }),
+    });
+    closeManagerPasswordModal();
+    setManagerNote('#manager-profile-feedback', 'Пароль змінено', 'success');
+  } catch (error) {
+    setManagerNote('#password-feedback', `Не вдалося змінити пароль: ${error.message}`, 'error');
+  }
+}
+
+function bindManagerPersonal() {
+  const profileForm = document.querySelector('#manager-profile-form');
+  profileForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    saveManagerProfile(profileForm);
+  });
+
+  const passwordForm = document.querySelector('#password-form');
+  passwordForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    changeManagerPassword(passwordForm);
+  });
+
+  document.querySelector('[data-change-password]')?.addEventListener('click', openManagerPasswordModal);
+  document.querySelector('[data-password-cancel]')?.addEventListener('click', closeManagerPasswordModal);
+  managerPasswordModal?.addEventListener('click', (event) => {
+    if (event.target === managerPasswordModal) {
+      closeManagerPasswordModal();
+    }
+  });
+}
+
+/**
+ * Відновлює та зберігає налаштування сповіщень менеджера у localStorage
+ * (окремого серверного сховища налаштувань немає).
+ */
+function loadManagerSettings() {
+  const list = document.querySelector('#manager-settings-list');
+  if (!list) {
+    return;
+  }
+
+  const saved = JSON.parse(localStorage.getItem(MANAGER_SETTINGS_KEY) || '{}');
+  list.querySelectorAll('[data-setting]').forEach((input) => {
+    const key = input.dataset.setting;
+    if (key in saved) {
+      input.checked = Boolean(saved[key]);
+    }
+  });
+
+  document.querySelector('#save-manager-settings')?.addEventListener('click', () => {
+    const next = {};
+    list.querySelectorAll('[data-setting]').forEach((input) => {
+      next[input.dataset.setting] = input.checked;
+    });
+    localStorage.setItem(MANAGER_SETTINGS_KEY, JSON.stringify(next));
+    setManagerNote('#manager-settings-feedback', 'Налаштування збережено', 'success');
+  });
+}
+
 async function initManagerArm() {
   await requireFreshAuth([ROLE.MANAGER]);
   hydrateAccount({ role: ROLE.MANAGER });
@@ -510,6 +640,14 @@ async function initManagerArm() {
 
   if (currentPath.includes('/manager/users.html')) {
     await renderManagerUsers();
+  }
+
+  if (currentPath.includes('/manager/personal.html')) {
+    bindManagerPersonal();
+  }
+
+  if (currentPath.includes('/manager/settings.html')) {
+    loadManagerSettings();
   }
 }
 

@@ -34,7 +34,7 @@
                         </svg>
                         <span class="notification-dot"></span>
                     </button>
-                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">IA</button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль" data-account-field="initials"></button>
                 </div>
             </header>
 
@@ -42,20 +42,13 @@
                 <div class="trainer-home-grid">
                     <article class="panel metric-card">
                         <div class="section-label">Кількість занять сьогодні</div>
-                        <div class="metric-value">3</div>
+                        <div class="metric-value" id="trainer-today-count">—</div>
                         <p>заняття у розкладі</p>
                     </article>
 
                     <article class="panel next-training">
                         <div class="section-label">Найближче заняття</div>
-                        <div class="training-main">
-                            <div>
-                                <h2>Фітнес</h2>
-                                <p>Сьогодні · 10:00</p>
-                                <p>Зал 1 · 12 клієнтів</p>
-                            </div>
-                            <button class="primary-btn sheet-open" data-sheet="fitness">Деталі</button>
-                        </div>
+                        <div id="trainer-next-training"></div>
                     </article>
 
                     <article class="panel today-schedule">
@@ -63,20 +56,12 @@
                             <div class="section-label">Сьогоднішні заняття</div>
                             <button class="link-btn" data-screen-link="schedule">Весь розклад</button>
                         </div>
-                        <div class="trainer-mini-list">
-                            <button class="mini-session sheet-open" data-sheet="fitness">
-                                <strong>10:00</strong>
-                                <span>Фітнес · зал 1 · 12 клієнтів</span>
-                            </button>
-                            <button class="mini-session sheet-open" data-sheet="personal">
-                                <strong>14:00</strong>
-                                <span>Персональне · Марія І. · зал 4</span>
-                            </button>
-                            <button class="mini-session sheet-open" data-sheet="yoga">
-                                <strong>18:30</strong>
-                                <span>Йога · зал 2 · 8 клієнтів</span>
-                            </button>
-                        </div>
+                        <div class="trainer-mini-list" id="trainer-today-list"></div>
+                    </article>
+
+                    <article class="panel today-schedule">
+                        <div class="section-label">Мій розклад тренувань</div>
+                        <div class="trainer-mini-list" id="trainer-upcoming-list"></div>
                     </article>
                 </div>
             </section>
