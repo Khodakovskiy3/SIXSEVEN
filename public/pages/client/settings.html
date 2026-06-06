@@ -35,7 +35,7 @@
                         </svg>
                         <span class="notification-dot"></span>
                     </button>
-                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">OK</button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль" data-account-field="initials"></button>
                 </div>
             </header>
 
@@ -43,11 +43,12 @@
                 <div class="panel narrow-panel">
                     <button class="back-btn" data-screen-link="profile">Назад</button>
                     <h2>Налаштування</h2>
-                    <div class="settings-list">
-                        <label>Сповіщення про тренування <input type="checkbox" checked></label>
-                        <label>Нагадування за 1 годину <input type="checkbox" checked></label>
-                        <label>Push-сповіщення <input type="checkbox"></label>
+                    <div class="settings-list" id="client-settings-list">
+                        <label>Сповіщення про тренування <input type="checkbox" data-setting="trainingNotifications" checked></label>
+                        <label>Нагадування за 1 годину <input type="checkbox" data-setting="hourReminder" checked></label>
+                        <label>Push-сповіщення <input type="checkbox" data-setting="pushNotifications"></label>
                         <label>Тема застосунку <span>Темна</span></label>
+                        <p class="form-note" id="settings-feedback" role="status"></p>
                     </div>
                 </div>
             </section>

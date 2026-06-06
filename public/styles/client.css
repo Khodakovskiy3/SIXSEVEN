@@ -610,6 +610,10 @@ input:disabled {
 }
 
 .current-plan {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
     border: 1px solid var(--accent);
     border-radius: var(--radius);
     background: var(--accent-soft);

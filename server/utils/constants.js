@@ -30,6 +30,9 @@ export const DEFAULT_DB_PORT = 5432;
 /** Код помилки PostgreSQL для порушення унікальності (unique_violation). */
 export const PG_UNIQUE_VIOLATION = '23505';
 
+/** Код помилки PostgreSQL для порушення зовнішнього ключа (foreign_key_violation). */
+export const PG_FOREIGN_KEY_VIOLATION = '23503';
+
 // ─── HTTP-сервер ─────────────────────────────────────────────────────────────
 
 /** Порт HTTP-сервера за замовчуванням. */

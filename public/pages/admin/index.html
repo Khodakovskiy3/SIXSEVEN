@@ -39,47 +39,26 @@
                         </svg>
                         <span class="notification-dot"></span>
                     </button>
-                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль">AD</button>
+                    <button class="avatar" data-screen-link="profile" aria-label="Мій профіль" data-account-field="initials"></button>
                 </div>
             </header>
 
             <section class="screen active" data-screen-panel="dashboard">
                 <div class="admin-metrics">
-                    <article class="panel admin-metric"><span>Клієнти</span><strong>128</strong><p>активних</p></article>
-                    <article class="panel admin-metric"><span>Тренери</span><strong>7</strong><p>у команді</p></article>
-                    <article class="panel admin-metric"><span>Заняття сьогодні</span><strong>12</strong><p>у розкладі</p></article>
-                    <article class="panel admin-metric"><span>Послуги</span><strong>4</strong><p>активні</p></article>
+                    <article class="panel admin-metric"><span>Клієнти</span><strong id="metric-clients">—</strong><p>активних</p></article>
+                    <article class="panel admin-metric"><span>Тренери</span><strong id="metric-trainers">—</strong><p>у команді</p></article>
+                    <article class="panel admin-metric"><span>Заняття сьогодні</span><strong id="metric-today">—</strong><p>у розкладі</p></article>
+                    <article class="panel admin-metric"><span>Послуги</span><strong id="metric-services">—</strong><p>активні</p></article>
                 </div>
 
                 <div class="admin-dashboard-grid">
                     <article class="panel">
                         <div class="section-label">Сьогоднішній розклад</div>
-                        <div class="admin-list">
-                            <p><strong>10:00</strong> Фітнес · Ігор · зал 1</p>
-                            <p><strong>14:00</strong> Персональне · Анна · зал 4</p>
-                            <p><strong>18:30</strong> Йога · Анна · зал 2</p>
-                        </div>
+                        <div class="admin-list" id="dashboard-today-list"></div>
                     </article>
                     <article class="panel">
                         <div class="section-label">Потребує уваги</div>
-                        <div class="attention-list">
-                            <div class="attention-item warning">
-                                <strong>6 абонементів</strong>
-                                <span>закінчуються цього тижня</span>
-                            </div>
-                            <div class="attention-item danger">
-                                <strong>3 клієнти</strong>
-                                <span>без активного абонемента</span>
-                            </div>
-                            <div class="attention-item">
-                                <strong>2 заняття</strong>
-                                <span>майже заповнені</span>
-                            </div>
-                            <div class="attention-item">
-                                <strong>1 тренер</strong>
-                                <span>має високе навантаження</span>
-                            </div>
-                        </div>
+                        <div class="attention-list" id="dashboard-attention"></div>
                     </article>
                 </div>
             </section>

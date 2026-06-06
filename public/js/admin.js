@@ -1,4 +1,4 @@
-import { apiFetch, clearAuth, formatDate, requireFreshAuth } from './api.js';
+import { apiFetch, clearAuth, formatDate, requireFreshAuth, setAuth } from './api.js';
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
 
@@ -101,6 +101,32 @@ const plansGrid = document.querySelector('#plans-grid');
 const plansSearch = document.querySelector('#plans-search');
 const plansFeedback = document.querySelector('#plans-feedback');
 const subscriptionsTableBody = document.querySelector('#subscriptions-table-body');
+const dashboardPage = document.querySelector('[data-screen-panel="dashboard"]');
+
+// Заняття вважається «майже заповненим», якщо вільних місць не більше цього.
+const ALMOST_FULL_THRESHOLD = 2;
+
+// Скільки днів уперед вважати «цим тижнем» для абонементів, що завершуються.
+const ENDING_SOON_DAYS = 7;
+
+const messagesPage = document.querySelector('[data-screen-panel="messages"]');
+const messagesTableBody = document.querySelector('#messages-table-body');
+const messagesSearch = document.querySelector('#messages-search');
+const clubForm = document.querySelector('#club-form');
+
+let messages = [];
+let messagesFilter = 'all';
+
+const messageAudienceLabels = {
+  clients: 'Клієнтам',
+  trainers: 'Тренерам',
+  all: 'Усім',
+};
+
+const messageStatusLabels = {
+  sent: 'Надіслано',
+  planned: 'Заплановано',
+};
 
 const statusLabels = {
   active: 'Активний',
@@ -688,6 +714,7 @@ function renderServices() {
         <div>
           <button class="ghost-btn" data-service-edit="${service.id}">Редагувати</button>
           ${statusButton}
+          <button class="danger-btn" data-service-delete="${service.id}">Видалити</button>
         </div>
       </article>
     `;
@@ -737,6 +764,7 @@ function renderPlans() {
         <div>
           <button class="ghost-btn" data-plan-edit="${plan.id}">Редагувати</button>
           ${statusAction}
+          <button class="danger-btn" data-plan-delete="${plan.id}">Видалити</button>
         </div>
       </article>
     `;
@@ -1437,6 +1465,48 @@ async function updateServiceStatus(serviceId, status) {
   }
 }
 
+/**
+ * Видаляє послугу (тип тренування) після підтвердження.
+ *
+ * @param {string|number} serviceId
+ */
+async function deleteService(serviceId) {
+  const service = services.find((item) => String(item.id) === String(serviceId));
+  const confirmed = window.confirm(`Видалити послугу «${service?.name || ''}»? Цю дію не можна скасувати.`);
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    await apiFetch(`/workouts/${serviceId}`, { method: 'DELETE' });
+    await loadServices();
+    setServicesFeedback('Послугу видалено', 'success');
+  } catch (error) {
+    setServicesFeedback(`Не вдалося видалити: ${error.message}`, 'error');
+  }
+}
+
+/**
+ * Видаляє тариф абонемента після підтвердження.
+ *
+ * @param {string|number} planId
+ */
+async function deletePlan(planId) {
+  const plan = plans.find((item) => String(item.id) === String(planId));
+  const confirmed = window.confirm(`Видалити тариф «${plan?.name || ''}»? Цю дію не можна скасувати.`);
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    await apiFetch(`/subscriptions/plans/${planId}`, { method: 'DELETE' });
+    await loadPlans();
+    setPlansFeedback('Тариф видалено', 'success');
+  } catch (error) {
+    setPlansFeedback(`Не вдалося видалити: ${error.message}`, 'error');
+  }
+}
+
 async function savePlan(form) {
   const formData = new FormData(form);
   const planId = form.dataset.planId;
@@ -1631,6 +1701,11 @@ document.querySelectorAll('.chip').forEach((button) => {
       plansFilter = button.dataset.planFilter;
       renderPlans();
     }
+
+    if (button.dataset.messageFilter) {
+      messagesFilter = button.dataset.messageFilter;
+      renderMessages();
+    }
   });
 });
 
@@ -1711,6 +1786,33 @@ document.addEventListener('click', async (event) => {
   const addServiceButton = event.target.closest('#open-service-modal');
   if (addServiceButton) {
     openModal('Додати послугу', renderServiceForm());
+    return;
+  }
+
+  const addMessageButton = event.target.closest('#open-message-modal');
+  if (addMessageButton) {
+    openModal('Створити повідомлення', renderMessageForm());
+    return;
+  }
+
+  const messageViewButton = event.target.closest('[data-message-view]');
+  if (messageViewButton) {
+    openMessageDetails(messageViewButton.dataset.messageView);
+    return;
+  }
+
+  const messageEditButton = event.target.closest('[data-message-edit]');
+  if (messageEditButton) {
+    const message = messages.find((item) => String(item.id) === messageEditButton.dataset.messageEdit);
+    if (message) {
+      openModal('Редагувати повідомлення', renderMessageForm(message));
+    }
+    return;
+  }
+
+  const messageDeleteButton = event.target.closest('[data-message-delete]');
+  if (messageDeleteButton) {
+    deleteMessage(messageDeleteButton.dataset.messageDelete);
     return;
   }
 
@@ -1840,6 +1942,12 @@ document.addEventListener('click', async (event) => {
     return;
   }
 
+  const serviceDeleteButton = event.target.closest('[data-service-delete]');
+  if (serviceDeleteButton) {
+    deleteService(serviceDeleteButton.dataset.serviceDelete);
+    return;
+  }
+
   const planEditButton = event.target.closest('[data-plan-edit]');
   if (planEditButton) {
     const plan = plans.find((item) => String(item.id) === planEditButton.dataset.planEdit);
@@ -1854,6 +1962,12 @@ document.addEventListener('click', async (event) => {
   const planStatusButton = event.target.closest('[data-plan-status]');
   if (planStatusButton) {
     updatePlanStatus(planStatusButton.dataset.planStatus, planStatusButton.dataset.nextStatus);
+    return;
+  }
+
+  const planDeleteButton = event.target.closest('[data-plan-delete]');
+  if (planDeleteButton) {
+    deletePlan(planDeleteButton.dataset.planDelete);
     return;
   }
 
@@ -1914,6 +2028,34 @@ document.addEventListener('change', (event) => {
 });
 
 document.addEventListener('submit', (event) => {
+  const adminProfileForm = event.target.closest('#admin-profile-form');
+  if (adminProfileForm) {
+    event.preventDefault();
+    saveAdminProfile(adminProfileForm);
+    return;
+  }
+
+  const clubFormSubmit = event.target.closest('#club-form');
+  if (clubFormSubmit) {
+    event.preventDefault();
+    saveClubSettings(clubFormSubmit);
+    return;
+  }
+
+  const messageForm = event.target.closest('#message-form');
+  if (messageForm) {
+    event.preventDefault();
+    saveMessage(messageForm);
+    return;
+  }
+
+  const passwordForm = event.target.closest('#password-form');
+  if (passwordForm) {
+    event.preventDefault();
+    changeAdminPassword(passwordForm);
+    return;
+  }
+
   const clientForm = event.target.closest('#client-form');
   if (clientForm) {
     event.preventDefault();
@@ -1963,7 +2105,7 @@ document.addEventListener('submit', (event) => {
   }
 });
 
-modal.addEventListener('click', (event) => {
+modal?.addEventListener('click', (event) => {
   if (event.target === modal) {
     closeModal();
   }
@@ -1974,10 +2116,495 @@ trainersSearch?.addEventListener('input', renderTrainers);
 scheduleSearch?.addEventListener('input', renderSchedules);
 servicesSearch?.addEventListener('input', renderServices);
 plansSearch?.addEventListener('input', renderPlans);
+messagesSearch?.addEventListener('input', renderMessages);
+
+/**
+ * Записує числове значення метрики у відповідний елемент дашборду.
+ *
+ * @param {string} selector — CSS-селектор елемента метрики.
+ * @param {number} value
+ */
+function setMetric(selector, value) {
+  const element = document.querySelector(selector);
+  if (element) {
+    element.textContent = String(value);
+  }
+}
+
+/**
+ * Повертає дату, зсунуту на задану кількість днів, у форматі 'YYYY-MM-DD'.
+ *
+ * @param {string} baseIso — базова дата 'YYYY-MM-DD'.
+ * @param {number} days
+ * @returns {string}
+ */
+function addDaysIso(baseIso, days) {
+  const date = new Date(baseIso);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Малює дашборд: метрики, сьогоднішній розклад і блок «Потребує уваги»
+ * на основі реальних даних клубу.
+ *
+ * @param {{clients: object[], trainers: object[], services: object[],
+ *          schedules: object[], subscriptions: object[]}} data
+ */
+function renderDashboard(data) {
+  const today = todayIso();
+  const weekAhead = addDaysIso(today, ENDING_SOON_DAYS);
+
+  const activeClients = data.clients.filter((client) => client.status === 'active').length;
+  const activeServices = data.services.filter((service) => (service.status || 'active') === 'active').length;
+  const todaySchedules = data.schedules
+    .filter((schedule) => formatDate(schedule.date) === today)
+    .sort((first, second) => formatTime(first.time).localeCompare(formatTime(second.time)));
+
+  setMetric('#metric-clients', activeClients);
+  setMetric('#metric-trainers', data.trainers.length);
+  setMetric('#metric-today', todaySchedules.length);
+  setMetric('#metric-services', activeServices);
+
+  const todayList = document.querySelector('#dashboard-today-list');
+  if (todayList) {
+    todayList.innerHTML = todaySchedules.length
+      ? todaySchedules
+        .map((schedule) => (
+          `<p><strong>${formatTime(schedule.time)}</strong> `
+          + `${escapeHtml(schedule.workout_name || '—')} · `
+          + `${escapeHtml(schedule.trainer_name || 'без тренера')}</p>`
+        ))
+        .join('')
+      : '<p>Сьогодні занять немає.</p>';
+  }
+
+  const endingSubscriptions = data.subscriptions.filter((subscription) => (
+    subscription.status === 'active'
+    && formatDate(subscription.end_date) >= today
+    && formatDate(subscription.end_date) <= weekAhead
+  )).length;
+
+  const clientsWithoutSubscription = data.clients.filter((client) => client.status !== 'active').length;
+
+  const almostFullClasses = data.schedules.filter((schedule) => {
+    const available = Math.max(Number(schedule.max_clients || 0) - Number(schedule.booked || 0), 0);
+    return formatDate(schedule.date) >= today && available > 0 && available <= ALMOST_FULL_THRESHOLD;
+  }).length;
+
+  const attention = document.querySelector('#dashboard-attention');
+  if (attention) {
+    attention.innerHTML = `
+      <div class="attention-item warning">
+        <strong>${endingSubscriptions} абонементів</strong>
+        <span>закінчуються цього тижня</span>
+      </div>
+      <div class="attention-item danger">
+        <strong>${clientsWithoutSubscription} клієнтів</strong>
+        <span>без активного абонемента</span>
+      </div>
+      <div class="attention-item">
+        <strong>${almostFullClasses} занять</strong>
+        <span>майже заповнені</span>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Завантажує дані для дашборду й малює його. Працює лише на головній сторінці.
+ */
+async function loadDashboard() {
+  if (!dashboardPage) {
+    return;
+  }
+
+  try {
+    const [clientsData, trainersData, servicesData, schedulesData, subscriptionsData] = await Promise.all([
+      apiFetch('/clients'),
+      apiFetch('/trainers'),
+      apiFetch('/workouts'),
+      apiFetch('/schedules'),
+      apiFetch('/subscriptions'),
+    ]);
+    renderDashboard({
+      clients: clientsData,
+      trainers: trainersData,
+      services: servicesData,
+      schedules: schedulesData,
+      subscriptions: subscriptionsData,
+    });
+  } catch (error) {
+    console.error('Не вдалося завантажити дашборд:', error);
+  }
+}
+
+// ─── Дані клубу ──────────────────────────────────────────────────────────────
+
+/**
+ * Завантажує дані клубу у форму налаштувань. Працює лише на сторінці клубу.
+ */
+async function loadClubSettings() {
+  if (!clubForm) {
+    return;
+  }
+
+  try {
+    const club = await apiFetch('/club');
+    clubForm.querySelector('[name="name"]').value = club.name || '';
+    clubForm.querySelector('[name="address"]').value = club.address || '';
+    clubForm.querySelector('[name="phone"]').value = club.phone || '';
+    clubForm.querySelector('[name="email"]').value = club.email || '';
+    clubForm.querySelector('[name="weekday_hours"]').value = club.weekday_hours || '';
+    clubForm.querySelector('[name="weekend_hours"]').value = club.weekend_hours || '';
+  } catch (error) {
+    setNote('#club-feedback', `Не вдалося завантажити дані клубу: ${error.message}`, 'error');
+  }
+}
+
+/**
+ * Зберігає дані клубу через PUT /api/club.
+ *
+ * @param {HTMLFormElement} form
+ */
+async function saveClubSettings(form) {
+  const formData = new FormData(form);
+  try {
+    await apiFetch('/club', {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: formData.get('name')?.trim(),
+        address: formData.get('address')?.trim(),
+        phone: formData.get('phone')?.trim(),
+        email: formData.get('email')?.trim(),
+        weekday_hours: formData.get('weekday_hours')?.trim(),
+        weekend_hours: formData.get('weekend_hours')?.trim(),
+      }),
+    });
+    setNote('#club-feedback', 'Дані клубу збережено', 'success');
+  } catch (error) {
+    setNote('#club-feedback', `Не вдалося зберегти: ${error.message}`, 'error');
+  }
+}
+
+// ─── Повідомлення (оголошення) ───────────────────────────────────────────────
+
+function setMessagesFeedback(message, type = 'info') {
+  const feedback = document.querySelector('#messages-feedback');
+  if (feedback) {
+    feedback.textContent = message;
+    feedback.dataset.type = type;
+  }
+}
+
+/**
+ * Повертає оголошення з урахуванням активного фільтра та пошуку.
+ *
+ * @returns {object[]}
+ */
+function getFilteredMessages() {
+  const search = normalizeText(messagesSearch?.value);
+  return messages.filter((item) => {
+    const matchesFilter = messagesFilter === 'all'
+      || item.audience === messagesFilter
+      || item.status === messagesFilter;
+    const haystack = normalizeText(`${item.subject} ${item.body || ''}`);
+    return matchesFilter && (!search || haystack.includes(search));
+  });
+}
+
+function renderMessages() {
+  if (!messagesTableBody) {
+    return;
+  }
+
+  const visibleMessages = getFilteredMessages();
+  if (visibleMessages.length === 0) {
+    messagesTableBody.innerHTML = '<div class="table-row table-empty"><span>Повідомлень не знайдено</span></div>';
+    return;
+  }
+
+  messagesTableBody.innerHTML = visibleMessages.map((item) => {
+    const statusClass = item.status === 'planned' ? 'planned' : 'active';
+    return `
+      <div class="table-row">
+        <span>${escapeHtml(item.subject)}</span>
+        <span>${messageAudienceLabels[item.audience] || item.audience}</span>
+        <span class="status ${statusClass}">${messageStatusLabels[item.status] || item.status}</span>
+        <span>${formatDate(item.created_at)}</span>
+        <span>${item.send_date ? formatDate(item.send_date) : '—'}</span>
+        <span>
+          <button class="ghost-btn" data-message-view="${item.id}">Деталі</button>
+          <button class="ghost-btn" data-message-edit="${item.id}">Редагувати</button>
+          <button class="danger-btn" data-message-delete="${item.id}">Видалити</button>
+        </span>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadMessages() {
+  if (!messagesTableBody) {
+    return;
+  }
+
+  try {
+    messages = await apiFetch('/messages');
+    renderMessages();
+    setMessagesFeedback(`Повідомлень: ${messages.length}`, 'success');
+  } catch (error) {
+    setMessagesFeedback(`Не вдалося завантажити повідомлення: ${error.message}`, 'error');
+  }
+}
+
+/**
+ * Будує форму створення/редагування оголошення.
+ *
+ * @param {object|null} [message]
+ * @returns {string} HTML форми.
+ */
+function renderMessageForm(message = null) {
+  const isEdit = Boolean(message);
+  const audience = message?.audience || 'clients';
+  const status = message?.status || 'sent';
+  return `
+    <form id="message-form" class="admin-form" data-message-id="${message?.id || ''}">
+      <label>Тема
+        <input name="subject" type="text" required value="${escapeHtml(message?.subject || '')}">
+      </label>
+      <label>Текст
+        <textarea name="body" rows="3">${escapeHtml(message?.body || '')}</textarea>
+      </label>
+      <label>Кому
+        <select name="audience">
+          <option value="clients" ${audience === 'clients' ? 'selected' : ''}>Клієнтам</option>
+          <option value="trainers" ${audience === 'trainers' ? 'selected' : ''}>Тренерам</option>
+          <option value="all" ${audience === 'all' ? 'selected' : ''}>Усім</option>
+        </select>
+      </label>
+      <label>Статус
+        <select name="status">
+          <option value="sent" ${status === 'sent' ? 'selected' : ''}>Надіслано</option>
+          <option value="planned" ${status === 'planned' ? 'selected' : ''}>Заплановано</option>
+        </select>
+      </label>
+      <label>Дата надсилання
+        <input name="send_date" type="date" value="${message?.send_date ? formatDate(message.send_date) : ''}">
+      </label>
+      <div class="modal-actions">
+        <button type="button" class="ghost-btn modal-close">Скасувати</button>
+        <button type="submit" class="primary-btn">${isEdit ? 'Зберегти зміни' : 'Створити'}</button>
+      </div>
+    </form>
+  `;
+}
+
+/**
+ * Створює або оновлює оголошення залежно від наявності id у формі.
+ *
+ * @param {HTMLFormElement} form
+ */
+async function saveMessage(form) {
+  const formData = new FormData(form);
+  const messageId = form.dataset.messageId;
+  const payload = {
+    subject: formData.get('subject')?.trim(),
+    body: formData.get('body')?.trim(),
+    audience: formData.get('audience'),
+    status: formData.get('status'),
+    send_date: formData.get('send_date') || null,
+  };
+
+  if (!payload.subject) {
+    setModalError('Вкажіть тему повідомлення');
+    return;
+  }
+
+  try {
+    if (messageId) {
+      await apiFetch(`/messages/${messageId}`, { method: 'PUT', body: JSON.stringify(payload) });
+    } else {
+      await apiFetch('/messages', { method: 'POST', body: JSON.stringify(payload) });
+    }
+    closeModal();
+    await loadMessages();
+  } catch (error) {
+    setModalError(`Не вдалося зберегти: ${error.message}`);
+  }
+}
+
+async function deleteMessage(messageId) {
+  const confirmed = window.confirm('Видалити повідомлення?');
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    await apiFetch(`/messages/${messageId}`, { method: 'DELETE' });
+    await loadMessages();
+  } catch (error) {
+    setMessagesFeedback(`Не вдалося видалити: ${error.message}`, 'error');
+  }
+}
+
+function openMessageDetails(messageId) {
+  const message = messages.find((item) => String(item.id) === String(messageId));
+  if (!message) {
+    return;
+  }
+
+  sheetTitle.textContent = message.subject;
+  sheetBody.innerHTML = `
+    <dl>
+      <div><dt>Кому</dt><dd>${messageAudienceLabels[message.audience] || message.audience}</dd></div>
+      <div><dt>Статус</dt><dd>${messageStatusLabels[message.status] || message.status}</dd></div>
+      <div><dt>Створено</dt><dd>${formatDate(message.created_at)}</dd></div>
+      <div><dt>Надсилання</dt><dd>${message.send_date ? formatDate(message.send_date) : '—'}</dd></div>
+    </dl>
+    <p>${escapeHtml(message.body || 'Без тексту.')}</p>
+  `;
+  sheet.classList.add('active');
+}
+
+// ─── Особисті дані та налаштування адміністратора ────────────────────────────
+
+const ADMIN_SETTINGS_KEY = 'adminSettings';
+
+/**
+ * Встановлює текст і тип повідомлення у вказаному полі-нотатці.
+ *
+ * @param {string} selector
+ * @param {string} message
+ * @param {string} [type]
+ */
+function setNote(selector, message, type = 'info') {
+  const element = document.querySelector(selector);
+  if (element) {
+    element.textContent = message;
+    element.dataset.type = type;
+  }
+}
+
+/**
+ * Зберігає ім'я та телефон адміністратора через PUT /auth/profile.
+ *
+ * @param {HTMLFormElement} form
+ */
+async function saveAdminProfile(form) {
+  const formData = new FormData(form);
+  try {
+    const data = await apiFetch('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify({
+        name: formData.get('name')?.trim(),
+        phone: formData.get('phone')?.trim(),
+      }),
+    });
+    if (data && data.token && data.user) {
+      setAuth(data.token, data.user);
+    }
+    await hydrateAccount({ role: ROLE.ADMIN });
+    setNote('#admin-profile-feedback', 'Дані збережено', 'success');
+  } catch (error) {
+    setNote('#admin-profile-feedback', `Не вдалося зберегти: ${error.message}`, 'error');
+  }
+}
+
+const passwordModal = document.querySelector('#password-modal');
+
+function openPasswordModal() {
+  passwordModal?.classList.add('active');
+}
+
+function closePasswordModal() {
+  if (!passwordModal) {
+    return;
+  }
+  passwordModal.classList.remove('active');
+  passwordModal.querySelector('form')?.reset();
+  setNote('#password-feedback', '');
+}
+
+/**
+ * Змінює пароль адміністратора через PUT /auth/password.
+ *
+ * @param {HTMLFormElement} form
+ */
+async function changeAdminPassword(form) {
+  const formData = new FormData(form);
+  const newPassword = formData.get('newPassword');
+  if (newPassword !== formData.get('confirmPassword')) {
+    setNote('#password-feedback', 'Паролі не співпадають', 'error');
+    return;
+  }
+
+  try {
+    await apiFetch('/auth/password', {
+      method: 'PUT',
+      body: JSON.stringify({
+        currentPassword: formData.get('currentPassword'),
+        newPassword,
+      }),
+    });
+    closePasswordModal();
+    setNote('#admin-profile-feedback', 'Пароль змінено', 'success');
+  } catch (error) {
+    setNote('#password-feedback', `Не вдалося змінити пароль: ${error.message}`, 'error');
+  }
+}
+
+/**
+ * Відновлює та зберігає налаштування адміністратора у localStorage
+ * (окремого серверного сховища налаштувань немає).
+ */
+function loadAdminSettings() {
+  const panel = document.querySelector('[data-screen-panel="admin-settings"]');
+  if (!panel) {
+    return;
+  }
+
+  const saved = JSON.parse(localStorage.getItem(ADMIN_SETTINGS_KEY) || '{}');
+  panel.querySelectorAll('[data-setting]').forEach((input) => {
+    const key = input.dataset.setting;
+    if (!(key in saved)) {
+      return;
+    }
+    if (input.type === 'checkbox') {
+      input.checked = Boolean(saved[key]);
+    } else {
+      input.value = saved[key];
+    }
+  });
+
+  panel.querySelector('#save-admin-settings')?.addEventListener('click', () => {
+    const next = {};
+    panel.querySelectorAll('[data-setting]').forEach((input) => {
+      next[input.dataset.setting] = input.type === 'checkbox' ? input.checked : input.value;
+    });
+    localStorage.setItem(ADMIN_SETTINGS_KEY, JSON.stringify(next));
+    setNote('#admin-settings-feedback', 'Налаштування збережено', 'success');
+  });
+}
+
+document.querySelector('[data-change-password]')?.addEventListener('click', openPasswordModal);
+document.querySelector('[data-password-cancel]')?.addEventListener('click', closePasswordModal);
+passwordModal?.addEventListener('click', (event) => {
+  if (event.target === passwordModal) {
+    closePasswordModal();
+  }
+});
 
 const currentUser = await requireFreshAuth([ROLE.ADMIN]);
 if (currentUser) {
   hydrateAccount({ role: ROLE.ADMIN });
+  loadAdminSettings();
+  loadClubSettings();
+}
+if (currentUser && dashboardPage) {
+  loadDashboard();
+}
+if (currentUser && messagesPage) {
+  loadMessages();
 }
 if (currentUser && clientsPage) {
   loadClients();

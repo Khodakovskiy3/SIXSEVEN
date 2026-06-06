@@ -22,6 +22,7 @@ export const PAGE = Object.freeze({
 export const STORAGE_KEY = Object.freeze({
   TOKEN: 'token',
   USER: 'user',
+  SETTINGS: 'clientSettings',
 });
 
 /** Ролі користувачів — копія серверного списку для перевірок на клієнті. */
