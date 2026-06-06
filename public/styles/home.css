@@ -289,6 +289,26 @@ p {
     font-weight: 700;
 }
 
+.card-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.card-stats span {
+    border: 1px solid rgba(17, 17, 17, 0.28);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+/* На темних картках (тарифи) чипи отримують світлу рамку та приглушений колір. */
+.dark-card .card-stats span {
+    border-color: var(--line);
+    color: var(--muted);
+}
+
 .orange-card a {
     align-self: end;
     width: max-content;
@@ -375,6 +395,15 @@ p {
 .schedule-board a {
     color: var(--accent);
     font-weight: 900;
+}
+
+.schedule-spots {
+    color: var(--accent-2);
+    font-weight: 700;
+}
+
+.schedule-spots.full {
+    color: var(--muted);
 }
 
 .contact-grid {

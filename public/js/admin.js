@@ -2255,6 +2255,8 @@ async function loadClubSettings() {
     clubForm.querySelector('[name="address"]').value = club.address || '';
     clubForm.querySelector('[name="phone"]').value = club.phone || '';
     clubForm.querySelector('[name="email"]').value = club.email || '';
+    clubForm.querySelector('[name="weekday_hours"]').value = club.weekday_hours || '';
+    clubForm.querySelector('[name="weekend_hours"]').value = club.weekend_hours || '';
   } catch (error) {
     setNote('#club-feedback', `Не вдалося завантажити дані клубу: ${error.message}`, 'error');
   }
@@ -2275,6 +2277,8 @@ async function saveClubSettings(form) {
         address: formData.get('address')?.trim(),
         phone: formData.get('phone')?.trim(),
         email: formData.get('email')?.trim(),
+        weekday_hours: formData.get('weekday_hours')?.trim(),
+        weekend_hours: formData.get('weekend_hours')?.trim(),
       }),
     });
     setNote('#club-feedback', 'Дані клубу збережено', 'success');

@@ -18,7 +18,7 @@ const CLUB_SETTINGS_ID = 1;
 
 router.get('/', async (req, res) => {
   const result = await query(
-    `select id, name, address, phone, email
+    `select id, name, address, phone, email, weekday_hours, weekend_hours
      from club_settings
      where id = $1`,
     [CLUB_SETTINGS_ID]
@@ -31,17 +31,34 @@ router.get('/', async (req, res) => {
 });
 
 router.put('/', authRequired, requireRole(ROLE.ADMIN), async (req, res) => {
-  const { name, address, phone, email } = req.body || {};
+  const {
+    name,
+    address,
+    phone,
+    email,
+    weekday_hours: weekdayHours,
+    weekend_hours: weekendHours,
+  } = req.body || {};
 
   const result = await query(
     `update club_settings
      set name = coalesce($1, name),
          address = coalesce($2, address),
          phone = coalesce($3, phone),
-         email = coalesce($4, email)
-     where id = $5
-     returning id, name, address, phone, email`,
-    [name || null, address || null, phone || null, email || null, CLUB_SETTINGS_ID]
+         email = coalesce($4, email),
+         weekday_hours = coalesce($5, weekday_hours),
+         weekend_hours = coalesce($6, weekend_hours)
+     where id = $7
+     returning id, name, address, phone, email, weekday_hours, weekend_hours`,
+    [
+      name || null,
+      address || null,
+      phone || null,
+      email || null,
+      weekdayHours || null,
+      weekendHours || null,
+      CLUB_SETTINGS_ID,
+    ]
   );
 
   if (result.rows.length === 0) {

@@ -58,9 +58,45 @@ function formatDayMonth(value) {
   return new Date(value).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' });
 }
 
+function formatWeekday(value) {
+  return new Date(value).toLocaleDateString('uk-UA', { weekday: 'short' });
+}
+
 function formatTime(value = '') {
   return String(value).slice(0, 5);
 }
+
+/**
+ * Обирає правильну форму українського слова за числівником.
+ *
+ * @param {number} count
+ * @param {[string, string, string]} forms — форми для 1 / 2-4 / 5+.
+ * @returns {string}
+ */
+function pluralizeUk(count, forms) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) {
+    return forms[0];
+  }
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return forms[1];
+  }
+  return forms[2];
+}
+
+// Підписи типів тарифів та видів доступу для карток абонементів.
+const PLAN_TYPE_LABEL = {
+  subscription: 'Абонемент',
+  single: 'Разовий',
+};
+
+const ACCESS_TYPE_LABEL = {
+  gym: 'Зал',
+  group: 'Групові',
+  personal: 'Персональне',
+  gym_group: 'Зал + групові',
+};
 
 function renderServices(workouts) {
   const grid = document.querySelector('#services-grid');
@@ -75,11 +111,19 @@ function renderServices(workouts) {
 
   grid.innerHTML = workouts.map((workout) => {
     const cardClass = SERVICE_CARD_CLASS[String(workout.name).toLowerCase()] || '';
+    const capacity = Number(workout.max_clients) > 1
+      ? `Група до ${escapeHtml(workout.max_clients)} осіб`
+      : 'Індивідуальні заняття';
+    const upcomingCount = Number(workout.upcoming_count || 0);
     return `
       <article class="orange-card ${cardClass}">
         <div class="card-art"></div>
         <h2>${escapeHtml(workout.name)}</h2>
         <p>${escapeHtml(workout.description || 'Опис незабаром.')}</p>
+        <div class="card-stats">
+          <span>${capacity}</span>
+          <span>${upcomingCount} ${pluralizeUk(upcomingCount, ['заняття', 'заняття', 'занять'])} у розкладі</span>
+        </div>
         <a href="../auth/register.html">Записатися</a>
       </article>
     `;
@@ -104,15 +148,21 @@ function renderPlans(plans) {
   );
 
   grid.innerHTML = plans.map((plan) => {
-    const meta = plan.duration_days
-      ? `${plan.duration_days} днів`
-      : `${plan.usage_count || 1} відвідування`;
     const isFeatured = plan.id === featuredPlan.id;
+    const typeLabel = PLAN_TYPE_LABEL[plan.plan_type] || plan.plan_type || 'Тариф';
+    const accessLabel = ACCESS_TYPE_LABEL[plan.access_type] || plan.access_type || 'Доступ';
+    const period = plan.duration_days
+      ? `${plan.duration_days} ${pluralizeUk(Number(plan.duration_days), ['день', 'дні', 'днів'])}`
+      : `${plan.usage_count || 1} ${pluralizeUk(Number(plan.usage_count || 1), ['відвідування', 'відвідування', 'відвідувань'])}`;
     return `
       <article class="dark-card ${isFeatured ? 'featured' : ''}">
-        <span>${isFeatured ? 'Популярний' : escapeHtml(meta)}</span>
+        <span>${isFeatured ? 'Популярний' : escapeHtml(typeLabel)}</span>
         <h2>${escapeHtml(plan.name)}</h2>
         <p>${escapeHtml(plan.description || '')}</p>
+        <div class="card-stats">
+          <span>${escapeHtml(accessLabel)}</span>
+          <span>${escapeHtml(period)}</span>
+        </div>
         <strong>${formatMoney(plan.price)}</strong>
       </article>
     `;
@@ -130,16 +180,24 @@ function renderSchedule(schedules) {
     return;
   }
 
-  board.innerHTML = schedules.map((item) => `
-    <article>
-      <strong>${formatDayMonth(item.date)} · ${formatTime(item.time)}</strong>
-      <div>
-        <h2>${escapeHtml(item.workout_name)}</h2>
-        <p>${escapeHtml(item.trainer_name || 'тренер не призначений')} · до ${escapeHtml(item.max_clients || '—')} місць</p>
-      </div>
-      <a href="../auth/register.html">Запис</a>
-    </article>
-  `).join('');
+  board.innerHTML = schedules.map((item) => {
+    const available = Math.max(Number(item.max_clients || 0) - Number(item.booked || 0), 0);
+    const spotsLabel = available > 0
+      ? `${available} ${pluralizeUk(available, ['вільне місце', 'вільні місця', 'вільних місць'])}`
+      : 'Місць немає';
+    const spotsClass = available > 0 ? 'schedule-spots' : 'schedule-spots full';
+    return `
+      <article>
+        <strong>${formatWeekday(item.date)}, ${formatDayMonth(item.date)}<br>${formatTime(item.time)}</strong>
+        <div>
+          <h2>${escapeHtml(item.workout_name)}</h2>
+          <p>Тренер ${escapeHtml(item.trainer_name || 'не призначений')}</p>
+          <p class="${spotsClass}">${spotsLabel}</p>
+        </div>
+        <a href="../auth/register.html">Запис</a>
+      </article>
+    `;
+  }).join('');
 }
 
 function renderContacts(club) {
@@ -148,6 +206,8 @@ function renderContacts(club) {
     phone: club.phone,
     email: club.email,
     name: club.name,
+    weekday_hours: club.weekday_hours,
+    weekend_hours: club.weekend_hours,
   };
 
   document.querySelectorAll('[data-club]').forEach((element) => {
