@@ -428,3 +428,27 @@
         font-size: 12px;
     }
 }
+
+.schedule-range {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.range-field {
+    display: grid;
+    gap: 4px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.range-field input {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    color: var(--text);
+    padding: 8px 10px;
+}

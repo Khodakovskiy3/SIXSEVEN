@@ -262,34 +262,57 @@ function getFilteredTrainers() {
   });
 }
 
+// Стрічка днів за замовчуванням: тиждень назад і два тижні вперед від сьогодні.
+const SCHEDULE_DAYS_BACK = 7;
+const SCHEDULE_DAYS_FORWARD = 14;
+
+// Користувацький діапазон (порожній = діапазон за замовчуванням).
+let scheduleRangeStart = '';
+let scheduleRangeEnd = '';
+
 /**
- * Формує відсортований перелік днів для стрічки вибору дати:
- * усі дні, на які є заняття, плюс сьогоднішній день.
+ * Формує БЕЗПЕРЕРВНИЙ перелік днів для стрічки — кожен день показується
+ * незалежно від наявності занять. За замовчуванням це тиждень назад і два
+ * тижні вперед; якщо задано користувацький діапазон — використовується він.
  *
- * @returns {string[]} дати у форматі 'YYYY-MM-DD'.
+ * @returns {string[]} дати 'YYYY-MM-DD' за зростанням, без пропусків.
  */
 function getScheduleDates() {
-  const dates = new Set(schedules.map((schedule) => formatDate(schedule.date)));
-  dates.add(todayIso());
-  return [...dates].sort();
+  const today = todayIso();
+  const start = scheduleRangeStart || addDaysIso(today, -SCHEDULE_DAYS_BACK);
+  let end = scheduleRangeEnd || addDaysIso(today, SCHEDULE_DAYS_FORWARD);
+  if (end < start) {
+    end = start;
+  }
+
+  const dates = [];
+  let cursor = start;
+  while (cursor <= end) {
+    dates.push(cursor);
+    cursor = addDaysIso(cursor, 1);
+  }
+  return dates;
 }
 
 /**
- * Обирає день за замовчуванням: сьогодні, якщо на нього є заняття або це
- * єдиний варіант; інакше найближчий майбутній день, а як останній варіант —
- * найпізніший доступний.
+ * День за замовчуванням — сьогодні, якщо він у діапазоні; інакше перший день
+ * діапазону (актуально для користувацького діапазону без сьогодні).
  *
- * @param {string[]} dates — відсортовані дати з getScheduleDates().
- * @returns {string} обрана дата.
+ * @returns {string}
  */
-function pickDefaultScheduleDate(dates) {
+function pickDefaultScheduleDate() {
+  const dates = getScheduleDates();
   const today = todayIso();
-  if (dates.includes(today)) {
-    return today;
-  }
+  return dates.includes(today) ? today : (dates[0] || today);
+}
 
-  const upcomingDate = dates.find((date) => date >= today);
-  return upcomingDate || dates[dates.length - 1] || today;
+/**
+ * Прокручує стрічку днів так, щоб активний день був по центру (виклик після
+ * завантаження — щоб одразу опинитися на поточному дні).
+ */
+function scrollScheduleStripToActive() {
+  const activePill = scheduleDateStrip?.querySelector('.date-pill.active');
+  activePill?.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
 
 /**
@@ -507,13 +530,14 @@ async function loadSchedules() {
 
   try {
     schedules = await apiFetch('/schedules');
-    // Зберігаємо обраний день між перезавантаженнями (після save/delete),
-    // а день за замовчуванням обираємо лише на першому завантаженні.
+    // На першому завантаженні стаємо на сьогодні; після save/delete зберігаємо
+    // вже обраний день, якщо він лишився в діапазоні.
     const dates = getScheduleDates();
     if (!selectedScheduleDate || !dates.includes(selectedScheduleDate)) {
-      selectedScheduleDate = pickDefaultScheduleDate(dates);
+      selectedScheduleDate = pickDefaultScheduleDate();
     }
     renderSchedules();
+    scrollScheduleStripToActive();
     setScheduleFeedback(`Завантажено занять: ${schedules.length}`, 'success');
   } catch (error) {
     setScheduleFeedback(`Не вдалося завантажити розклад: ${error.message}`, 'error');
@@ -2114,6 +2138,33 @@ modal?.addEventListener('click', (event) => {
 clientsSearch?.addEventListener('input', renderClients);
 trainersSearch?.addEventListener('input', renderTrainers);
 scheduleSearch?.addEventListener('input', renderSchedules);
+
+const scheduleRangeStartInput = document.querySelector('#schedule-range-start');
+const scheduleRangeEndInput = document.querySelector('#schedule-range-end');
+
+document.querySelector('#apply-schedule-range')?.addEventListener('click', () => {
+  scheduleRangeStart = scheduleRangeStartInput?.value || '';
+  scheduleRangeEnd = scheduleRangeEndInput?.value || '';
+  if (!getScheduleDates().includes(selectedScheduleDate)) {
+    selectedScheduleDate = pickDefaultScheduleDate();
+  }
+  renderSchedules();
+  scrollScheduleStripToActive();
+});
+
+document.querySelector('#reset-schedule-range')?.addEventListener('click', () => {
+  scheduleRangeStart = '';
+  scheduleRangeEnd = '';
+  if (scheduleRangeStartInput) {
+    scheduleRangeStartInput.value = '';
+  }
+  if (scheduleRangeEndInput) {
+    scheduleRangeEndInput.value = '';
+  }
+  selectedScheduleDate = pickDefaultScheduleDate();
+  renderSchedules();
+  scrollScheduleStripToActive();
+});
 servicesSearch?.addEventListener('input', renderServices);
 plansSearch?.addEventListener('input', renderPlans);
 messagesSearch?.addEventListener('input', renderMessages);

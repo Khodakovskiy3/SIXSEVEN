@@ -49,6 +49,12 @@
                         <input id="schedule-search" type="search" placeholder="Пошук за послугою, тренером або датою">
                         <button class="primary-btn" id="open-schedule-modal">Створити заняття</button>
                     </div>
+                    <div class="schedule-range">
+                        <label class="range-field">Від<input type="date" id="schedule-range-start"></label>
+                        <label class="range-field">До<input type="date" id="schedule-range-end"></label>
+                        <button class="primary-btn" id="apply-schedule-range">Показати</button>
+                        <button class="ghost-btn" id="reset-schedule-range">Скинути</button>
+                    </div>
                     <p class="admin-feedback" id="schedule-feedback" role="status" aria-live="polite"></p>
                     <div class="date-strip" id="schedule-date-strip" aria-label="Вибір дати"></div>
                     <div class="class-list" id="schedule-day-list"></div>
