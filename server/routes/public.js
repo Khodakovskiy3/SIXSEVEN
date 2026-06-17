@@ -16,15 +16,29 @@ router.get('/plans', async (req, res) => {
 });
 
 router.get('/home-data', async (req, res) => {
-  const workouts = await query(`
-    select w.id, w.name, w.description, w.max_clients, w.status,
-           (select count(*)
-            from schedules s
-            where s.workout_id = w.id and s.date >= current_date) as upcoming_count
-    from workouts w
-    where w.status = 'active'
-    order by w.id desc
-  `);
+  // Пробуємо з image_url (після міграції 009), fallback без нього
+  let workouts;
+  try {
+    workouts = await query(`
+      select w.id, w.name, w.description, w.max_clients, w.status, w.image_url,
+             (select count(*)
+              from schedules s
+              where s.workout_id = w.id and s.date >= current_date) as upcoming_count
+      from workouts w
+      where w.status = 'active'
+      order by w.id desc
+    `);
+  } catch {
+    workouts = await query(`
+      select w.id, w.name, w.description, w.max_clients, w.status, null as image_url,
+             (select count(*)
+              from schedules s
+              where s.workout_id = w.id and s.date >= current_date) as upcoming_count
+      from workouts w
+      where w.status = 'active'
+      order by w.id desc
+    `);
+  }
 
   const schedules = await query(`
     select s.id, s.date, s.time,

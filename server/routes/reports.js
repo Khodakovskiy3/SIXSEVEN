@@ -265,6 +265,38 @@ router.get('/manager', async (req, res) => {
 
 
     // ------------------------------------------------------
+    // 6. Статистика по планах абонементів
+    // ------------------------------------------------------
+
+    const planStats = await query(
+      `
+      select
+        sp.id,
+        sp.name        as plan_name,
+        sp.price,
+        sp.plan_type,
+        sp.access_type,
+        count(distinct sub.id)          as subscriptions_count,
+        count(p.id)                     as payments_count,
+        coalesce(sum(p.amount), 0)      as revenue
+      from subscription_plans sp
+
+      left join subscriptions sub
+        on sub.plan_id = sp.id
+
+      left join payments p
+        on p.subscription_id = sub.id
+        and p.date between $1 and $2
+
+      where sp.status = 'active'
+      group by sp.id, sp.name, sp.price, sp.plan_type, sp.access_type
+      order by payments_count desc, subscriptions_count desc
+      `,
+      [startDate, endDate]
+    );
+
+
+    // ------------------------------------------------------
     // Відповідь для frontend
     // ------------------------------------------------------
 
@@ -307,6 +339,15 @@ router.get('/manager', async (req, res) => {
         workout_name: item.workout_name,
         sessions_count: Number(item.sessions_count || 0),
         bookings_count: Number(item.bookings_count || 0),
+      })),
+
+      planStats: planStats.rows.map((item) => ({
+        plan_name: item.plan_name,
+        price: Number(item.price || 0),
+        plan_type: item.plan_type,
+        subscriptions_count: Number(item.subscriptions_count || 0),
+        payments_count: Number(item.payments_count || 0),
+        revenue: Number(item.revenue || 0),
       })),
     });
 

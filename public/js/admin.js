@@ -147,6 +147,23 @@ const accessTypeLabels = {
   gym_group: 'Зал + групові',
 };
 
+function getInitials(name = '') {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  return parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : String(name).slice(0, 2).toUpperCase();
+}
+
+const AVATAR_PALETTE = [
+  '#e05555','#ff6424','#e0a020','#4ade80','#22d3ee','#818cf8','#f472b6','#a78bfa',
+];
+
+function getAvatarColor(name = '') {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+  return AVATAR_PALETTE[Math.abs(h) % AVATAR_PALETTE.length];
+}
+
 function escapeHtml(value = '') {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -262,8 +279,8 @@ function getFilteredTrainers() {
   });
 }
 
-// Стрічка днів за замовчуванням: тиждень назад і два тижні вперед від сьогодні.
-const SCHEDULE_DAYS_BACK = 7;
+/// Стрічка днів за замовчуванням: від сьогодні і два тижні вперед.
+const SCHEDULE_DAYS_BACK = 0;
 const SCHEDULE_DAYS_FORWARD = 14;
 
 // Користувацький діапазон (порожній = діапазон за замовчуванням).
@@ -311,7 +328,7 @@ function pickDefaultScheduleDate() {
  * завантаження — щоб одразу опинитися на поточному дні).
  */
 function scrollScheduleStripToActive() {
-  const activePill = scheduleDateStrip?.querySelector('.date-pill.active');
+  const activePill = scheduleDateStrip?.querySelector('.sched-date-pill.active');
   activePill?.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
 
@@ -385,13 +402,13 @@ function renderScheduleDateStrip() {
   const today = todayIso();
   scheduleDateStrip.innerHTML = getScheduleDates().map((date) => {
     const isActive = date === selectedScheduleDate;
-    const dayCount = schedules.filter((schedule) => formatDate(schedule.date) === date).length;
-    const badge = date === today ? 'Сьогодні' : `${dayCount} зан.`;
+    const isToday = date === today;
+    const dayCount = schedules.filter((s) => formatDate(s.date) === date).length;
     return `
-      <button class="date-pill ${isActive ? 'active' : ''}" data-schedule-date="${date}">
-        <strong>${formatScheduleDay(date)}</strong>
-        <span>${formatScheduleWeekday(date)}</span>
-        <small>${badge}</small>
+      <button class="sched-date-pill${isActive ? ' active' : ''}${isToday ? ' today' : ''}" data-schedule-date="${date}">
+        <span class="sdp-weekday">${formatScheduleWeekday(date)}</span>
+        <strong class="sdp-day">${formatScheduleDay(date)}</strong>
+        <span class="sdp-count">${isToday ? 'Сьогодні' : `${dayCount} зан.`}</span>
       </button>
     `;
   }).join('');
@@ -409,11 +426,13 @@ function renderScheduleDayList() {
   const daySchedules = getSchedulesForSelectedDay();
   if (daySchedules.length === 0) {
     scheduleDayList.innerHTML = `
-      <div class="class-card class-empty">
-        <div class="class-info">
-          <h3>Занять немає</h3>
-          <p>На обраний день розклад порожній.</p>
-        </div>
+      <div class="sched-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+        <p>На цей день занять немає</p>
+        <button class="primary-btn clients-add-btn" id="open-schedule-modal-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Створити заняття
+        </button>
       </div>
     `;
     return;
@@ -425,19 +444,40 @@ function renderScheduleDayList() {
     const available = typeof schedule.available === 'number'
       ? schedule.available
       : Math.max(maxClients - booked, 0);
+    const fillPct = maxClients > 0 ? Math.round((booked / maxClients) * 100) : 0;
+    const isFull = available === 0 && maxClients > 0;
+
+    const trainerInitials = getInitials(schedule.trainer_name || '?');
+    const trainerColor = getAvatarColor(schedule.trainer_name || '');
 
     return `
-      <div class="class-card">
-        <div class="class-time">${formatTime(schedule.time)}</div>
-        <div class="class-info">
-          <h3>${escapeHtml(schedule.workout_name || '—')}</h3>
-          <p>Тренер ${escapeHtml(schedule.trainer_name || 'не призначений')}</p>
-          <p>Записано ${booked}/${maxClients} · вільно ${available}</p>
+      <div class="sched-card">
+        <div class="sched-card-time">
+          <span>${formatTime(schedule.time)}</span>
         </div>
-        <div class="class-actions">
-          <button class="ghost-btn" data-schedule-view="${schedule.id}">Деталі</button>
-          <button class="ghost-btn" data-schedule-edit="${schedule.id}">Редагувати</button>
-          <button class="danger-btn" data-schedule-delete="${schedule.id}">Видалити</button>
+        <div class="sched-card-body">
+          <div class="sched-card-title">${escapeHtml(schedule.workout_name || '—')}</div>
+          <div class="sched-card-meta">
+            <div class="client-avatar" style="background:${trainerColor};width:20px;height:20px;font-size:8px;flex-shrink:0">${escapeHtml(trainerInitials)}</div>
+            <span>${escapeHtml(schedule.trainer_name || 'Тренер не призначений')}</span>
+          </div>
+          <div class="sched-capacity">
+            <div class="sched-capacity-bar">
+              <div class="sched-capacity-fill${isFull ? ' full' : ''}" style="width:${fillPct}%"></div>
+            </div>
+            <span class="sched-capacity-label${isFull ? ' full' : ''}">${booked}/${maxClients}${isFull ? ' · повно' : ` · вільно ${available}`}</span>
+          </div>
+        </div>
+        <div class="sched-card-actions">
+          <button class="icon-btn" data-schedule-view="${schedule.id}" title="Деталі">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </button>
+          <button class="icon-btn" data-schedule-edit="${schedule.id}" title="Редагувати">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+          </button>
+          <button class="icon-btn icon-btn--danger" data-schedule-delete="${schedule.id}" title="Видалити">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          </button>
         </div>
       </div>
     `;
@@ -521,11 +561,7 @@ function renderSchedules() {
 
 async function loadSchedules() {
   if (scheduleDayList) {
-    scheduleDayList.innerHTML = `
-      <div class="class-card class-empty">
-        <div class="class-info"><h3>Завантаження розкладу...</h3></div>
-      </div>
-    `;
+    scheduleDayList.innerHTML = `<div class="sched-empty"><p>Завантаження розкладу...</p></div>`;
   }
 
   try {
@@ -538,15 +574,10 @@ async function loadSchedules() {
     }
     renderSchedules();
     scrollScheduleStripToActive();
-    setScheduleFeedback(`Завантажено занять: ${schedules.length}`, 'success');
   } catch (error) {
     setScheduleFeedback(`Не вдалося завантажити розклад: ${error.message}`, 'error');
     if (scheduleDayList) {
-      scheduleDayList.innerHTML = `
-        <div class="class-card class-empty">
-          <div class="class-info"><h3>Помилка завантаження</h3></div>
-        </div>
-      `;
+      scheduleDayList.innerHTML = `<div class="sched-empty"><p>Помилка завантаження розкладу</p></div>`;
     }
   }
 }
@@ -597,12 +628,13 @@ function renderSpecializationCheckboxes(selectedValue = '') {
   }
 
   return `
-    <div class="form-switch specialization-list">
+    <div class="spec-chips">
       ${scheduleServices.map((service) => {
         const checked = selected.includes(normalizeSpecialization(service.name)) ? 'checked' : '';
+        const id = `spec-${escapeHtml(service.name).replace(/\s+/g, '-')}`;
         return `
-          <label>
-            <input type="checkbox" name="specializations" value="${escapeHtml(service.name)}" ${checked}>
+          <label class="spec-chip${checked ? ' checked' : ''}" for="${id}">
+            <input type="checkbox" id="${id}" name="specializations" value="${escapeHtml(service.name)}" ${checked}>
             ${escapeHtml(service.name)}
           </label>
         `;
@@ -611,8 +643,22 @@ function renderSpecializationCheckboxes(selectedValue = '') {
   `;
 }
 
+function updateClientStats() {
+  const total = clients.length;
+  const active = clients.filter((c) => c.status === 'active').length;
+  const inactive = total - active;
+  const elTotal = document.querySelector('#stat-total');
+  const elActive = document.querySelector('#stat-active');
+  const elInactive = document.querySelector('#stat-inactive');
+  if (elTotal) animateCountUp(elTotal, total);
+  if (elActive) animateCountUp(elActive, active);
+  if (elInactive) animateCountUp(elInactive, inactive);
+}
+
 function renderClients() {
   if (!clientsTableBody) return;
+
+  updateClientStats();
 
   const visibleClients = getFilteredClients();
   if (visibleClients.length === 0) {
@@ -624,29 +670,44 @@ function renderClients() {
     return;
   }
 
+  const eyeIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  const editIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+  const checkIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  const trashIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>`;
+
   clientsTableBody.innerHTML = visibleClients.map((client) => {
     const status = client.status || 'inactive';
     const subscription = client.subscription_type || 'Немає';
     const endDate = formatDate(client.subscription_end_date) || '—';
     const phone = client.phone || '—';
-    const visitButton = status === 'active'
-      ? `<button class="primary-btn small" data-client-visit="${client.id}">Візит</button>`
-      : `<button class="primary-btn small" disabled title="Немає активного абонемента">Візит</button>`;
+    const initials = getInitials(client.name);
+    const avatarColor = getAvatarColor(client.name);
+
+    const visitBtn = status === 'active'
+      ? `<button class="icon-action-btn icon-action-btn--accent" data-client-visit="${client.id}" title="Відмітити візит">${checkIcon}</button>`
+      : `<button class="icon-action-btn" disabled title="Немає активного абонемента" style="opacity:.3">${checkIcon}</button>`;
 
     return `
-      <div class="table-row">
-        <span>${escapeHtml(client.name)}</span>
-        <span>${escapeHtml(phone)}</span>
-        <span>${escapeHtml(client.email)}</span>
-        <span>${escapeHtml(subscription)}</span>
-        <span><mark class="status ${status}">${statusLabels[status] || status}</mark></span>
-        <span>${escapeHtml(endDate)}</span>
-        <span>
-          <button class="ghost-btn" data-client-details="${client.id}">Деталі</button>
-          <button class="ghost-btn" data-client-edit="${client.id}">Редагувати</button>
-          ${visitButton}
-          <button class="danger-btn" data-client-delete="${client.id}">Видалити</button>
-        </span>
+      <div class="table-row client-row">
+        <div class="cc-avatar-name">
+          <div class="client-avatar" style="background:${avatarColor}">${escapeHtml(initials)}</div>
+          <div class="cc-name-block">
+            <strong>${escapeHtml(client.name)}</strong>
+            <span class="cc-sub">${escapeHtml(phone)} · ${escapeHtml(client.email)}</span>
+            <span class="cc-plan-mobile">${escapeHtml(subscription)}${endDate !== '—' ? ` · до ${endDate}` : ''}</span>
+          </div>
+        </div>
+        <span class="cc-phone">${escapeHtml(phone)}</span>
+        <span class="cc-email">${escapeHtml(client.email)}</span>
+        <span class="cc-plan">${escapeHtml(subscription)}</span>
+        <span class="cc-status"><mark class="status ${status}">${statusLabels[status] || status}</mark></span>
+        <span class="cc-date">${escapeHtml(endDate)}</span>
+        <div class="cc-actions">
+          <button class="icon-action-btn" data-client-details="${client.id}" title="Деталі">${eyeIcon}</button>
+          <button class="icon-action-btn" data-client-edit="${client.id}" title="Редагувати">${editIcon}</button>
+          ${visitBtn}
+          <button class="icon-action-btn icon-action-btn--danger" data-client-delete="${client.id}" title="Видалити">${trashIcon}</button>
+        </div>
       </div>
     `;
   }).join('');
@@ -659,7 +720,6 @@ async function loadClients() {
   try {
     clients = await apiFetch('/clients');
     renderClients();
-    setFeedback(`Завантажено клієнтів: ${clients.length}`, 'success');
   } catch (error) {
     setFeedback(`Не вдалося завантажити клієнтів: ${error.message}`, 'error');
     if (clientsTableBody) {
@@ -668,33 +728,61 @@ async function loadClients() {
   }
 }
 
+function updateTrainerStats() {
+  const total = trainers.length;
+  const active = trainers.filter((t) => t.status === 'active').length;
+  const inactive = total - active;
+  const elTotal = document.querySelector('#tstat-total');
+  const elActive = document.querySelector('#tstat-active');
+  const elInactive = document.querySelector('#tstat-inactive');
+  if (elTotal) animateCountUp(elTotal, total);
+  if (elActive) animateCountUp(elActive, active);
+  if (elInactive) animateCountUp(elInactive, inactive);
+}
+
 function renderTrainers() {
   if (!trainersTableBody) return;
 
+  updateTrainerStats();
+
+  const eyeIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  const editIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+  const revokeIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" y1="8" x2="23" y2="14"/><line x1="23" y1="8" x2="17" y2="14"/></svg>`;
+
   const visibleTrainers = getFilteredTrainers();
   if (visibleTrainers.length === 0) {
-    trainersTableBody.innerHTML = `
-      <div class="table-row table-empty">
-        <span>Тренерів не знайдено</span>
-      </div>
-    `;
+    trainersTableBody.innerHTML = `<div class="table-row table-empty"><span>Тренерів не знайдено</span></div>`;
     return;
   }
 
   trainersTableBody.innerHTML = visibleTrainers.map((trainer) => {
     const status = trainer.status || 'inactive';
+    const name = escapeHtml(trainer.name || '—');
+    const phone = escapeHtml(trainer.phone || '—');
+    const email = escapeHtml(trainer.email || '—');
+    const spec = escapeHtml(trainer.specialization || 'Не вказано');
+    const initials = getInitials(trainer.name);
+    const avatarColor = getAvatarColor(trainer.name);
+
     return `
-      <div class="table-row">
-        <span>${escapeHtml(trainer.name)}</span>
-        <span>${escapeHtml(trainer.phone || '—')}</span>
-        <span>${escapeHtml(trainer.email)}</span>
-        <span>${escapeHtml(trainer.specialization || 'Не вказано')}</span>
-        <span><mark class="status ${status}">${statusLabels[status] || status}</mark></span>
-        <span>
-          <button class="ghost-btn" data-trainer-details="${trainer.id}">Деталі</button>
-          <button class="ghost-btn" data-trainer-edit="${trainer.id}">Редагувати</button>
-          <button class="danger-btn" data-trainer-revoke="${trainer.id}">Забрати права</button>
-        </span>
+      <div class="table-row trainer-row">
+        <div class="cc-avatar-name">
+          <div class="client-avatar" style="background:${avatarColor}">${initials}</div>
+          <div class="cc-name-block">
+            <strong>${name}</strong>
+            <span class="cc-sub">${phone} · ${email}</span>
+            <span class="cc-plan-mobile">${spec}</span>
+          </div>
+        </div>
+        <span class="tc-phone">${phone}</span>
+        <span class="tc-email">${email}</span>
+        <span class="tc-spec">${spec}</span>
+        <span class="tc-status"><mark class="status ${status}">${statusLabels[status] || status}</mark></span>
+        <div class="cc-actions">
+          <button class="icon-action-btn" data-trainer-details="${trainer.id}" title="Деталі">${eyeIcon}</button>
+          <button class="icon-action-btn" data-trainer-edit="${trainer.id}" title="Редагувати">${editIcon}</button>
+          <button class="icon-action-btn icon-action-btn--danger" data-trainer-revoke="${trainer.id}" title="Забрати права">${revokeIcon}</button>
+        </div>
       </div>
     `;
   }).join('');
@@ -706,7 +794,6 @@ async function loadTrainers() {
   try {
     trainers = await apiFetch('/trainers');
     renderTrainers();
-    setTrainerFeedback(`Завантажено тренерів: ${trainers.length}`, 'success');
   } catch (error) {
     setTrainerFeedback(`Не вдалося завантажити тренерів: ${error.message}`, 'error');
     trainersTableBody.innerHTML = '<div class="table-row table-empty"><span>Помилка завантаження</span></div>';
@@ -722,23 +809,57 @@ function renderServices() {
     return;
   }
 
+  const svcTheme = {
+    'фітнес':       '#ff6424',
+    'йога':         '#6ec8a0',
+    'персональні':  '#ffbf17',
+    'єдиноборства': '#e05555',
+  };
+  const svcGradient = {
+    'фітнес':       'linear-gradient(135deg,#ff6424 0%,#c23a00 100%)',
+    'йога':         'linear-gradient(135deg,#2a8a62 0%,#0e3d2c 100%)',
+    'персональні':  'linear-gradient(135deg,#ffbf17 0%,#b87800 100%)',
+    'єдиноборства': 'linear-gradient(135deg,#c93333 0%,#6b0a0a 100%)',
+  };
+
   servicesGrid.innerHTML = visibleServices.map((service) => {
     const status = service.status || 'active';
-    const nextStatus = status === 'active' ? 'inactive' : 'active';
+    const key = String(service.name).toLowerCase();
+    const color = svcTheme[key] || '#ff6424';
+    const bg = service.image_url
+      ? `background-image:url('${escapeHtml(service.image_url)}')`
+      : `background:${svcGradient[key] || 'linear-gradient(135deg,#ff6424 0%,#8a2200 100%)'}`;
     const statusButton = status === 'active'
       ? `<button class="danger-btn" data-service-status="${service.id}" data-next-status="inactive">Вимкнути</button>`
       : `<button class="primary-btn" data-service-status="${service.id}" data-next-status="active">Увімкнути</button>`;
 
+    const isActive = status === 'active';
+    const toggleIcon = isActive
+      ? `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`
+      : `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`;
+
     return `
-      <article class="manage-card ${status === 'active' ? 'featured' : ''}">
-        <h3>${escapeHtml(service.name)}</h3>
-        <p>${escapeHtml(service.description || 'Опис не вказано')}</p>
-        <p>Місткість: ${escapeHtml(service.max_clients || '—')} клієнтів</p>
-        <span class="status ${status}">${statusLabels[status] || status}</span>
-        <div>
-          <button class="ghost-btn" data-service-edit="${service.id}">Редагувати</button>
-          ${statusButton}
-          <button class="danger-btn" data-service-delete="${service.id}">Видалити</button>
+      <article class="svc-admin-card" style="--svc-color:${color};${bg}">
+        <div class="svc-admin-card__overlay"></div>
+        <span class="svc-admin-card__status ${status}">${isActive ? '● Активна' : '● Неактивна'}</span>
+        <div class="svc-admin-card__body">
+          <h3 class="svc-admin-card__title">${escapeHtml(service.name)}</h3>
+          <p class="svc-admin-card__desc">${escapeHtml(service.description || 'Опис не вказано')}</p>
+          <p class="svc-admin-card__cap">До ${escapeHtml(service.max_clients || '—')} клієнтів</p>
+          <div class="svc-admin-card__actions">
+            <button class="svc-action-btn svc-action-edit" data-service-edit="${service.id}" title="Редагувати">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Редагувати
+            </button>
+            <button class="svc-action-btn svc-action-toggle ${isActive ? 'toggle-off' : 'toggle-on'}"
+              data-service-status="${service.id}" data-next-status="${isActive ? 'inactive' : 'active'}" title="${isActive ? 'Вимкнути' : 'Увімкнути'}">
+              ${toggleIcon}
+              ${isActive ? 'Вимкнути' : 'Увімкнути'}
+            </button>
+            <button class="svc-action-btn svc-action-delete" data-service-delete="${service.id}" title="Видалити">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            </button>
+          </div>
         </div>
       </article>
     `;
@@ -866,37 +987,78 @@ function closeModal() {
 
 function renderClientForm(client = null) {
   const isEdit = Boolean(client);
+  const iconPerson = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
+  const iconPhone = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+  const iconEmail = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>`;
+  const iconLock = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+
   return `
-    <form id="client-form" class="admin-form" data-client-id="${client?.id || ''}">
-      <label>Ім’я
-        <input name="name" type="text" required value="${escapeHtml(client?.name || '')}">
-      </label>
-      <label>Телефон
-        <input
-          name="phone"
-          type="tel"
-          inputmode="tel"
-          autocomplete="tel"
-          maxlength="13"
-          pattern="\\+380\\d{9}"
-          placeholder="+380XXXXXXXXX"
-          data-phone-input
-          required
-          value="${escapeHtml(client?.phone || '+380')}"
-        >
-      </label>
+    <form id="client-form" class="client-modal-form" data-client-id="${client?.id || ''}">
+
+      <div class="cmf-section">
+        <div class="cmf-section-label">Особисті дані</div>
+        <div class="cmf-field">
+          <span class="cmf-icon">${iconPerson}</span>
+          <div class="cmf-input-wrap">
+            <label class="cmf-label" for="cf-name">Ім'я</label>
+            <input id="cf-name" name="name" type="text" class="cmf-input" required
+              placeholder="Прізвище та ім'я"
+              value="${escapeHtml(client?.name || '')}">
+          </div>
+        </div>
+        <div class="cmf-field">
+          <span class="cmf-icon">${iconPhone}</span>
+          <div class="cmf-input-wrap">
+            <label class="cmf-label" for="cf-phone">Телефон</label>
+            <input id="cf-phone" name="phone" type="tel" class="cmf-input"
+              inputmode="tel" autocomplete="tel" maxlength="13"
+              placeholder="+380XXXXXXXXX" data-phone-input required
+              value="${escapeHtml(client?.phone || '+380')}">
+          </div>
+        </div>
+      </div>
+
       ${isEdit ? `
-        <label>Email
-          <input type="email" value="${escapeHtml(client.email)}" disabled>
-        </label>
+        <div class="cmf-section">
+          <div class="cmf-section-label">Обліковий запис</div>
+          <div class="cmf-field cmf-field--disabled">
+            <span class="cmf-icon">${iconEmail}</span>
+            <div class="cmf-input-wrap">
+              <label class="cmf-label">Email</label>
+              <input type="email" class="cmf-input" value="${escapeHtml(client.email)}" disabled>
+            </div>
+          </div>
+        </div>
       ` : `
-        <label>Email
-          <input name="email" type="email" required autocomplete="email">
-        </label>
-        <label>Тимчасовий пароль
-          <input name="password" type="password" required autocomplete="new-password">
-        </label>
+        <div class="cmf-section">
+          <div class="cmf-section-label">Обліковий запис</div>
+          <div class="cmf-field">
+            <span class="cmf-icon">${iconEmail}</span>
+            <div class="cmf-input-wrap">
+              <label class="cmf-label" for="cf-email">Email</label>
+              <input id="cf-email" name="email" type="email" class="cmf-input"
+                required autocomplete="email" placeholder="email@example.com">
+            </div>
+          </div>
+          <div class="cmf-field">
+            <span class="cmf-icon">${iconLock}</span>
+            <div class="cmf-input-wrap">
+              <label class="cmf-label" for="cf-password">Тимчасовий пароль</label>
+              <input id="cf-password" name="password" type="password" class="cmf-input"
+                required autocomplete="new-password" placeholder="Мінімум 6 символів">
+            </div>
+          </div>
+          <div class="cmf-field">
+            <span class="cmf-icon">${iconLock}</span>
+            <div class="cmf-input-wrap">
+              <label class="cmf-label" for="cf-password2">Повторіть пароль</label>
+              <input id="cf-password2" name="password2" type="password" class="cmf-input"
+                required autocomplete="new-password" placeholder="Введіть пароль ще раз">
+            </div>
+          </div>
+        </div>
       `}
+
       <p class="form-error" id="modal-error" role="alert"></p>
       <div class="modal-actions">
         <button type="button" class="ghost-btn modal-close">Скасувати</button>
@@ -907,10 +1069,34 @@ function renderClientForm(client = null) {
 }
 
 function renderVisitForm(clientId = '') {
-  const options = clients.map((client) => `
-    <option value="${client.id}" ${String(client.id) === String(clientId) ? 'selected' : ''}>
-      ${escapeHtml(client.name)} · ${escapeHtml(client.email)}
-    </option>
+  const client = clientId ? clients.find((c) => String(c.id) === String(clientId)) : null;
+
+  // Якщо клієнт вже відомий — просто показуємо його, без дропдауну
+  if (client) {
+    const initials = getInitials(client.name);
+    const avatarColor = getAvatarColor(client.name);
+    return `
+      <form id="visit-form" class="admin-form">
+        <input type="hidden" name="client_id" value="${client.id}">
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,0.03)">
+          <div class="client-avatar" style="background:${avatarColor};width:36px;height:36px;font-size:13px;flex-shrink:0">${escapeHtml(initials)}</div>
+          <div>
+            <div style="font-weight:700;font-size:15px">${escapeHtml(client.name)}</div>
+            <div style="font-size:12px;color:var(--muted)">${escapeHtml(client.email)}</div>
+          </div>
+        </div>
+        <p class="form-note">Візит можна підтвердити тільки для клієнта з активним абонементом.</p>
+        <div class="modal-actions">
+          <button type="button" class="ghost-btn modal-close">Скасувати</button>
+          <button type="submit" class="primary-btn">Підтвердити візит</button>
+        </div>
+      </form>
+    `;
+  }
+
+  // Без конкретного клієнта — показуємо дропдаун
+  const options = clients.map((c) => `
+    <option value="${c.id}">${escapeHtml(c.name)} · ${escapeHtml(c.email)}</option>
   `).join('');
 
   return `
@@ -933,58 +1119,98 @@ function renderVisitForm(clientId = '') {
 async function renderTrainerCreateForm() {
   await ensureActiveServices();
   const clientOptions = await apiFetch('/clients');
-  const options = clientOptions.map((client) => `
-    <option value="${client.id}">
-      ${escapeHtml(client.name)} · ${escapeHtml(client.email)} · ${escapeHtml(client.phone || 'без телефону')}
-    </option>
-  `).join('');
 
-  return `
-    <form id="trainer-form" class="admin-form" data-trainer-mode="create">
-      <div class="form-switch">
-        <label><input type="radio" name="mode" value="existing" checked> З існуючого клієнта</label>
-        <label><input type="radio" name="mode" value="new"> Новий тренер</label>
+  const iconPerson = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
+  const iconPhone = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+  const iconEmail = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>`;
+  const iconLock = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+  const iconSearch = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>`;
+  const iconSpec = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+
+  const html = `
+    <form id="trainer-form" class="client-modal-form" data-trainer-mode="create">
+
+      <div class="cmf-section">
+        <div class="cmf-section-label">Тип додавання</div>
+        <div class="form-switch cmf-mode-switch">
+          <label><input type="radio" name="mode" value="existing" checked> З існуючого клієнта</label>
+          <label><input type="radio" name="mode" value="new"> Новий тренер</label>
+        </div>
       </div>
 
       <div data-trainer-mode-panel="existing">
-        <label>Клієнт
-          <select name="client_id" required>
-            <option value="">Оберіть клієнта</option>
-            ${options}
-          </select>
-        </label>
+        <div class="cmf-section">
+          <div class="cmf-section-label">Пошук клієнта</div>
+          <div class="cmf-field cmf-field--search">
+            <span class="cmf-icon">${iconSearch}</span>
+            <div class="cmf-input-wrap" style="position:relative">
+              <input type="hidden" name="client_id" id="tcf-client-id">
+              <div id="tcf-search-row">
+                <label class="cmf-label">Клієнт</label>
+                <input id="tcf-search" type="search" class="cmf-input" placeholder="Ім'я або email" autocomplete="off">
+              </div>
+              <div id="tcf-results" class="tcf-results" hidden></div>
+            </div>
+          </div>
+          <div id="tcf-selected" class="tcf-selected" hidden></div>
+        </div>
       </div>
 
       <div data-trainer-mode-panel="new" hidden>
-        <label>Ім’я
-          <input name="name" type="text" autocomplete="name" required disabled>
-        </label>
-        <label>Телефон
-          <input
-            name="phone"
-            type="tel"
-            inputmode="tel"
-            autocomplete="tel"
-            maxlength="13"
-            pattern="\\+380\\d{9}"
-            placeholder="+380XXXXXXXXX"
-            data-phone-input
-            value="+380"
-            required
-            disabled
-          >
-        </label>
-        <label>Email
-          <input name="email" type="email" autocomplete="email" required disabled>
-        </label>
-        <label>Тимчасовий пароль
-          <input name="password" type="password" autocomplete="new-password" required disabled>
-        </label>
+        <div class="cmf-section">
+          <div class="cmf-section-label">Особисті дані</div>
+          <div class="cmf-field">
+            <span class="cmf-icon">${iconPerson}</span>
+            <div class="cmf-input-wrap">
+              <label class="cmf-label" for="tf-name">Ім'я</label>
+              <input id="tf-name" name="name" type="text" class="cmf-input"
+                placeholder="Прізвище та ім'я" autocomplete="name" required disabled>
+            </div>
+          </div>
+          <div class="cmf-field">
+            <span class="cmf-icon">${iconPhone}</span>
+            <div class="cmf-input-wrap">
+              <label class="cmf-label" for="tf-phone">Телефон</label>
+              <input id="tf-phone" name="phone" type="tel" class="cmf-input"
+                inputmode="tel" autocomplete="tel" maxlength="13"
+                placeholder="+380XXXXXXXXX" data-phone-input value="+380" required disabled>
+            </div>
+          </div>
+        </div>
+        <div class="cmf-section">
+          <div class="cmf-section-label">Обліковий запис</div>
+          <div class="cmf-field">
+            <span class="cmf-icon">${iconEmail}</span>
+            <div class="cmf-input-wrap">
+              <label class="cmf-label" for="tf-email">Email</label>
+              <input id="tf-email" name="email" type="email" class="cmf-input"
+                placeholder="email@example.com" autocomplete="email" required disabled>
+            </div>
+          </div>
+          <div class="cmf-field">
+            <span class="cmf-icon">${iconLock}</span>
+            <div class="cmf-input-wrap">
+              <label class="cmf-label" for="tf-password">Тимчасовий пароль</label>
+              <input id="tf-password" name="password" type="password" class="cmf-input"
+                placeholder="Мінімум 6 символів" autocomplete="new-password" required disabled>
+            </div>
+          </div>
+          <div class="cmf-field">
+            <span class="cmf-icon">${iconLock}</span>
+            <div class="cmf-input-wrap">
+              <label class="cmf-label" for="tf-password2">Повторіть пароль</label>
+              <input id="tf-password2" name="password_confirm" type="password" class="cmf-input"
+                placeholder="Введіть пароль ще раз" autocomplete="new-password" required disabled>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <label>Спеціалізація
+      <div class="cmf-section cmf-section--chips">
+        <div class="cmf-section-label">Спеціалізація</div>
         ${renderSpecializationCheckboxes()}
-      </label>
+      </div>
+
       <p class="form-error" id="modal-error" role="alert"></p>
       <div class="modal-actions">
         <button type="button" class="ghost-btn modal-close">Скасувати</button>
@@ -992,35 +1218,122 @@ async function renderTrainerCreateForm() {
       </div>
     </form>
   `;
+  return { html, clientOptions };
+}
+
+// Ініціалізація пошуку клієнтів у формі тренера (викликається після openModal)
+function initTrainerClientSearch(clientOptions) {
+  const searchInput = document.querySelector('#tcf-search');
+  const resultsBox = document.querySelector('#tcf-results');
+  const selectedBox = document.querySelector('#tcf-selected');
+  const hiddenInput = document.querySelector('#tcf-client-id');
+  if (!searchInput) return;
+
+  const norm = (s) => String(s || '').toLowerCase().trim();
+
+  function selectClient(client) {
+    hiddenInput.value = client.id;
+    const initials = getInitials(client.name);
+    const color = getAvatarColor(client.name);
+    selectedBox.innerHTML = `
+      <div class="tcf-selected-card">
+        <div class="client-avatar" style="background:${color};width:32px;height:32px;font-size:12px;flex-shrink:0">${escapeHtml(initials)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:14px">${escapeHtml(client.name)}</div>
+          <div style="font-size:12px;color:var(--muted)">${escapeHtml(client.email)}</div>
+        </div>
+        <button type="button" class="tcf-clear-btn" title="Змінити">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:14px;height:14px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>`;
+    selectedBox.hidden = false;
+    document.querySelector('#tcf-search-row').hidden = true;
+    resultsBox.hidden = true;
+
+    selectedBox.querySelector('.tcf-clear-btn').addEventListener('click', () => {
+      hiddenInput.value = '';
+      selectedBox.hidden = true;
+      document.querySelector('#tcf-search-row').hidden = false;
+      searchInput.value = '';
+      searchInput.focus();
+    });
+  }
+
+  searchInput.addEventListener('input', () => {
+    const q = norm(searchInput.value);
+    if (!q) { resultsBox.hidden = true; return; }
+    const matches = clientOptions.filter((c) =>
+      norm(c.name).includes(q) || norm(c.email).includes(q) || norm(c.phone).includes(q)
+    ).slice(0, 8);
+
+    if (!matches.length) {
+      resultsBox.innerHTML = '<div class="tcf-no-results">Нічого не знайдено</div>';
+    } else {
+      resultsBox.innerHTML = matches.map((c) => {
+        const initials = getInitials(c.name);
+        const color = getAvatarColor(c.name);
+        return `
+          <button type="button" class="tcf-result-item" data-id="${c.id}">
+            <div class="client-avatar" style="background:${color};width:28px;height:28px;font-size:11px;flex-shrink:0">${escapeHtml(initials)}</div>
+            <div style="min-width:0">
+              <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(c.name)}</div>
+              <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(c.email)}</div>
+            </div>
+          </button>`;
+      }).join('');
+      resultsBox.querySelectorAll('.tcf-result-item').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const client = clientOptions.find((c) => String(c.id) === btn.dataset.id);
+          if (client) selectClient(client);
+        });
+      });
+    }
+    resultsBox.hidden = false;
+  });
 }
 
 function renderTrainerEditForm(trainer) {
-  const specializations = renderSpecializationCheckboxes(trainer.specialization || '');
+  const iconPerson = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
+  const iconPhone = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
+  const iconEmail = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>`;
+
   return `
-    <form id="trainer-form" class="admin-form" data-trainer-mode="edit" data-trainer-id="${trainer.id}">
-      <label>Ім’я
-        <input name="name" type="text" required value="${escapeHtml(trainer.name || '')}">
-      </label>
-      <label>Телефон
-        <input
-          name="phone"
-          type="tel"
-          inputmode="tel"
-          autocomplete="tel"
-          maxlength="13"
-          pattern="\\+380\\d{9}"
-          placeholder="+380XXXXXXXXX"
-          data-phone-input
-          required
-          value="${escapeHtml(trainer.phone || '+380')}"
-        >
-      </label>
-      <label>Email
-        <input type="email" value="${escapeHtml(trainer.email)}" disabled>
-      </label>
-      <label>Спеціалізація
-        ${specializations}
-      </label>
+    <form id="trainer-form" class="client-modal-form" data-trainer-mode="edit" data-trainer-id="${trainer.id}">
+
+      <div class="cmf-section">
+        <div class="cmf-section-label">Особисті дані</div>
+        <div class="cmf-field">
+          <span class="cmf-icon">${iconPerson}</span>
+          <div class="cmf-input-wrap">
+            <label class="cmf-label" for="tf-name">Ім'я</label>
+            <input id="tf-name" name="name" type="text" class="cmf-input"
+              required value="${escapeHtml(trainer.name || '')}">
+          </div>
+        </div>
+        <div class="cmf-field">
+          <span class="cmf-icon">${iconPhone}</span>
+          <div class="cmf-input-wrap">
+            <label class="cmf-label" for="tf-phone">Телефон</label>
+            <input id="tf-phone" name="phone" type="tel" class="cmf-input"
+              inputmode="tel" autocomplete="tel" maxlength="13"
+              placeholder="+380XXXXXXXXX" data-phone-input required
+              value="${escapeHtml(trainer.phone || '+380')}">
+          </div>
+        </div>
+        <div class="cmf-field cmf-field--disabled">
+          <span class="cmf-icon">${iconEmail}</span>
+          <div class="cmf-input-wrap">
+            <label class="cmf-label">Email</label>
+            <input type="email" class="cmf-input" value="${escapeHtml(trainer.email)}" disabled>
+          </div>
+        </div>
+      </div>
+
+      <div class="cmf-section cmf-section--chips">
+        <div class="cmf-section-label">Спеціалізація</div>
+        ${renderSpecializationCheckboxes(trainer.specialization || '')}
+      </div>
+
       <p class="form-error" id="modal-error" role="alert"></p>
       <div class="modal-actions">
         <button type="button" class="ghost-btn modal-close">Скасувати</button>
@@ -1054,6 +1367,11 @@ function renderScheduleTrainerOptions(workoutId, selectedTrainerId = '') {
 
 function renderScheduleForm(schedule = null) {
   const isEdit = Boolean(schedule);
+  const iconDumbbell = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 5v14M18 5v14"/><path d="M2 9v6M22 9v6"/><path d="M6 12h12"/></svg>`;
+  const iconPerson = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
+  const iconCalendar = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
+  const iconClock = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`;
+
   const serviceOptions = scheduleServices.map((service) => `
     <option value="${service.id}" ${String(service.id) === String(schedule?.workout_id) ? 'selected' : ''}>
       ${escapeHtml(service.name)}
@@ -1062,25 +1380,51 @@ function renderScheduleForm(schedule = null) {
   const trainerOptions = renderScheduleTrainerOptions(schedule?.workout_id || '', schedule?.trainer_id || '');
 
   return `
-    <form id="schedule-form" class="admin-form" data-schedule-id="${schedule?.id || ''}">
-      <label>Послуга / вид тренування
-        <select name="workout_id" required>
-          <option value="">Оберіть послугу</option>
-          ${serviceOptions}
-        </select>
-      </label>
-      <label>Тренер
-        <select name="trainer_id">
-          ${trainerOptions}
-        </select>
-      </label>
-      <label>Дата
-        <input name="date" type="date" required value="${formatDate(schedule?.date) || todayIso()}">
-      </label>
-      <label>Час
-        <input name="time" type="time" required value="${formatTime(schedule?.time || '10:00')}">
-      </label>
-      <p class="form-note">У клієнта це заняття з’явиться в розкладі автоматично, якщо послуга активна.</p>
+    <form id="schedule-form" class="client-modal-form" data-schedule-id="${schedule?.id || ''}">
+
+      <div class="cmf-section">
+        <div class="cmf-section-label">Заняття</div>
+        <div class="cmf-field">
+          <span class="cmf-icon">${iconDumbbell}</span>
+          <div class="cmf-input-wrap">
+            <label class="cmf-label" for="sf-workout">Послуга / вид тренування</label>
+            <select id="sf-workout" name="workout_id" class="cmf-input" required>
+              <option value="">Оберіть послугу</option>
+              ${serviceOptions}
+            </select>
+          </div>
+        </div>
+        <div class="cmf-field">
+          <span class="cmf-icon">${iconPerson}</span>
+          <div class="cmf-input-wrap">
+            <label class="cmf-label" for="sf-trainer">Тренер</label>
+            <select id="sf-trainer" name="trainer_id" class="cmf-input">
+              ${trainerOptions}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="cmf-section">
+        <div class="cmf-section-label">Час і дата</div>
+        <div class="cmf-field">
+          <span class="cmf-icon">${iconCalendar}</span>
+          <div class="cmf-input-wrap">
+            <label class="cmf-label" for="sf-date">Дата</label>
+            <input id="sf-date" name="date" type="date" class="cmf-input" required
+              value="${formatDate(schedule?.date) || todayIso()}">
+          </div>
+        </div>
+        <div class="cmf-field">
+          <span class="cmf-icon">${iconClock}</span>
+          <div class="cmf-input-wrap">
+            <label class="cmf-label" for="sf-time">Час початку</label>
+            <input id="sf-time" name="time" type="time" class="cmf-input" required
+              value="${formatTime(schedule?.time || '10:00')}">
+          </div>
+        </div>
+      </div>
+
       <p class="form-error" id="modal-error" role="alert"></p>
       <div class="modal-actions">
         <button type="button" class="ghost-btn modal-close">Скасувати</button>
@@ -1104,6 +1448,19 @@ function renderServiceForm(service = null) {
       <label>Максимальна кількість клієнтів
         <input name="max_clients" type="number" min="1" required value="${escapeHtml(service?.max_clients || 10)}">
       </label>
+      <div class="image-upload-field">
+        <div class="img-drop-zone" id="img-drop-zone">
+          ${service?.image_url
+            ? `<img id="svc-img-preview" src="${escapeHtml(service.image_url)}" alt="Фото послуги">`
+            : `<div id="svc-img-preview" class="img-placeholder">
+                 <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                 <span>Перетягніть фото або натисніть</span>
+               </div>`}
+        </div>
+        <input type="file" id="img-file-input" name="image_file" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none">
+        <input name="image_url" type="hidden" value="${escapeHtml(service?.image_url || '')}">
+        <p class="img-upload-status"></p>
+      </div>
       <label>Статус
         <select name="status" required>
           <option value="active" ${status === 'active' ? 'selected' : ''}>Активна</option>
@@ -1213,7 +1570,7 @@ function renderAssignPlanForm() {
       <label>Дата початку
         <input name="start_date" type="date" required value="${todayIso()}">
       </label>
-      <p class="form-note">Після підтвердження система створить абонемент і оплату зі статусом “оплачено”.</p>
+      <p class="form-note">Після підтвердження система створить абонемент і оплату зі статусом "оплачено".</p>
       <p class="form-error" id="modal-error" role="alert"></p>
       <div class="modal-actions">
         <button type="button" class="ghost-btn modal-close">Скасувати</button>
@@ -1292,8 +1649,18 @@ async function saveClient(form) {
   };
 
   if (!clientId) {
+    const password = formData.get('password');
+    const password2 = formData.get('password2');
+    if (password !== password2) {
+      setModalError('Паролі не збігаються');
+      return;
+    }
+    if (password.length < 6) {
+      setModalError('Пароль має бути не менше 6 символів');
+      return;
+    }
     payload.email = formData.get('email')?.trim();
-    payload.password = formData.get('password');
+    payload.password = password;
   }
 
   try {
@@ -1374,12 +1741,23 @@ async function saveTrainer(form) {
       return;
     }
 
+    const password = formData.get('password');
+    const passwordConfirm = formData.get('password_confirm');
+    if (password.length < 6) {
+      setModalError('Пароль має бути не менше 6 символів');
+      return;
+    }
+    if (password !== passwordConfirm) {
+      setModalError('Паролі не співпадають');
+      return;
+    }
+
     await apiFetch('/trainers', {
       method: 'POST',
       body: JSON.stringify({
         name: formData.get('name')?.trim(),
         email: formData.get('email')?.trim(),
-        password: formData.get('password'),
+        password,
         phone,
         specialization,
       }),
@@ -1434,15 +1812,102 @@ async function saveSchedule(form) {
 
 async function deleteSchedule(scheduleId) {
   const schedule = schedules.find((item) => String(item.id) === String(scheduleId));
-  const confirmed = window.confirm(`Видалити заняття ${schedule?.workout_name || ''} ${formatDate(schedule?.date)} ${formatTime(schedule?.time)}?`);
-  if (!confirmed) return;
+  const name = escapeHtml(`${schedule?.workout_name || 'заняття'} · ${formatDate(schedule?.date)} · ${formatTime(schedule?.time)}`);
 
-  try {
-    await apiFetch(`/schedules/${scheduleId}`, { method: 'DELETE' });
-    await loadSchedules();
-    setScheduleFeedback('Заняття видалено', 'success');
-  } catch (error) {
-    setScheduleFeedback(`Не вдалося видалити заняття: ${error.message}`, 'error');
+  openModal('Видалити заняття', `
+    <p style="margin:0 0 20px;line-height:1.5">Видалити <strong>${name}</strong>?<br><span style="font-size:13px;opacity:.6">Усі записи клієнтів на це заняття також буде скасовано.</span></p>
+    <div class="modal-actions">
+      <button type="button" class="ghost-btn modal-close">Скасувати</button>
+      <button type="button" class="primary-btn" id="confirm-delete-sched-btn" style="background:#ef4444;border-color:#ef4444">Видалити</button>
+    </div>
+  `);
+  document.getElementById('confirm-delete-sched-btn').addEventListener('click', async () => {
+    closeModal();
+    try {
+      await apiFetch(`/schedules/${scheduleId}`, { method: 'DELETE' });
+      await loadSchedules();
+      setScheduleFeedback('Заняття видалено', 'success');
+    } catch (error) {
+      setScheduleFeedback(`Не вдалося видалити заняття: ${error.message}`, 'error');
+    }
+  });
+}
+
+function bindImageUpload() {
+  const dropZone = document.querySelector('#img-drop-zone');
+  const fileInput = document.querySelector('#img-file-input');
+  if (!dropZone || !fileInput) return;
+
+  // Click on drop zone → open file picker
+  dropZone.addEventListener('click', () => fileInput.click());
+
+  // Drag-and-drop events
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) uploadImage(file);
+  });
+
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files[0];
+    if (file) uploadImage(file);
+  });
+
+  async function uploadImage(file) {
+    const urlInput = document.querySelector('#admin-modal input[name="image_url"]');
+    const status = document.querySelector('.img-upload-status');
+
+    if (status) {
+      status.textContent = 'Завантаження…';
+      status.style.color = '';
+    }
+    dropZone.classList.add('uploading');
+
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const response = await apiFetch('/upload/image', {
+        method: 'POST',
+        body: JSON.stringify({ data: dataUrl, filename: file.name }),
+      });
+
+      if (urlInput) urlInput.value = response.url;
+
+      // Update preview
+      const existing = document.querySelector('#svc-img-preview');
+      if (existing?.tagName === 'IMG') {
+        existing.src = response.url;
+      } else {
+        const img = document.createElement('img');
+        img.id = 'svc-img-preview';
+        img.src = response.url;
+        img.alt = 'Фото послуги';
+        existing?.replaceWith(img);
+      }
+
+      if (status) {
+        status.textContent = 'Фото завантажено ✓';
+        status.style.color = '#4caf50';
+      }
+    } catch (err) {
+      if (status) {
+        status.textContent = `Помилка: ${err.message}`;
+        status.style.color = '#e05555';
+      }
+    } finally {
+      dropZone.classList.remove('uploading');
+    }
   }
 }
 
@@ -1454,6 +1919,7 @@ async function saveService(form) {
     description: formData.get('description')?.trim(),
     max_clients: Number(formData.get('max_clients')),
     status: formData.get('status'),
+    image_url: formData.get('image_url')?.trim() || null,
   };
 
   if (!payload.name || !payload.max_clients) {
@@ -1625,16 +2091,25 @@ async function expireSubscription(subscriptionId) {
 
 async function revokeTrainer(trainerId) {
   const trainer = trainers.find((item) => String(item.id) === String(trainerId));
-  const confirmed = window.confirm(`Забрати права тренера у ${trainer?.name || 'користувача'}? Після цього він стане клієнтом.`);
-  if (!confirmed) return;
+  const name = escapeHtml(trainer?.name || 'тренера');
 
-  try {
-    await apiFetch(`/trainers/${trainerId}`, { method: 'DELETE' });
-    await Promise.all([loadTrainers(), loadClients()]);
-    setTrainerFeedback('Права тренера забрано, користувач став клієнтом', 'success');
-  } catch (error) {
-    setTrainerFeedback(`Не вдалося забрати права тренера: ${error.message}`, 'error');
-  }
+  openModal('Забрати права тренера', `
+    <p style="margin:0 0 20px;line-height:1.5">Забрати права тренера у <strong>${name}</strong>?<br><span style="font-size:13px;opacity:.6">Після цього він стане звичайним клієнтом.</span></p>
+    <div class="modal-actions">
+      <button type="button" class="ghost-btn modal-close">Скасувати</button>
+      <button type="button" class="primary-btn" id="confirm-revoke-btn" style="background:#ef4444;border-color:#ef4444">Забрати права</button>
+    </div>
+  `);
+  document.getElementById('confirm-revoke-btn').addEventListener('click', async () => {
+    closeModal();
+    try {
+      await apiFetch(`/trainers/${trainerId}`, { method: 'DELETE' });
+      await Promise.all([loadTrainers(), loadClients()]);
+      setTrainerFeedback('Права тренера забрано, користувач став клієнтом', 'success');
+    } catch (error) {
+      setTrainerFeedback(`Не вдалося забрати права тренера: ${error.message}`, 'error');
+    }
+  });
 }
 
 async function createVisit(form) {
@@ -1654,16 +2129,36 @@ async function createVisit(form) {
 
 async function deleteClient(clientId) {
   const client = clients.find((item) => String(item.id) === String(clientId));
-  const confirmed = window.confirm(`Видалити клієнта ${client?.name || ''}? Цю дію не можна скасувати.`);
-  if (!confirmed) return;
+  const name = escapeHtml(client?.name || '');
+  const hasActive = client?.status === 'active';
 
-  try {
-    await apiFetch(`/clients/${clientId}`, { method: 'DELETE' });
-    await loadClients();
-    setFeedback('Клієнта видалено', 'success');
-  } catch (error) {
-    setFeedback(`Не вдалося видалити клієнта: ${error.message}`, 'error');
-  }
+  const warningBlock = hasActive ? `
+    <div style="display:flex;gap:10px;align-items:flex-start;background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.35);border-radius:8px;padding:12px 14px;margin-bottom:16px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fb923c" stroke-width="2" stroke-linecap="round" style="width:18px;height:18px;flex-shrink:0;margin-top:1px"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div style="font-size:13px;line-height:1.5;color:#fb923c">
+        <strong>У клієнта є діючий абонемент.</strong><br>
+        Разом із клієнтом буде видалено абонемент, платежі та всю історію відвідувань.
+      </div>
+    </div>` : '';
+
+  openModal('Видалити клієнта', `
+    ${warningBlock}
+    <p style="margin:0 0 20px;line-height:1.5">Видалити клієнта <strong>${name}</strong>?<br><span style="font-size:13px;opacity:.6">Цю дію не можна скасувати.</span></p>
+    <div class="modal-actions">
+      <button type="button" class="ghost-btn modal-close">Скасувати</button>
+      <button type="button" class="primary-btn" id="confirm-delete-btn" style="background:#ef4444;border-color:#ef4444">Видалити</button>
+    </div>
+  `);
+  document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+    closeModal();
+    try {
+      await apiFetch(`/clients/${clientId}`, { method: 'DELETE' });
+      await loadClients();
+      setFeedback('Клієнта видалено', 'success');
+    } catch (error) {
+      setFeedback(`Не вдалося видалити клієнта: ${error.message}`, 'error');
+    }
+  });
 }
 
 function setScreen(screen) {
@@ -1700,10 +2195,10 @@ document.querySelectorAll('.logout, .logout-row').forEach((button) => {
   });
 });
 
-document.querySelectorAll('.chip').forEach((button) => {
+document.querySelectorAll('.chip, .cseg-btn').forEach((button) => {
   button.addEventListener('click', () => {
-    const row = button.closest('.chip-row');
-    row.querySelectorAll('.chip').forEach((item) => item.classList.remove('active'));
+    const row = button.closest('.chip-row, .clients-seg');
+    row.querySelectorAll('.chip, .cseg-btn').forEach((item) => item.classList.remove('active'));
     button.classList.add('active');
 
     if (button.dataset.clientFilter) {
@@ -1777,8 +2272,9 @@ document.addEventListener('click', async (event) => {
   if (addTrainerButton) {
     try {
       openModal('Додати тренера', '<p class="form-note">Завантаження клієнтів...</p>');
-      const formHtml = await renderTrainerCreateForm();
-      openModal('Додати тренера', formHtml);
+      const { html, clientOptions } = await renderTrainerCreateForm();
+      openModal('Додати тренера', html);
+      initTrainerClientSearch(clientOptions);
     } catch (error) {
       openModal('Додати тренера', `
         <p class="form-error">Не вдалося завантажити клієнтів: ${escapeHtml(error.message)}</p>
@@ -1790,7 +2286,7 @@ document.addEventListener('click', async (event) => {
     return;
   }
 
-  const addScheduleButton = event.target.closest('#open-schedule-modal');
+  const addScheduleButton = event.target.closest('#open-schedule-modal, #open-schedule-modal-empty');
   if (addScheduleButton) {
     try {
       openModal('Створити заняття', '<p class="form-note">Завантаження послуг і тренерів...</p>');
@@ -1810,6 +2306,7 @@ document.addEventListener('click', async (event) => {
   const addServiceButton = event.target.closest('#open-service-modal');
   if (addServiceButton) {
     openModal('Додати послугу', renderServiceForm());
+    bindImageUpload();
     return;
   }
 
@@ -1956,6 +2453,7 @@ document.addEventListener('click', async (event) => {
     const service = services.find((item) => String(item.id) === serviceEditButton.dataset.serviceEdit);
     if (service) {
       openModal('Редагувати послугу', renderServiceForm(service));
+      bindImageUpload();
     }
     return;
   }
@@ -2018,6 +2516,12 @@ document.addEventListener('click', async (event) => {
 });
 
 document.addEventListener('change', (event) => {
+  // Оновлюємо клас .checked на чіпі при зміні чекбокса
+  const specCheckbox = event.target.closest('.spec-chip input[type="checkbox"]');
+  if (specCheckbox) {
+    specCheckbox.closest('.spec-chip').classList.toggle('checked', specCheckbox.checked);
+  }
+
   const scheduleWorkoutSelect = event.target.closest('#schedule-form select[name="workout_id"]');
   if (scheduleWorkoutSelect) {
     const form = scheduleWorkoutSelect.closest('#schedule-form');
@@ -2139,38 +2643,248 @@ clientsSearch?.addEventListener('input', renderClients);
 trainersSearch?.addEventListener('input', renderTrainers);
 scheduleSearch?.addEventListener('input', renderSchedules);
 
-const scheduleRangeStartInput = document.querySelector('#schedule-range-start');
-const scheduleRangeEndInput = document.querySelector('#schedule-range-end');
+// ── Inline calendar range picker ──────────────────────────────────────────
+const schedRangePopup = document.querySelector('#sched-range-popup');
+const schedRangeToggle = document.querySelector('#sched-range-toggle');
+const schedRangeLabel = document.querySelector('#sched-range-label');
 
-document.querySelector('#apply-schedule-range')?.addEventListener('click', () => {
-  scheduleRangeStart = scheduleRangeStartInput?.value || '';
-  scheduleRangeEnd = scheduleRangeEndInput?.value || '';
-  if (!getScheduleDates().includes(selectedScheduleDate)) {
-    selectedScheduleDate = pickDefaultScheduleDate();
+const MONTHS_UK = ['Січень','Лютий','Березень','Квітень','Травень','Червень',
+                   'Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
+const MONTHS_SHORT = ['січ','лют','бер','кві','тра','чер','лип','сер','вер','жов','лис','гру'];
+const WDAYS = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
+
+let schedCalYear = new Date().getFullYear();
+let schedCalMonth = new Date().getMonth();
+let schedCalStart = '';
+let schedCalEnd = '';
+let schedCalHover = '';
+
+function fmtCalDate(d) {
+  if (!d) return '';
+  const [, m, day] = d.split('-');
+  return `${Number(day)} ${MONTHS_SHORT[Number(m) - 1]}`;
+}
+
+function updateSchedRangeLabel() {
+  if (!schedRangeLabel) return;
+  if (scheduleRangeStart && scheduleRangeEnd) {
+    schedRangeLabel.innerHTML = `${fmtCalDate(scheduleRangeStart)} – ${fmtCalDate(scheduleRangeEnd)}<span class="sched-range-clear" title="Скинути">&#x2715;</span>`;
+    schedRangeToggle?.classList.add('active');
+  } else {
+    schedRangeLabel.innerHTML = '';
+    schedRangeToggle?.classList.remove('active');
   }
-  renderSchedules();
-  scrollScheduleStripToActive();
+}
+
+function buildCalHtml() {
+  const today = todayIso();
+  const firstDay = new Date(schedCalYear, schedCalMonth, 1);
+  const lastDate = new Date(schedCalYear, schedCalMonth + 1, 0).getDate();
+  let startDow = firstDay.getDay() - 1;
+  if (startDow < 0) startDow = 6;
+
+  const cells = [];
+  for (let i = 0; i < startDow; i++) cells.push('');
+  for (let d = 1; d <= lastDate; d++) {
+    cells.push(`${schedCalYear}-${String(schedCalMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+  }
+  while (cells.length % 7 !== 0) cells.push('');
+
+  const ref = schedCalEnd || schedCalHover;
+  const lo = schedCalStart && ref ? [schedCalStart, ref].sort()[0] : schedCalStart;
+  const hi = schedCalStart && ref ? [schedCalStart, ref].sort()[1] : '';
+
+  const hint = !schedCalStart ? 'Оберіть початок діапазону'
+    : !schedCalEnd ? 'Тепер оберіть кінець'
+    : `${fmtCalDate(schedCalStart)} – ${fmtCalDate(schedCalEnd)}`;
+
+  const applyBtn = (schedCalStart && schedCalEnd)
+    ? `<button type="button" class="sched-cal-apply" data-cal-apply>Застосувати</button>`
+    : '';
+
+  return `
+    <div class="sched-cal-header">
+      <button type="button" class="sched-cal-nav" data-cal-prev>&#8249;</button>
+      <span>${MONTHS_UK[schedCalMonth]} ${schedCalYear}</span>
+      <button type="button" class="sched-cal-nav" data-cal-next>&#8250;</button>
+    </div>
+    <div class="sched-cal-grid">
+      ${WDAYS.map((w) => `<div class="sched-cal-wday">${w}</div>`).join('')}
+      ${cells.map((dateStr) => {
+        if (!dateStr) return '<div class="sched-cal-cell empty"></div>';
+        const day = Number(dateStr.split('-')[2]);
+        let cls = 'sched-cal-cell';
+        if (dateStr === today) cls += ' today';
+        if (lo && dateStr === lo) cls += ' range-lo';
+        if (hi && dateStr === hi) cls += ' range-hi';
+        if (lo && hi && dateStr > lo && dateStr < hi) cls += ' in-range';
+        return `<button type="button" class="${cls}" data-cal-date="${dateStr}">${day}</button>`;
+      }).join('')}
+    </div>
+    <div class="sched-cal-hint">${hint}</div>
+    ${applyBtn}
+  `;
+}
+
+function renderSchedCalendar() {
+  const container = document.querySelector('#sched-cal-container');
+  if (!container) return;
+
+  // Рендеримо один раз
+  container.innerHTML = `<div class="sched-cal" id="sched-cal">${buildCalHtml()}</div>`;
+  const cal = container.querySelector('#sched-cal');
+
+  // Клік — event delegation (не перемальовує при hover)
+  cal.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-cal-date]');
+    const prev = e.target.closest('[data-cal-prev]');
+    const next = e.target.closest('[data-cal-next]');
+
+    if (prev) {
+      schedCalMonth--;
+      if (schedCalMonth < 0) { schedCalMonth = 11; schedCalYear--; }
+      renderSchedCalendar(); return;
+    }
+    if (next) {
+      schedCalMonth++;
+      if (schedCalMonth > 11) { schedCalMonth = 0; schedCalYear++; }
+      renderSchedCalendar(); return;
+    }
+    if (!btn) return;
+
+    // "Застосувати"
+    const apply = e.target.closest('[data-cal-apply]');
+    if (apply) {
+      scheduleRangeStart = schedCalStart;
+      scheduleRangeEnd = schedCalEnd;
+      updateSchedRangeLabel();
+      if (schedRangePopup) schedRangePopup.hidden = true;
+      schedRangeToggle?.setAttribute('aria-expanded', 'false');
+      schedCalStart = ''; schedCalEnd = ''; schedCalHover = '';
+      if (!getScheduleDates().includes(selectedScheduleDate)) selectedScheduleDate = pickDefaultScheduleDate();
+      renderSchedules();
+      scrollScheduleStripToActive();
+      return;
+    }
+
+    const d = btn.dataset.calDate;
+    if (!schedCalStart || (schedCalStart && schedCalEnd)) {
+      schedCalStart = d; schedCalEnd = ''; schedCalHover = '';
+    } else {
+      if (d === schedCalStart) return;
+      schedCalEnd = d; schedCalHover = '';
+      if (schedCalEnd < schedCalStart) [schedCalStart, schedCalEnd] = [schedCalEnd, schedCalStart];
+    }
+    renderSchedCalendar();
+  });
+
+  // Hover — теж delegation, перемальовуємо ТІЛЬКИ якщо дата змінилась
+  const grid = cal.querySelector('.sched-cal-grid');
+  grid.addEventListener('mousemove', (e) => {
+    if (!schedCalStart || schedCalEnd) return;
+    const cell = e.target.closest('[data-cal-date]');
+    const d = cell?.dataset.calDate || '';
+    if (d !== schedCalHover) {
+      schedCalHover = d;
+      // Оновлюємо тільки класи, без повного перемальовування
+      const ref = schedCalEnd || schedCalHover;
+      const lo = [schedCalStart, ref].sort()[0];
+      const hi = [schedCalStart, ref].sort()[1];
+      grid.querySelectorAll('[data-cal-date]').forEach((b) => {
+        const bd = b.dataset.calDate;
+        b.classList.toggle('range-lo', bd === lo);
+        b.classList.toggle('range-hi', bd === hi && lo !== hi);
+        b.classList.toggle('in-range', lo && hi && bd > lo && bd < hi);
+      });
+    }
+  });
+  grid.addEventListener('mouseleave', () => {
+    if (!schedCalStart || schedCalEnd) return;
+    schedCalHover = '';
+    grid.querySelectorAll('[data-cal-date]').forEach((b) => {
+      b.classList.remove('range-hi', 'in-range');
+    });
+  });
+}
+
+function positionSchedPopup() {
+  if (!schedRangePopup || !schedRangeToggle) return;
+  const rect = schedRangeToggle.getBoundingClientRect();
+  const popupWidth = 264;
+  let left = rect.right - popupWidth;
+  if (left < 8) left = 8;
+  schedRangePopup.style.top = `${rect.bottom + 8}px`;
+  schedRangePopup.style.left = `${left}px`;
+}
+
+schedRangeToggle?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (e.target.closest('.sched-range-clear')) {
+    resetSchedRange();
+    return;
+  }
+  const wasHidden = schedRangePopup?.hidden;
+  if (schedRangePopup) schedRangePopup.hidden = !wasHidden;
+  schedRangeToggle.setAttribute('aria-expanded', String(wasHidden));
+  if (wasHidden) {
+    // Ініціалізуємо стан календаря з поточного застосованого діапазону
+    schedCalStart = scheduleRangeStart || '';
+    schedCalEnd = scheduleRangeEnd || '';
+    schedCalHover = '';
+    positionSchedPopup();
+    renderSchedCalendar();
+  }
 });
 
-document.querySelector('#reset-schedule-range')?.addEventListener('click', () => {
+// Закрити при кліку будь-де — popup зупиняє розповсюдження кліку
+document.addEventListener('click', () => {
+  if (schedRangePopup && !schedRangePopup.hidden) {
+    schedRangePopup.hidden = true;
+    schedRangeToggle?.setAttribute('aria-expanded', 'false');
+    // Скидаємо незастосований вибір
+    schedCalStart = ''; schedCalEnd = ''; schedCalHover = '';
+  }
+});
+schedRangePopup?.addEventListener('click', (e) => e.stopPropagation());
+
+function resetSchedRange() {
   scheduleRangeStart = '';
   scheduleRangeEnd = '';
-  if (scheduleRangeStartInput) {
-    scheduleRangeStartInput.value = '';
-  }
-  if (scheduleRangeEndInput) {
-    scheduleRangeEndInput.value = '';
-  }
+  schedCalStart = '';
+  schedCalEnd = '';
+  schedCalHover = '';
+  updateSchedRangeLabel();
+  if (schedRangePopup) schedRangePopup.hidden = true;
+  schedRangeToggle?.setAttribute('aria-expanded', 'false');
   selectedScheduleDate = pickDefaultScheduleDate();
   renderSchedules();
   scrollScheduleStripToActive();
-});
+}
 servicesSearch?.addEventListener('input', renderServices);
 plansSearch?.addEventListener('input', renderPlans);
 messagesSearch?.addEventListener('input', renderMessages);
 
 /**
- * Записує числове значення метрики у відповідний елемент дашборду.
+ * CountUp-анімація числа від 0 до target за 800 мс.
+ *
+ * @param {HTMLElement} el
+ * @param {number} target
+ */
+function animateCountUp(el, target) {
+  if (!el || !target) { if (el) el.textContent = String(target); return; }
+  const duration = 800;
+  const start = performance.now();
+  const step = (now) => {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.round(eased * target);
+    if (progress < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+/**
+ * Встановлює значення метрики з CountUp-анімацією.
  *
  * @param {string} selector — CSS-селектор елемента метрики.
  * @param {number} value
@@ -2178,8 +2892,24 @@ messagesSearch?.addEventListener('input', renderMessages);
 function setMetric(selector, value) {
   const element = document.querySelector(selector);
   if (element) {
-    element.textContent = String(value);
+    animateCountUp(element, value);
   }
+}
+
+/**
+ * Встановлює тренд-індикатор метрики.
+ *
+ * @param {string} id
+ * @param {number} diff — різниця (позитивна = вгору, від'ємна = вниз, 0 = нейтрально).
+ * @param {string} [unit='']
+ */
+function setTrend(id, diff, unit = '') {
+  const el = document.querySelector(`#${id}`);
+  if (!el) return;
+  if (diff === 0) { el.textContent = ''; return; }
+  const sign = diff > 0 ? '↑' : '↓';
+  el.textContent = `${sign} ${Math.abs(diff)}${unit}`;
+  el.className = `metric-trend ${diff > 0 ? 'up' : 'down'}`;
 }
 
 /**
@@ -2204,32 +2934,52 @@ function addDaysIso(baseIso, days) {
  */
 function renderDashboard(data) {
   const today = todayIso();
+  const yesterday = addDaysIso(today, -1);
   const weekAhead = addDaysIso(today, ENDING_SOON_DAYS);
 
   const activeClients = data.clients.filter((client) => client.status === 'active').length;
+  const totalClients = data.clients.length;
   const activeServices = data.services.filter((service) => (service.status || 'active') === 'active').length;
+  const totalServices = data.services.length;
   const todaySchedules = data.schedules
     .filter((schedule) => formatDate(schedule.date) === today)
     .sort((first, second) => formatTime(first.time).localeCompare(formatTime(second.time)));
+  const yesterdayCount = data.schedules.filter((s) => formatDate(s.date) === yesterday).length;
 
+  // Метрики з CountUp
   setMetric('#metric-clients', activeClients);
   setMetric('#metric-trainers', data.trainers.length);
   setMetric('#metric-today', todaySchedules.length);
   setMetric('#metric-services', activeServices);
 
+  // Тренди
+  const inactiveClients = totalClients - activeClients;
+  setTrend('trend-clients', activeClients > 0 ? Math.round((activeClients / totalClients) * 100) - 80 : 0, '%');
+  setTrend('trend-today', todaySchedules.length - yesterdayCount, ' вчора');
+  setTrend('trend-services', totalServices > 0 ? activeServices - (totalServices - activeServices) : 0, '');
+
+  // Таймлайн сьогоднішнього розкладу
   const todayList = document.querySelector('#dashboard-today-list');
   if (todayList) {
     todayList.innerHTML = todaySchedules.length
-      ? todaySchedules
-        .map((schedule) => (
-          `<p><strong>${formatTime(schedule.time)}</strong> `
-          + `${escapeHtml(schedule.workout_name || '—')} · `
-          + `${escapeHtml(schedule.trainer_name || 'без тренера')}</p>`
-        ))
-        .join('')
-      : '<p>Сьогодні занять немає.</p>';
+      ? todaySchedules.map((schedule) => {
+          const booked = Number(schedule.booked || 0);
+          const max = Number(schedule.max_clients || 0);
+          return `
+            <div class="tl-item">
+              <div class="tl-time">${formatTime(schedule.time)}</div>
+              <div class="tl-dot"></div>
+              <div class="tl-body">
+                <strong>${escapeHtml(schedule.workout_name || '—')}</strong>
+                <span>${escapeHtml(schedule.trainer_name || 'без тренера')} · ${booked}/${max}</span>
+              </div>
+            </div>
+          `;
+        }).join('')
+      : '<p class="tl-empty">Сьогодні занять немає</p>';
   }
 
+  // Потребує уваги
   const endingSubscriptions = data.subscriptions.filter((subscription) => (
     subscription.status === 'active'
     && formatDate(subscription.end_date) >= today
@@ -2247,18 +2997,72 @@ function renderDashboard(data) {
   if (attention) {
     attention.innerHTML = `
       <div class="attention-item warning">
-        <strong>${endingSubscriptions} абонементів</strong>
-        <span>закінчуються цього тижня</span>
+        <div class="attention-item__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="attention-item__body">
+          <strong>${endingSubscriptions} абонементів</strong>
+          <span>закінчуються цього тижня</span>
+        </div>
       </div>
       <div class="attention-item danger">
-        <strong>${clientsWithoutSubscription} клієнтів</strong>
-        <span>без активного абонемента</span>
+        <div class="attention-item__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <div class="attention-item__body">
+          <strong>${clientsWithoutSubscription} клієнтів</strong>
+          <span>без активного абонемента</span>
+        </div>
       </div>
       <div class="attention-item">
-        <strong>${almostFullClasses} занять</strong>
-        <span>майже заповнені</span>
+        <div class="attention-item__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="attention-item__body">
+          <strong>${almostFullClasses} занять</strong>
+          <span>майже заповнені</span>
+        </div>
       </div>
     `;
+  }
+
+  // Останні дії (топ-7 найновіших абонементів)
+  const activityEl = document.querySelector('#dashboard-activity');
+  if (activityEl) {
+    const recent = [...data.subscriptions]
+      .filter((s) => s.start_date)
+      .sort((a, b) => (b.start_date > a.start_date ? 1 : -1))
+      .slice(0, 7);
+
+    activityEl.innerHTML = recent.length
+      ? recent.map((s) => {
+          const daysAgo = Math.round((new Date(today) - new Date(formatDate(s.start_date))) / 86400000);
+          const when = daysAgo === 0 ? 'сьогодні' : daysAgo === 1 ? 'вчора' : `${daysAgo} д. тому`;
+          return `
+            <div class="activity-item">
+              <div class="activity-dot"></div>
+              <div class="activity-body">
+                <strong>${escapeHtml(s.client_name || '—')}</strong>
+                <span>${escapeHtml(s.type || s.plan_name || 'Абонемент')} · ${when}</span>
+              </div>
+            </div>
+          `;
+        }).join('')
+      : '<p class="tl-empty">Активностей ще немає</p>';
+  }
+
+  // Привітання
+  const greetingTime = document.querySelector('#greeting-time');
+  const greetingDate = document.querySelector('#greeting-date');
+  if (greetingTime) {
+    const h = new Date().getHours();
+    greetingTime.textContent = h < 12 ? 'Доброго ранку' : h < 18 ? 'Доброго дня' : 'Доброго вечора';
+  }
+  if (greetingDate) {
+    const now = new Date();
+    const days = ['Неділя','Понеділок','Вівторок','Середа','Четвер','Пʼятниця','Субота'];
+    const months = ['січня','лютого','березня','квітня','травня','червня','липня','серпня','вересня','жовтня','листопада','грудня'];
+    greetingDate.textContent = `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`;
   }
 }
 
@@ -2288,6 +3092,62 @@ async function loadDashboard() {
   } catch (error) {
     console.error('Не вдалося завантажити дашборд:', error);
   }
+}
+
+// ─── Швидкий пошук клієнта на дашборді ────────────────────────────────────────
+
+const dashSearch = document.querySelector('#dash-client-search');
+const dashSearchResults = document.querySelector('#dash-search-results');
+
+let dashSearchClients = [];
+
+async function ensureDashClients() {
+  if (!dashSearchClients.length) {
+    try { dashSearchClients = await apiFetch('/clients'); } catch {}
+  }
+}
+
+if (dashSearch) {
+  dashSearch.addEventListener('input', async () => {
+    const q = normalizeText(dashSearch.value);
+    if (!q || q.length < 2) {
+      dashSearchResults?.toggleAttribute('hidden', true);
+      return;
+    }
+    await ensureDashClients();
+    const matches = dashSearchClients.filter((c) => {
+      return normalizeText(`${c.name} ${c.phone} ${c.email}`).includes(q);
+    }).slice(0, 6);
+
+    if (!dashSearchResults) return;
+    if (!matches.length) {
+      dashSearchResults.innerHTML = '<div class="dash-sr-empty">Клієнтів не знайдено</div>';
+    } else {
+      dashSearchResults.innerHTML = matches.map((c) => {
+        const status = c.status || 'inactive';
+        return `
+          <button class="dash-sr-item" data-client-details="${c.id}">
+            <span class="dash-sr-name">${escapeHtml(c.name)}</span>
+            <span class="dash-sr-meta">${escapeHtml(c.phone || c.email || '')} · <mark class="status ${status} small">${statusLabels[status] || status}</mark></span>
+          </button>
+        `;
+      }).join('');
+    }
+    dashSearchResults.removeAttribute('hidden');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!dashSearch.contains(e.target) && !dashSearchResults?.contains(e.target)) {
+      dashSearchResults?.toggleAttribute('hidden', true);
+    }
+  });
+
+  dashSearch.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      dashSearch.value = '';
+      dashSearchResults?.toggleAttribute('hidden', true);
+    }
+  });
 }
 
 // ─── Дані клубу ──────────────────────────────────────────────────────────────
@@ -2652,6 +3512,10 @@ if (currentUser) {
   loadClubSettings();
 }
 if (currentUser && dashboardPage) {
+  const greetingName = document.querySelector('#greeting-name');
+  if (greetingName && currentUser.name) {
+    greetingName.textContent = currentUser.name.split(' ')[0];
+  }
   loadDashboard();
 }
 if (currentUser && messagesPage) {

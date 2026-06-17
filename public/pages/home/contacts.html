@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OLIMP - Контакти</title>
+    <title>OLIMP - Про нас</title>
     <link rel="stylesheet" href="../../styles/home.css">
     <meta name="theme-color" content="#050507">
 </head>
@@ -15,7 +15,7 @@
             <a href="services.html">Послуги</a>
             <a href="plans.html">Абонементи</a>
             <a href="schedule.html">Розклад</a>
-            <a class="active" href="contacts.html">Контакти</a>
+            <a class="active" href="contacts.html">Про нас</a>
         </nav>
         <a class="login-btn" href="../auth/login.html">Увійти</a>
         <button class="menu-btn" data-menu-toggle aria-label="Меню">☰</button>
@@ -26,27 +26,98 @@
         <a href="services.html">Послуги</a>
         <a href="plans.html">Абонементи</a>
         <a href="schedule.html">Розклад</a>
+        <a class="active" href="contacts.html">Про нас</a>
         <a href="../auth/login.html">Увійти</a>
     </nav>
 
-    <main class="page-shell content-shell contacts-shell">
+    <main class="page-shell content-shell about-shell">
         <section class="page-heading">
-            <p class="eyebrow">Локація</p>
-            <h1>Контакти</h1>
-            <p>Зал працює щодня. Після реєстрації ти зможеш записуватися на тренування онлайн.</p>
+            <p class="eyebrow">Де нас знайти</p>
+            <h1>Про нас</h1>
         </section>
 
-        <section class="contact-grid">
-            <article><span>Адреса</span><strong data-club="address">вул. Спортивна, 10, Київ</strong></article>
-            <article><span>Телефон</span><strong data-club="phone">+380 44 123 45 67</strong></article>
-            <article><span>Email</span><strong data-club="email">info@olimp.ua</strong></article>
-            <article><span>Графік</span><strong>Пн-Пт <span data-club="weekday_hours">07:00 - 22:00</span><br>Сб-Нд <span data-club="weekend_hours">09:00 - 20:00</span></strong></article>
-        </section>
+        <!-- Цифри -->
+        <div class="about-nums">
+            <div><strong>5+</strong><span>років роботи</span></div>
+            <div><strong>300+</strong><span>клієнтів</span></div>
+            <div><strong>8</strong><span>тренерів</span></div>
+            <div><strong>2</strong><span>зали</span></div>
+        </div>
 
-        <section class="contact-cta">
-            <h2>Готовий почати?</h2>
-            <a class="primary-btn" href="../auth/register.html">Зареєструватися</a>
-        </section>
+        <div class="about-layout">
+            <!-- Ліва колонка: контакти -->
+            <div class="about-contacts">
+                <dl class="about-contact-list">
+                    <div>
+                        <dt>Адреса</dt>
+                        <dd><a data-club="address" href="https://maps.google.com/?q=вул.+Спортивна+10+Київ" target="_blank" rel="noopener">вул. Спортивна, 10, Київ</a></dd>
+                    </div>
+                    <div>
+                        <dt>Телефон</dt>
+                        <dd><a data-club="phone" href="tel:+380441234567">+380 44 123 45 67</a></dd>
+                    </div>
+                    <div>
+                        <dt>Графік роботи</dt>
+                        <dd>
+                            Пн–Пт <span data-club="weekday_hours">07:00 — 22:00</span><br>
+                            Сб–Нд <span data-club="weekend_hours">09:00 — 20:00</span>
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>Пошта</dt>
+                        <dd><a data-club="email" href="mailto:info@olimp.ua">info@olimp.ua</a></dd>
+                    </div>
+                </dl>
+
+                <!-- Соцмережі -->
+                <div class="about-socials">
+                    <a href="#" class="about-social-btn" aria-label="Instagram">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+                    </a>
+                    <a href="#" class="about-social-btn" aria-label="TikTok">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/></svg>
+                    </a>
+                    <a href="#" class="about-social-btn" aria-label="Telegram">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></svg>
+                    </a>
+                    <a href="#" class="about-social-btn" aria-label="YouTube">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58 2.78 2.78 0 0 0 1.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="currentColor" stroke="none"/></svg>
+                    </a>
+                    <a href="#" class="about-social-btn" aria-label="Facebook">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                    </a>
+                </div>
+
+                <!-- Правила відвідування -->
+                <div class="about-rules">
+                    <p class="about-rules__title">Правила відвідування</p>
+                    <ul>
+                        <li>Спортивне взуття обов'язкове</li>
+                        <li>Рушник із собою</li>
+                        <li>Бронюй місце через особистий кабінет</li>
+                        <li>Вхід за абонементом або разовим квитком</li>
+                        <li>Поважай обладнання та інших відвідувачів</li>
+                        <li>Не займай тренажер довше 30 хв у пікові години</li>
+                        <li>Діти до 16 років — лише з дорослими</li>
+                    </ul>
+                </div>
+
+                <a class="primary-btn" href="../auth/login.html">Почати тренуватися →</a>
+            </div>
+
+            <!-- Права колонка: карта -->
+            <div class="about-map">
+                <div class="about-map__wrap">
+                    <iframe
+                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2540.5!2d30.5!3d50.45!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNTDCsDI3JzAwLjAiTiAzMMKwMzAnMDAuMCJF!5e0!3m2!1suk!2sua!4v1600000000000!5m2!1suk!2sua"
+                        allowfullscreen=""
+                        loading="lazy"
+                        referrerpolicy="no-referrer-when-downgrade"
+                        title="Карта OLIMP">
+                    </iframe>
+                </div>
+            </div>
+        </div>
     </main>
 
     <script src="../../js/home.js"></script>

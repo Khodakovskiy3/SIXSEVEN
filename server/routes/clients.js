@@ -215,6 +215,8 @@ router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
     return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
   }
 
+  // payments не має ON DELETE CASCADE, тому видаляємо вручну перед видаленням юзера
+  await query('delete from payments where client_id = $1', [id]);
   await query('delete from users where id = $1', [current.rows[0].user_id]);
   return res.json({ ok: true });
 });

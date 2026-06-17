@@ -40,6 +40,7 @@ router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const result = await query(
     `select u.id, u.name, u.email, u.role,
             c.id as client_id,
+            coalesce(c.phone, t.phone) as phone,
             t.id as trainer_id
      from users u
      left join clients c on c.user_id = u.id

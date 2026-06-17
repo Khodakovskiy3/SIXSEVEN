@@ -140,14 +140,15 @@ input[type="password"] {
     min-height: 30px;
     margin: 0;
     padding: 0;
-    border: 1px solid rgba(255, 100, 36, 0.5);
-    background: rgba(255, 100, 36, 0.12);
-    color: var(--accent);
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.35);
     transform: translateY(-50%);
 }
 
 .password-toggle:hover {
-    background: rgba(255, 100, 36, 0.2);
+    background: transparent;
+    color: rgba(255,255,255,0.65);
     box-shadow: none;
     transform: translateY(-50%);
 }
@@ -276,15 +277,24 @@ a:hover {
     }
 
     .auth-shell {
+        min-height: 100dvh;
         justify-items: stretch;
-        padding: 66px 0 18px;
+        align-content: center;
+        padding: 72px 0 24px;
+        width: calc(100% - 32px);
     }
 
     .auth-card {
-        padding: 26px 20px;
+        width: 100%;
+        padding: 22px 20px;
+        border-radius: 16px;
     }
 
     h2 {
-        font-size: 24px;
+        font-size: 22px;
+    }
+
+    .auth-kicker {
+        font-size: 10px;
     }
 }

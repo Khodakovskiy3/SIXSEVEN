@@ -163,3 +163,29 @@ CREATE TABLE IF NOT EXISTS public.visits (
     CONSTRAINT visits_subscription_id_fkey FOREIGN KEY (subscription_id)
         REFERENCES public.subscriptions(id) ON DELETE SET NULL
 );
+
+-- ─── Чат «гість ↔ адміністратор» ──────────────────────────────
+-- Діалог гостя ідентифікується випадковим токеном з localStorage.
+CREATE TABLE IF NOT EXISTS public.chat_conversations (
+    id          serial4 PRIMARY KEY,
+    guest_token varchar(64) NOT NULL UNIQUE,
+    guest_name  varchar(120) NULL,
+    created_at  timestamp NOT NULL DEFAULT now(),
+    updated_at  timestamp NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.chat_messages (
+    id              serial4 PRIMARY KEY,
+    conversation_id int4 NOT NULL,
+    sender          varchar(10) NOT NULL,
+    body            text NOT NULL,
+    created_at      timestamp NOT NULL DEFAULT now(),
+    read_by_admin   boolean NOT NULL DEFAULT false,
+    CONSTRAINT chat_messages_sender_check
+        CHECK ((sender)::text = ANY (ARRAY['guest','admin']::text[])),
+    CONSTRAINT chat_messages_conversation_id_fkey FOREIGN KEY (conversation_id)
+        REFERENCES public.chat_conversations(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation
+    ON public.chat_messages(conversation_id, id);

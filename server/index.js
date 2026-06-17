@@ -25,6 +25,8 @@ import reportsRoutes from './routes/reports.js';
 import publicRoutes from './routes/public.js';
 import clubRoutes from './routes/club.js';
 import messagesRoutes from './routes/messages.js';
+import chatRoutes from './routes/chat.js';
+import uploadRoutes from './routes/upload.js';
 
 import { DEFAULT_HTTP_PORT, HTTP_SERVER_ERROR } from './utils/constants.js';
 console.log('SERVER INDEX JS STARTED');
@@ -47,7 +49,7 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET === INSECURE_JWT_SECRET) {
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static(STATIC_DIR));
 
 // Простий health-чек, корисний для моніторингу та deployment-перевірок.
@@ -70,6 +72,8 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/club', clubRoutes);
 app.use('/api/messages', messagesRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // ─── Глобальна обробка помилок ────────────────────────────────────────────────
 // Будь-яка помилка, передана через next(err), повертається клієнту як 500,

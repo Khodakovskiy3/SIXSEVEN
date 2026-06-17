@@ -15,7 +15,7 @@
             <a class="active" href="services.html">Послуги</a>
             <a href="plans.html">Абонементи</a>
             <a href="schedule.html">Розклад</a>
-            <a href="contacts.html">Контакти</a>
+            <a href="contacts.html">Про нас</a>
         </nav>
         <a class="login-btn" href="../auth/login.html">Увійти</a>
         <button class="menu-btn" data-menu-toggle aria-label="Меню">☰</button>
@@ -23,9 +23,10 @@
 
     <nav class="mobile-menu" data-mobile-menu>
         <a href="index.html">Головна</a>
+        <a class="active" href="services.html">Послуги</a>
         <a href="plans.html">Абонементи</a>
         <a href="schedule.html">Розклад</a>
-        <a href="contacts.html">Контакти</a>
+        <a href="contacts.html">Про нас</a>
         <a href="../auth/login.html">Увійти</a>
     </nav>
 
@@ -36,7 +37,18 @@
             <p>Обери формат тренувань і створи акаунт, щоб записатися онлайн.</p>
         </section>
 
-        <section class="cards-grid service-grid" id="services-grid"></section>
+        <div class="svc-carousel">
+            <section class="svc-grid" id="services-grid"></section>
+            <div class="svc-nav">
+                <button class="svc-nav-btn" id="svc-prev" aria-label="Назад">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <span class="svc-nav-dots" id="svc-dots"></span>
+                <button class="svc-nav-btn" id="svc-next" aria-label="Вперед">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+            </div>
+        </div>
     </main>
 
     <script src="../../js/home.js"></script>

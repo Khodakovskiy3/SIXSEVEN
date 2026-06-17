@@ -25,7 +25,7 @@
             <button class="logout ghost">Вийти</button>
         </aside>
 
-        <main class="client-app admin-app">
+        <main class="client-app admin-app admin-app--trainers">
             <header class="topbar">
                 <div>
                     <div class="brand">OLIMP</div>
@@ -44,19 +44,34 @@
             </header>
 
             <section class="screen active" data-screen-panel="trainers">
+                <div class="trainer-stats-strip">
+                    <div class="cstat"><strong id="tstat-total">—</strong><span>Всього</span></div>
+                    <div class="cstat cstat--active"><strong id="tstat-active">—</strong><span>Активних</span></div>
+                    <div class="cstat cstat--inactive"><strong id="tstat-inactive">—</strong><span>Неактивних</span></div>
+                </div>
                 <div class="panel admin-section">
-                    <div class="admin-toolbar">
-                        <input id="trainers-search" type="search" placeholder="Пошук за ім’ям, телефоном або email">
-                        <button class="primary-btn" id="open-trainer-modal">Додати тренера</button>
-                    </div>
-                    <div class="chip-row" id="trainers-filter">
-                        <button class="chip active" data-trainer-filter="all">Усі</button>
-                        <button class="chip" data-trainer-filter="active">Активні</button>
-                        <button class="chip" data-trainer-filter="inactive">Неактивні</button>
+                    <div class="clients-control-bar">
+                        <div class="clients-search-wrap">
+                            <svg class="clients-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                            </svg>
+                            <input id="trainers-search" type="search" placeholder="Пошук за ім'ям, телефоном або email">
+                        </div>
+                        <div class="clients-filter-row">
+                            <div class="clients-seg" id="trainers-filter">
+                                <button class="cseg-btn active" data-trainer-filter="all">Усі</button>
+                                <button class="cseg-btn" data-trainer-filter="active">Активні</button>
+                                <button class="cseg-btn" data-trainer-filter="inactive">Неактивні</button>
+                            </div>
+                            <button class="primary-btn clients-add-btn" id="open-trainer-modal">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:15px;height:15px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                <span>Додати тренера</span>
+                            </button>
+                        </div>
                     </div>
                     <p class="admin-feedback" id="trainers-feedback" role="status" aria-live="polite"></p>
-                    <div class="admin-table trainer-table">
-                        <div class="table-row table-head"><span>Ім’я</span><span>Телефон</span><span>Email</span><span>Спеціалізація</span><span>Статус</span><span>Дії</span></div>
+                    <div class="admin-table" id="trainers-table">
+                        <div class="table-row table-head"><span>Тренер</span><span>Телефон</span><span>Email</span><span>Спеціалізація</span><span>Статус</span><span>Дії</span></div>
                         <div id="trainers-table-body"></div>
                     </div>
                 </div>
@@ -65,10 +80,10 @@
 
         <nav class="bottom-nav admin-bottom-nav" aria-label="Нижня навігація">
             <button class="bottom-item" data-screen="dashboard">Головна</button>
-                <button class="bottom-item" data-screen="clients">Клієнти</button>
-                <button class="bottom-item active" data-screen="trainers">Тренери</button>
-                <button class="bottom-item" data-screen="schedule">Розклад</button>
-                <button class="bottom-item" data-screen="profile">Профіль</button>
+            <button class="bottom-item" data-screen="clients">Клієнти</button>
+            <button class="bottom-item active" data-screen="trainers">Тренери</button>
+            <button class="bottom-item" data-screen="schedule">Розклад</button>
+            <button class="bottom-item" data-screen="profile">Профіль</button>
         </nav>
     </div>
 

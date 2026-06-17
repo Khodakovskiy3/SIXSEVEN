@@ -124,12 +124,19 @@ export async function apiFetch(path, options = {}) {
     headers,
   });
 
-  // 401 від сервера завжди трактуємо як «токен невалідний» —
-  // чистимо локальне сховище й відсилаємо користувача на логін.
+  // Обробка 401 залежить від того, чи був у запиті токен:
+  //  • токен БУВ — це протермінована/невалідна сесія: чистимо сховище
+  //    й відсилаємо користувача на логін;
+  //  • токена НЕ було (напр. форма входу) — це невірні дані входу,
+  //    тож повертаємо помилку формі, щоб вона показала попередження.
   if (response.status === HTTP_UNAUTHORIZED) {
-    clearAuth();
-    window.location.href = PAGE.LOGIN;
-    return null;
+    if (token) {
+      clearAuth();
+      window.location.href = PAGE.LOGIN;
+      return null;
+    }
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Невірний логін або пароль');
   }
 
   const data = await response.json().catch(() => ({}));

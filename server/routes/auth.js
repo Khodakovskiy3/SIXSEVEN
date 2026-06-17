@@ -126,8 +126,16 @@ router.put('/password', authRequired, async (req, res) => {
 
 router.post('/register', async (req, res) => {
   const { name, email, password, phone } = req.body || {};
-  if (!name || !email || !password) {
-    return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
+  if (!name || !email || !password || !phone) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: "Заповніть усі обов'язкові поля" });
+  }
+
+  if (/[^\d\s\+\-\(\)]/.test(phone)) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Телефон містить недопустимі символи' });
+  }
+  const phoneDigits = phone.replace(/\D/g, '');
+  if (phoneDigits.length < 10 || phoneDigits.length > 13) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Невірний номер телефону (10–13 цифр)' });
   }
 
   // Публічна реєстрація завжди створює клієнта.
@@ -167,7 +175,7 @@ router.post('/register', async (req, res) => {
     return res.json({ token, user });
   } catch (error) {
     if (error.code === PG_UNIQUE_VIOLATION) {
-      return res.status(HTTP_CONFLICT).json({ error: 'Email already registered' });
+      return res.status(HTTP_CONFLICT).json({ error: 'Цей email вже зареєстрований' });
     }
     return res.status(HTTP_SERVER_ERROR).json({ error: 'Registration failed' });
   }
@@ -187,12 +195,12 @@ router.post('/login', async (req, res) => {
 
   const user = result.rows[0];
   if (!user) {
-    return res.status(HTTP_UNAUTHORIZED).json({ error: 'Invalid credentials' });
+    return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний email або пароль' });
   }
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
   if (!isPasswordValid) {
-    return res.status(HTTP_UNAUTHORIZED).json({ error: 'Invalid credentials' });
+    return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний email або пароль' });
   }
 
   const token = signToken(user);

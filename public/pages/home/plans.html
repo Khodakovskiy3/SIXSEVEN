@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="../../styles/home.css">
     <meta name="theme-color" content="#050507">
 </head>
-<body class="content-page">
+<body class="content-page plans-page">
     <header class="topbar">
         <a class="brand" href="index.html">OLIMP</a>
         <nav class="main-nav" aria-label="Основна навігація">
@@ -15,7 +15,7 @@
             <a href="services.html">Послуги</a>
             <a class="active" href="plans.html">Абонементи</a>
             <a href="schedule.html">Розклад</a>
-            <a href="contacts.html">Контакти</a>
+            <a href="contacts.html">Про нас</a>
         </nav>
         <a class="login-btn" href="../auth/login.html">Увійти</a>
         <button class="menu-btn" data-menu-toggle aria-label="Меню">☰</button>
@@ -24,8 +24,9 @@
     <nav class="mobile-menu" data-mobile-menu>
         <a href="index.html">Головна</a>
         <a href="services.html">Послуги</a>
+        <a class="active" href="plans.html">Абонементи</a>
         <a href="schedule.html">Розклад</a>
-        <a href="contacts.html">Контакти</a>
+        <a href="contacts.html">Про нас</a>
         <a href="../auth/login.html">Увійти</a>
     </nav>
 
@@ -36,7 +37,22 @@
             <p>Активні тарифи, які можна призначати клієнтам і купувати через кабінет.</p>
         </section>
 
-        <section class="cards-grid plan-grid" id="plans-grid"></section>
+        <!-- Desktop: featured + список (старий layout) -->
+        <section class="plans-section" id="plans-desktop"></section>
+
+        <!-- Mobile: 2×2 карусель як у послуг -->
+        <div class="svc-carousel plans-mobile-carousel">
+            <section class="svc-grid" id="plans-grid"></section>
+            <div class="svc-nav">
+                <button class="svc-nav-btn" id="plan-prev" aria-label="Назад">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <span class="svc-nav-dots" id="plan-dots"></span>
+                <button class="svc-nav-btn" id="plan-next" aria-label="Вперед">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+            </div>
+        </div>
     </main>
 
     <script src="../../js/home.js"></script>

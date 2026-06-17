@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OLIMP - Головна</title>
     <link rel="stylesheet" href="../../styles/home.css">
+    <link rel="stylesheet" href="../../styles/chat-widget.css">
     <meta name="theme-color" content="#050507">
 </head>
 <body class="home-page">
@@ -15,25 +16,26 @@
             <a href="services.html">Послуги</a>
             <a href="plans.html">Абонементи</a>
             <a href="schedule.html">Розклад</a>
-            <a href="contacts.html">Контакти</a>
+            <a href="contacts.html">Про нас</a>
         </nav>
         <a class="login-btn" href="../auth/login.html">Увійти</a>
         <button class="menu-btn" data-menu-toggle aria-label="Меню">☰</button>
     </header>
 
     <nav class="mobile-menu" data-mobile-menu>
+        <a class="active" href="index.html">Головна</a>
         <a href="services.html">Послуги</a>
         <a href="plans.html">Абонементи</a>
         <a href="schedule.html">Розклад</a>
-        <a href="contacts.html">Контакти</a>
+        <a href="contacts.html">Про нас</a>
         <a href="../auth/login.html">Увійти</a>
     </nav>
 
     <main class="page-shell hero-shell">
         <section class="hero-copy">
-            <p class="eyebrow">Тренуйся сьогодні</p>
+            <p class="eyebrow">Київ · вул. Спортивна, 10</p>
             <h1>Виправдовування не спалять твої <span class="accent">калорії</span></h1>
-            <p>OLIMP поєднує зал, групові тренування, персональний супровід і онлайн-запис в одному кабінеті.</p>
+            <p class="hero-sub">OLIMP поєднує зал, групові тренування, персональний супровід і онлайн-запис в одному кабінеті.</p>
             <div class="hero-actions">
                 <a class="primary-btn" href="../auth/register.html">Записатися</a>
                 <a class="outline-btn" href="services.html">Переглянути послуги</a>
@@ -43,8 +45,32 @@
         <section class="hero-visual" aria-label="OLIMP athlete">
             <img src="../../assets/home/olimp-statue.png" alt="Атлет OLIMP">
         </section>
+
+        <!-- Статистика внизу -->
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <strong>500+</strong>
+                <span>активних клієнтів</span>
+            </div>
+            <div class="hero-stat-divider"></div>
+            <div class="hero-stat">
+                <strong>12</strong>
+                <span>тренерів</span>
+            </div>
+            <div class="hero-stat-divider"></div>
+            <div class="hero-stat">
+                <strong>7 років</strong>
+                <span>на ринку</span>
+            </div>
+            <div class="hero-stat-divider"></div>
+            <div class="hero-stat">
+                <strong>Пн–Нд</strong>
+                <span>07:00 – 22:00</span>
+            </div>
+        </div>
     </main>
 
     <script src="../../js/home.js"></script>
+    <script src="../../js/chat-widget.js"></script>
 </body>
 </html>

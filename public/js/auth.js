@@ -22,6 +22,45 @@ function showMessage(el, message, isError = false) {
   el.classList.toggle('success', !isError);
 }
 
+// Автоформат телефону: +380 XX XXX XX XX
+const phoneInput = document.querySelector('#phone');
+if (phoneInput) {
+  phoneInput.addEventListener('input', (e) => {
+    let digits = e.target.value.replace(/\D/g, '');
+
+    // Завжди починаємо з 380
+    if (!digits.startsWith('380')) {
+      if (digits.startsWith('0')) digits = '38' + digits;
+      else if (!digits.startsWith('38')) digits = '380' + digits.replace(/^3?8?0?/, '');
+    }
+
+    // Обмежуємо до 12 цифр (380 + 9)
+    digits = digits.slice(0, 12);
+
+    // Форматуємо: +380 XX XXX XX XX
+    let formatted = '+';
+    if (digits.length > 0)  formatted += digits.slice(0, 3);
+    if (digits.length > 3)  formatted += ' ' + digits.slice(3, 5);
+    if (digits.length > 5)  formatted += ' ' + digits.slice(5, 8);
+    if (digits.length > 8)  formatted += ' ' + digits.slice(8, 10);
+    if (digits.length > 10) formatted += ' ' + digits.slice(10, 12);
+
+    e.target.value = formatted;
+  });
+
+  phoneInput.addEventListener('keydown', (e) => {
+    // Не дозволяємо видаляти префікс +380
+    const minLen = '+380'.length;
+    if ((e.key === 'Backspace' || e.key === 'Delete') && phoneInput.value.length <= minLen) {
+      e.preventDefault();
+    }
+  });
+
+  phoneInput.addEventListener('focus', () => {
+    if (!phoneInput.value) phoneInput.value = '+380 ';
+  });
+}
+
 document.querySelectorAll('[data-password-toggle]').forEach((button) => {
   button.addEventListener('click', () => {
     const input = document.querySelector(`#${button.dataset.passwordToggle}`);
@@ -92,6 +131,16 @@ if (registerForm) {
 
     if (password !== confirmPassword) {
       showMessage(messageEl, 'Паролі не співпадають', true);
+      return;
+    }
+
+    if (!phone) {
+      showMessage(messageEl, 'Введіть номер телефону', true);
+      return;
+    }
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 12) {
+      showMessage(messageEl, 'Введіть повний номер телефону', true);
       return;
     }
 
