@@ -34,6 +34,10 @@ dotenv.config();
 
 const PORT = Number(process.env.PORT) || DEFAULT_HTTP_PORT;
 const STATIC_DIR = 'public';
+const CORS_ORIGINS = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 // Небезпечний дефолт секрету не повинен потрапити у продакшн: без власного
 // JWT_SECRET підписані токени легко підробити.
@@ -48,7 +52,17 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET === INSECURE_JWT_SECRET) {
 
 const app = express();
 
-app.use(cors());
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  return next();
+});
+
+app.use(cors({
+  origin: CORS_ORIGINS.length > 0
+    ? CORS_ORIGINS
+    : process.env.NODE_ENV !== 'production',
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(STATIC_DIR));
 

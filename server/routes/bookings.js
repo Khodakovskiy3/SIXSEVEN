@@ -73,6 +73,21 @@ router.get(
   requireRole(ROLE.ADMIN, ROLE.MANAGER, ROLE.TRAINER),
   async (req, res) => {
     const { id } = req.params;
+
+    if (req.user.role === ROLE.TRAINER) {
+      const access = await query(
+        `select s.id
+         from schedules s
+         join trainers t on t.id = s.trainer_id
+         where s.id = $1 and t.user_id = $2`,
+        [id, req.user.id]
+      );
+
+      if (access.rows.length === 0) {
+        return res.status(HTTP_FORBIDDEN).json({ error: 'Forbidden' });
+      }
+    }
+
     const result = await query(
       `select b.id, b.status, b.client_id, u.name as client_name,
               v.id as visit_id

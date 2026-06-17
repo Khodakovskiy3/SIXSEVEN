@@ -122,27 +122,35 @@ router.get('/plans', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => 
   return res.json(result.rows);
 });
 
-router.get('/plans/active', requireRole(ROLE.ADMIN, ROLE.MANAGER, ROLE.CLIENT), async (req, res) => {
-  const result = await query(
-    `select id, name, description, plan_type, access_type, duration_days, usage_count, price, status
-     from subscription_plans
-     where status = $1
-     order by plan_type, price, id`,
-    [PLAN_STATUS.ACTIVE]
-  );
-  return res.json(result.rows);
-});
+router.get(
+  '/plans/active',
+  requireRole(ROLE.ADMIN, ROLE.MANAGER, ROLE.CLIENT),
+  async (req, res) => {
+    const result = await query(
+      `select id, name, description, plan_type, access_type,
+              duration_days, usage_count, price, status
+       from subscription_plans
+       where status = $1
+       order by plan_type, price, id`,
+      [PLAN_STATUS.ACTIVE]
+    );
+    return res.json(result.rows);
+  }
+);
 
 router.post('/plans', requireRole(ROLE.ADMIN), async (req, res) => {
   const plan = normalizePlanPayload(req.body);
   const error = validatePlanPayload(plan);
-  if (error) return res.status(HTTP_BAD_REQUEST).json({ error });
+  if (error) {
+    return res.status(HTTP_BAD_REQUEST).json({ error });
+  }
 
   const result = await query(
     `insert into subscription_plans
       (name, description, plan_type, access_type, duration_days, usage_count, price, status)
      values ($1, $2, $3, $4, $5, $6, $7, $8)
-     returning id, name, description, plan_type, access_type, duration_days, usage_count, price, status`,
+     returning id, name, description, plan_type, access_type,
+               duration_days, usage_count, price, status`,
     [
       plan.name,
       plan.description,
@@ -160,14 +168,22 @@ router.post('/plans', requireRole(ROLE.ADMIN), async (req, res) => {
 
 router.put('/plans/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
-  const currentResult = await query('select * from subscription_plans where id = $1', [id]);
+  const currentResult = await query(
+    `select id, name, description, plan_type, access_type,
+            duration_days, usage_count, price, status
+     from subscription_plans
+     where id = $1`,
+    [id]
+  );
   if (currentResult.rows.length === 0) {
     return res.status(HTTP_NOT_FOUND).json({ error: 'Plan not found' });
   }
 
   const plan = normalizePlanPayload(req.body, currentResult.rows[0]);
   const error = validatePlanPayload(plan);
-  if (error) return res.status(HTTP_BAD_REQUEST).json({ error });
+  if (error) {
+    return res.status(HTTP_BAD_REQUEST).json({ error });
+  }
 
   const result = await query(
     `update subscription_plans
@@ -180,7 +196,8 @@ router.put('/plans/:id', requireRole(ROLE.ADMIN), async (req, res) => {
          price = $7,
          status = $8
      where id = $9
-     returning id, name, description, plan_type, access_type, duration_days, usage_count, price, status`,
+     returning id, name, description, plan_type, access_type,
+               duration_days, usage_count, price, status`,
     [
       plan.name,
       plan.description,
@@ -230,7 +247,8 @@ router.patch('/plans/:id/status', requireRole(ROLE.ADMIN), async (req, res) => {
     `update subscription_plans
      set status = $1
      where id = $2
-     returning id, name, description, plan_type, access_type, duration_days, usage_count, price, status`,
+     returning id, name, description, plan_type, access_type,
+               duration_days, usage_count, price, status`,
     [status, id]
   );
 

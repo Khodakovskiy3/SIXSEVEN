@@ -56,18 +56,10 @@ function canAssignRole(actorRole, targetRole) {
   if (actorRole === ROLE.ADMIN) {
     return targetRole === ROLE.CLIENT || targetRole === ROLE.TRAINER;
   }
-  return actorRole === ROLE.MANAGER && targetRole === ROLE.ADMIN;
+  return false;
 }
 
 function canManagerChangeRole(currentRole, targetRole) {
-  if (currentRole === ROLE.MANAGER) {
-    return false;
-  }
-
-  if (targetRole === ROLE.ADMIN) {
-    return currentRole !== ROLE.ADMIN;
-  }
-
   return currentRole === ROLE.ADMIN && targetRole === ROLE.CLIENT;
 }
 

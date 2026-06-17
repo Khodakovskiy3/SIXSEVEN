@@ -15,6 +15,7 @@
  */
 
 import { Router } from 'express';
+import { timingSafeEqual } from 'node:crypto';
 
 import { query } from '../db.js';
 import {
@@ -28,7 +29,12 @@ const router = Router();
 
 // Пароль адмін-частини чату. За замовчуванням '123' (вимога бети),
 // але переозначується через .env, щоб легко підняти безпеку пізніше.
-const CHAT_ADMIN_PASSWORD = process.env.CHAT_ADMIN_PASSWORD || '123';
+const INSECURE_CHAT_ADMIN_PASSWORD = '123';
+const CHAT_ADMIN_PASSWORD = process.env.CHAT_ADMIN_PASSWORD || INSECURE_CHAT_ADMIN_PASSWORD;
+
+if (process.env.NODE_ENV === 'production' && CHAT_ADMIN_PASSWORD === INSECURE_CHAT_ADMIN_PASSWORD) {
+  throw new Error('CHAT_ADMIN_PASSWORD must be set in production.');
+}
 
 // Обмеження довжини, щоб уникнути зловживань і переповнення.
 const MAX_BODY_LENGTH = 2000;
@@ -42,9 +48,15 @@ const MAX_TOKEN_LENGTH = 64;
  * @returns {string|null}
  */
 function normalizeBody(value) {
-  if (typeof value !== 'string') return null;
+  if (typeof value !== 'string') {
+    return null;
+  }
+
   const trimmed = value.trim();
-  if (!trimmed) return null;
+  if (!trimmed) {
+    return null;
+  }
+
   return trimmed.slice(0, MAX_BODY_LENGTH);
 }
 
@@ -55,9 +67,15 @@ function normalizeBody(value) {
  * @returns {string|null}
  */
 function normalizeToken(value) {
-  if (typeof value !== 'string') return null;
+  if (typeof value !== 'string') {
+    return null;
+  }
+
   const trimmed = value.trim();
-  if (!trimmed || trimmed.length > MAX_TOKEN_LENGTH) return null;
+  if (!trimmed || trimmed.length > MAX_TOKEN_LENGTH) {
+    return null;
+  }
+
   return trimmed;
 }
 
@@ -71,6 +89,17 @@ function normalizeToken(value) {
 function parseAfter(value) {
   const num = Number.parseInt(value, 10);
   return Number.isFinite(num) && num > 0 ? num : 0;
+}
+
+function isSameSecret(provided, expected) {
+  if (typeof provided !== 'string' || typeof expected !== 'string') {
+    return false;
+  }
+
+  const providedBuffer = Buffer.from(provided);
+  const expectedBuffer = Buffer.from(expected);
+  return providedBuffer.length === expectedBuffer.length
+    && timingSafeEqual(providedBuffer, expectedBuffer);
 }
 
 // ─── Гостьова частина ─────────────────────────────────────────────────────────
@@ -134,7 +163,7 @@ router.get('/guest/messages', async (req, res) => {
  */
 function requireChatPassword(req, res, next) {
   const provided = req.headers['x-chat-password'];
-  if (provided !== CHAT_ADMIN_PASSWORD) {
+  if (!isSameSecret(provided, CHAT_ADMIN_PASSWORD)) {
     return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний пароль' });
   }
   return next();
