@@ -43,7 +43,7 @@ export async function authRequired(req, res, next) {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     const result = await query(
-      `select id, name, email, role
+      `select id, name, email, role, twofa_enabled
        from users
        where id = $1`,
       [payload.id]

@@ -93,6 +93,9 @@ function redirectByRole(role) {
 
 // ─── Форма входу ─────────────────────────────────────────────────────────────
 const loginForm = document.querySelector('#login-form');
+const login2faForm = document.querySelector('#login-2fa-form');
+let pending2faEmail = null; // email, для якого очікується код 2FA
+
 if (loginForm) {
   loginForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -106,11 +109,54 @@ if (loginForm) {
         body: JSON.stringify({ email, password }),
       });
 
+      // Увімкнено 2FA — переходимо до кроку введення коду.
+      if (data.twofaRequired) {
+        pending2faEmail = data.email;
+        loginForm.style.display = 'none';
+        if (login2faForm) login2faForm.style.display = 'block';
+        const hint = data.message
+          ? data.message
+          : data.devCode
+            ? `Код надіслано. DEV-режим: код ${data.devCode}`
+            : 'Код надіслано на вашу пошту.';
+        showMessage(messageEl, hint, false);
+        document.querySelector('#login-code')?.focus();
+        return;
+      }
+
       setAuth(data.token, data.user);
       redirectByRole(data.user.role);
     } catch (error) {
       showMessage(messageEl, error.message, true);
     }
+  });
+}
+
+// ─── Другий крок входу: підтвердження коду 2FA ───────────────────────────────
+if (login2faForm) {
+  login2faForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const messageEl = document.querySelector('#login-message');
+    const code = document.querySelector('#login-code').value.trim();
+
+    try {
+      const data = await apiFetch('/auth/login/verify', {
+        method: 'POST',
+        body: JSON.stringify({ email: pending2faEmail, code }),
+      });
+      setAuth(data.token, data.user);
+      redirectByRole(data.user.role);
+    } catch (error) {
+      showMessage(messageEl, error.message, true);
+    }
+  });
+
+  document.querySelector('#login-2fa-back')?.addEventListener('click', () => {
+    pending2faEmail = null;
+    login2faForm.style.display = 'none';
+    if (loginForm) loginForm.style.display = 'block';
+    const codeInput = document.querySelector('#login-code');
+    if (codeInput) codeInput.value = '';
   });
 }
 

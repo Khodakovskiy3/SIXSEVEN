@@ -49,6 +49,7 @@ export const HTTP_UNAUTHORIZED = 401;
 export const HTTP_FORBIDDEN = 403;
 export const HTTP_NOT_FOUND = 404;
 export const HTTP_CONFLICT = 409;
+export const HTTP_TOO_MANY_REQUESTS = 429;
 export const HTTP_SERVER_ERROR = 500;
 
 // ─── Доменна модель ──────────────────────────────────────────────────────────
@@ -92,3 +93,23 @@ export const REPORT_MAX_DATE = '2100-01-01';
 
 /** Місткість тренування за замовчуванням, якщо не вказано явно. */
 export const DEFAULT_TRAINING_CAPACITY = 20;
+
+// ─── Двофакторна автентифікація (2FA, email-код) ─────────────────────────────
+
+/** Кількість цифр одноразового коду. */
+export const OTP_LENGTH = 6;
+
+/** Термін дії одноразового коду, хвилин. */
+export const OTP_TTL_MIN = 10;
+
+/** Максимальна кількість спроб введення одного коду. */
+export const OTP_MAX_ATTEMPTS = 5;
+
+/** Призначення одноразового коду. */
+export const OTP_PURPOSE = Object.freeze({
+  LOGIN: 'login',
+  ENABLE_2FA: 'enable_2fa',
+});
+
+/** Мінімальний інтервал між надсиланнями коду одному користувачу (антиспам), секунд. */
+export const OTP_RESEND_COOLDOWN_SEC = 60;

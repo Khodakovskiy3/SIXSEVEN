@@ -8,6 +8,10 @@
  *
  * До кожного запису додається підрахунок зайнятих та вільних місць,
  * щоб клієнти бачили доступність без додаткових запитів.
+ *
+ * Бізнес-правила розкладу:
+ *  • тренер має відповідати спеціалізації типу тренування;
+ *  • тренер не може проводити два заняття одночасно (один день і час).
  */
 
 import { Router } from 'express';
@@ -17,6 +21,7 @@ import { authRequired, requireRole } from '../middleware/auth.js';
 import {
   BOOKING_STATUS,
   HTTP_BAD_REQUEST,
+  HTTP_CONFLICT,
   HTTP_CREATED,
   HTTP_NOT_FOUND,
   ROLE,
@@ -36,6 +41,39 @@ async function getTargetWorkoutId(workoutId, scheduleId = null) {
 
   const result = await query('select workout_id from schedules where id = $1', [scheduleId]);
   return result.rows[0]?.workout_id || null;
+}
+
+async function getScheduleById(scheduleId) {
+  const result = await query(
+    'select id, workout_id, trainer_id, date, time from schedules where id = $1',
+    [scheduleId]
+  );
+  return result.rows[0] || null;
+}
+
+/**
+ * Перевіряє, чи тренер уже зайнятий на іншому занятті в той самий день і час.
+ * Один тренер не може одночасно проводити два заняття (бізнес-правило розкладу).
+ *
+ * @param {number|null} trainerId — тренер, що призначається.
+ * @param {string} date — дата заняття (YYYY-MM-DD).
+ * @param {string} time — час заняття (HH:MM).
+ * @param {number|null} [excludeId] — id запису, який слід виключити (для редагування).
+ * @returns {Promise<boolean>} true, якщо є конфлікт за часом.
+ */
+async function trainerHasTimeConflict(trainerId, date, time, excludeId = null) {
+  if (!trainerId || !date || !time) return false;
+
+  const params = [trainerId, date, time];
+  let sql = `select 1 from schedules
+             where trainer_id = $1 and date = $2 and time = $3`;
+  if (excludeId) {
+    params.push(excludeId);
+    sql += ' and id <> $4';
+  }
+
+  const result = await query(`${sql} limit 1`, params);
+  return result.rows.length > 0;
 }
 
 async function trainerCanTeachWorkout(trainerId, workoutId) {
@@ -117,6 +155,10 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Trainer does not match workout specialization' });
   }
 
+  if (await trainerHasTimeConflict(trainerId, date, time)) {
+    return res.status(HTTP_CONFLICT).json({ error: 'Trainer is already booked at this time' });
+  }
+
   const result = await query(
     `insert into schedules (workout_id, trainer_id, date, time)
      values ($1, $2, $3, $4)
@@ -136,9 +178,21 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
     time,
   } = req.body || {};
 
+  const existing = await getScheduleById(id);
+  if (!existing) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+  }
+
   const targetWorkoutId = await getTargetWorkoutId(workoutId, id);
   if (!(await trainerCanTeachWorkout(trainerId, targetWorkoutId))) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Trainer does not match workout specialization' });
+  }
+
+  // Фактичні дата й час після оновлення (якщо не передані — лишаються поточні).
+  const effectiveDate = date || existing.date;
+  const effectiveTime = time || existing.time;
+  if (await trainerHasTimeConflict(trainerId, effectiveDate, effectiveTime, id)) {
+    return res.status(HTTP_CONFLICT).json({ error: 'Trainer is already booked at this time' });
   }
 
   const result = await query(

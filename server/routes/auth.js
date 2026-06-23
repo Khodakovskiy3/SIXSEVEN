@@ -1,8 +1,12 @@
 /**
  * Маршрути реєстрації та авторизації користувачів.
  *
- * POST /api/auth/register — публічна реєстрація клієнта, повертає JWT-токен.
- * POST /api/auth/login    — перевіряє пароль і повертає JWT-токен.
+ * POST /api/auth/register      — публічна реєстрація клієнта, повертає JWT-токен.
+ * POST /api/auth/login         — перевіряє пароль; за увімкненої 2FA надсилає код.
+ * POST /api/auth/login/verify  — другий крок входу: перевірка email-коду 2FA.
+ * POST /api/auth/2fa/request   — надіслати код для увімкнення 2FA.
+ * POST /api/auth/2fa/enable    — підтвердити код і увімкнути 2FA.
+ * POST /api/auth/2fa/disable   — вимкнути 2FA (за паролем).
  */
 
 import { Router } from 'express';
@@ -10,15 +14,38 @@ import bcrypt from 'bcryptjs';
 
 import { query, withClient } from '../db.js';
 import { authRequired, signToken } from '../middleware/auth.js';
+import { issueCode, verifyCode, getResendWaitSeconds } from '../utils/otp.js';
+import { sendOtpEmail, isMailConfigured } from '../utils/mailer.js';
 import {
   BCRYPT_SALT_ROUNDS,
   HTTP_BAD_REQUEST,
   HTTP_UNAUTHORIZED,
   HTTP_CONFLICT,
+  HTTP_TOO_MANY_REQUESTS,
   HTTP_SERVER_ERROR,
   PG_UNIQUE_VIOLATION,
   ROLE,
+  OTP_PURPOSE,
+  OTP_RESEND_COOLDOWN_SEC,
 } from '../utils/constants.js';
+
+/**
+ * Формує безпечну відповідь успішного входу (токен + публічні поля користувача).
+ */
+function authResponse(user) {
+  return {
+    token: signToken(user),
+    user: { id: user.id, name: user.name, email: user.email, role: user.role },
+  };
+}
+
+/** Людиночитні повідомлення для невдалої перевірки коду. */
+const OTP_ERRORS = {
+  no_code: 'Код не знайдено. Запитайте новий код.',
+  expired: 'Термін дії коду минув. Запитайте новий код.',
+  too_many_attempts: 'Перевищено кількість спроб. Запитайте новий код.',
+  invalid: 'Невірний код',
+};
 
 const router = Router();
 
@@ -28,7 +55,7 @@ router.get('/me', authRequired, async (req, res) => {
 
 router.get('/profile', authRequired, async (req, res) => {
   const result = await query(
-    `select id, name, email, role from users where id = $1`,
+    `select id, name, email, role, twofa_enabled from users where id = $1`,
     [req.user.id]
   );
 
@@ -188,7 +215,7 @@ router.post('/login', async (req, res) => {
   }
 
   const result = await query(
-    `select id, name, email, password, role
+    `select id, name, email, password, role, twofa_enabled
      from users where email = $1`,
     [email.toLowerCase()]
   );
@@ -203,16 +230,112 @@ router.post('/login', async (req, res) => {
     return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний email або пароль' });
   }
 
-  const token = signToken(user);
-  return res.json({
-    token,
-    user: {
-      id: user.id,
-      name: user.name,
+  // Якщо увімкнено 2FA — не видаємо токен одразу, а надсилаємо код на email.
+  // Вхід завершується другим кроком: POST /api/auth/login/verify.
+  if (user.twofa_enabled) {
+    // Антиспам: якщо код уже надсилали нещодавно — не надсилаємо новий,
+    // а просимо скористатися наявним (він ще дійсний).
+    const wait = await getResendWaitSeconds(user.id, OTP_PURPOSE.LOGIN);
+    if (wait > 0) {
+      return res.json({
+        twofaRequired: true,
+        email: user.email,
+        resendIn: wait,
+        message: `Код уже надіслано. Новий можна запитати через ${wait} с.`,
+      });
+    }
+
+    const code = await issueCode(user.id, OTP_PURPOSE.LOGIN);
+    await sendOtpEmail(user.email, code, OTP_PURPOSE.LOGIN);
+    return res.json({
+      twofaRequired: true,
       email: user.email,
-      role: user.role,
-    },
+      resendIn: OTP_RESEND_COOLDOWN_SEC,
+      // У dev-режимі без SMTP повертаємо код, щоб можна було протестувати.
+      ...(isMailConfigured ? {} : { devCode: code }),
+    });
+  }
+
+  return res.json(authResponse(user));
+});
+
+// Другий крок входу за увімкненої 2FA: перевірка email-коду.
+router.post('/login/verify', async (req, res) => {
+  const { email, code } = req.body || {};
+  if (!email || !code) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Вкажіть email і код' });
+  }
+
+  const result = await query(
+    `select id, name, email, role, twofa_enabled
+     from users where email = $1`,
+    [email.toLowerCase()]
+  );
+  const user = result.rows[0];
+  if (!user || !user.twofa_enabled) {
+    return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний запит' });
+  }
+
+  const check = await verifyCode(user.id, OTP_PURPOSE.LOGIN, code);
+  if (!check.ok) {
+    return res.status(HTTP_UNAUTHORIZED).json({ error: OTP_ERRORS[check.reason] || 'Невірний код' });
+  }
+
+  return res.json(authResponse(user));
+});
+
+// Надіслати код для увімкнення 2FA на email поточного користувача.
+router.post('/2fa/request', authRequired, async (req, res) => {
+  if (req.user.twofa_enabled) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: '2FA вже увімкнено' });
+  }
+  // Антиспам: не частіше, ніж раз на OTP_RESEND_COOLDOWN_SEC секунд.
+  const wait = await getResendWaitSeconds(req.user.id, OTP_PURPOSE.ENABLE_2FA);
+  if (wait > 0) {
+    return res.status(HTTP_TOO_MANY_REQUESTS).json({
+      error: `Зачекайте ${wait} с перед повторним запитом коду.`,
+      retryAfter: wait,
+    });
+  }
+
+  const code = await issueCode(req.user.id, OTP_PURPOSE.ENABLE_2FA);
+  await sendOtpEmail(req.user.email, code, OTP_PURPOSE.ENABLE_2FA);
+  return res.json({
+    ok: true,
+    sentTo: req.user.email,
+    resendIn: OTP_RESEND_COOLDOWN_SEC,
+    ...(isMailConfigured ? {} : { devCode: code }),
   });
+});
+
+// Підтвердити код і увімкнути 2FA.
+router.post('/2fa/enable', authRequired, async (req, res) => {
+  const { code } = req.body || {};
+  if (!code) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Вкажіть код' });
+  }
+  const check = await verifyCode(req.user.id, OTP_PURPOSE.ENABLE_2FA, code);
+  if (!check.ok) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: OTP_ERRORS[check.reason] || 'Невірний код' });
+  }
+  await query('update users set twofa_enabled = true where id = $1', [req.user.id]);
+  return res.json({ ok: true, twofa_enabled: true });
+});
+
+// Вимкнути 2FA — підтвердження поточним паролем.
+router.post('/2fa/disable', authRequired, async (req, res) => {
+  const { password } = req.body || {};
+  if (!password) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Вкажіть поточний пароль' });
+  }
+  const result = await query('select password from users where id = $1', [req.user.id]);
+  const isValid = await bcrypt.compare(password, result.rows[0].password);
+  if (!isValid) {
+    return res.status(HTTP_UNAUTHORIZED).json({ error: 'Неправильний пароль' });
+  }
+  await query('update users set twofa_enabled = false where id = $1', [req.user.id]);
+  await query('delete from email_codes where user_id = $1', [req.user.id]);
+  return res.json({ ok: true, twofa_enabled: false });
 });
 
 export default router;
