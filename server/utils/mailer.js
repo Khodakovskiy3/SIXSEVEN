@@ -27,6 +27,10 @@ const transporter = isMailConfigured
       port: Number(SMTP_PORT || 587),
       secure: Number(SMTP_PORT) === 465,
       auth: SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASS } : undefined,
+      // Пул з'єднань: повторне використання TLS-сесії пришвидшує наступні
+      // надсилання (не треба щоразу робити повний SMTP-хендшейк).
+      pool: true,
+      maxConnections: 3,
     })
   : null;
 

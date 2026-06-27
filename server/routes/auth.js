@@ -269,7 +269,10 @@ router.post('/register', async (req, res) => {
       phone,
       role: normalizedRole,
     });
-    await sendOtpEmail(emailLc, code, OTP_PURPOSE.ENABLE_2FA);
+    // Надсилання листа не блокує відповідь: код уже збережено, тож одразу
+    // переходимо до кроку вводу коду, а лист летить у фоні.
+    sendOtpEmail(emailLc, code, OTP_PURPOSE.ENABLE_2FA)
+      .catch((e) => console.error('[2FA] помилка надсилання листа реєстрації:', e.message));
     return res.json({
       twofaRequired: true,
       email: emailLc,
@@ -367,7 +370,8 @@ router.post('/register/resend', async (req, res) => {
     phone: pending.phone,
     role: pending.role,
   });
-  await sendOtpEmail(emailLc, code, OTP_PURPOSE.ENABLE_2FA);
+  sendOtpEmail(emailLc, code, OTP_PURPOSE.ENABLE_2FA)
+    .catch((e) => console.error('[2FA] помилка повторного надсилання листа:', e.message));
   return res.json({
     ok: true,
     email: emailLc,
@@ -414,7 +418,8 @@ router.post('/login', async (req, res) => {
     }
 
     const code = await issueCode(user.id, OTP_PURPOSE.LOGIN);
-    await sendOtpEmail(user.email, code, OTP_PURPOSE.LOGIN);
+    sendOtpEmail(user.email, code, OTP_PURPOSE.LOGIN)
+      .catch((e) => console.error('[2FA] помилка надсилання листа входу:', e.message));
     return res.json({
       twofaRequired: true,
       email: user.email,
@@ -467,7 +472,8 @@ router.post('/2fa/request', authRequired, async (req, res) => {
   }
 
   const code = await issueCode(req.user.id, OTP_PURPOSE.ENABLE_2FA);
-  await sendOtpEmail(req.user.email, code, OTP_PURPOSE.ENABLE_2FA);
+  sendOtpEmail(req.user.email, code, OTP_PURPOSE.ENABLE_2FA)
+    .catch((e) => console.error('[2FA] помилка надсилання листа увімкнення 2FA:', e.message));
   return res.json({
     ok: true,
     sentTo: req.user.email,
