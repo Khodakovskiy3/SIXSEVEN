@@ -56,6 +56,12 @@ export async function sendOtpEmail(to, code, purpose) {
     return;
   }
 
+  // Діагностика: за DEBUG_OTP=1 дублюємо код у консоль навіть із увімкненим SMTP,
+  // щоб можна було звірити, який код реально надіслано. Не вмикати у проді.
+  if (process.env.DEBUG_OTP === '1') {
+    console.log(`[2FA] (DEBUG) код для ${to} [${purpose}]: ${code}`);
+  }
+
   await transporter.sendMail({
     from: SMTP_FROM || 'no-reply@sixseven.local',
     to,

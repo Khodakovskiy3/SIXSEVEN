@@ -16,7 +16,7 @@ import bcrypt from 'bcryptjs';
 
 import { query, withClient } from '../db.js';
 import { authRequired, signToken } from '../middleware/auth.js';
-import { issueCode, verifyCode, getResendWaitSeconds } from '../utils/otp.js';
+import { issueCode, verifyCode, getResendWaitSeconds, generateCode } from '../utils/otp.js';
 import { sendOtpEmail, isMailConfigured } from '../utils/mailer.js';
 import {
   BCRYPT_SALT_ROUNDS,
@@ -29,6 +29,8 @@ import {
   ROLE,
   OTP_PURPOSE,
   OTP_RESEND_COOLDOWN_SEC,
+  OTP_TTL_MIN,
+  OTP_MAX_ATTEMPTS,
 } from '../utils/constants.js';
 
 /**
@@ -48,6 +50,81 @@ const OTP_ERRORS = {
   too_many_attempts: 'Перевищено кількість спроб. Запитайте новий код.',
   invalid: 'Невірний код',
 };
+
+// ─── Непідтверджені реєстрації (pending_registrations) ───────────────────────
+// Дані нового користувача тримаємо тут до підтвердження кодом. Запис у users
+// створюється лише після успішної перевірки, тож недопідтверджені реєстрації
+// не займають email і не лишають «сирітських» акаунтів.
+
+/**
+ * Створює або оновлює запис очікуваної реєстрації та новий код.
+ * Повертає згенерований код (для надсилання на email).
+ */
+async function upsertPendingRegistration({ name, email, passwordHash, phone, role }) {
+  const code = generateCode();
+  const codeHash = await bcrypt.hash(code, BCRYPT_SALT_ROUNDS);
+  await query(
+    `insert into pending_registrations
+       (email, name, password, phone, role, code_hash, expires_at, attempts, created_at)
+     values ($1, $2, $3, $4, $5, $6, now() + ($7 || ' minutes')::interval, 0, now())
+     on conflict (email) do update set
+       name       = excluded.name,
+       password   = excluded.password,
+       phone      = excluded.phone,
+       role       = excluded.role,
+       code_hash  = excluded.code_hash,
+       expires_at = excluded.expires_at,
+       attempts   = 0,
+       created_at = now()`,
+    [email, name, passwordHash, phone || null, role, codeHash, String(OTP_TTL_MIN)]
+  );
+  return code;
+}
+
+/** Скільки секунд лишилось до можливості надіслати новий код (антиспам). */
+async function getPendingResendWait(email) {
+  const result = await query(
+    `select extract(epoch from (now() - created_at)) as age_sec
+     from pending_registrations where email = $1`,
+    [email]
+  );
+  const row = result.rows[0];
+  if (!row) return 0;
+  const wait = OTP_RESEND_COOLDOWN_SEC - Math.floor(Number(row.age_sec));
+  return wait > 0 ? wait : 0;
+}
+
+/**
+ * Перевіряє код очікуваної реєстрації. У разі успіху повертає сам запис
+ * (для створення користувача). Невдалі спроби рахуються.
+ */
+async function verifyPendingCode(email, code) {
+  const result = await query(
+    `select id, email, name, password, phone, role, code_hash, expires_at, attempts
+     from pending_registrations where email = $1`,
+    [email]
+  );
+  const row = result.rows[0];
+  if (!row) return { ok: false, reason: 'no_code' };
+
+  if (new Date(row.expires_at) < new Date()) {
+    await query('delete from pending_registrations where id = $1', [row.id]);
+    return { ok: false, reason: 'expired' };
+  }
+
+  if (row.attempts >= OTP_MAX_ATTEMPTS) {
+    await query('delete from pending_registrations where id = $1', [row.id]);
+    return { ok: false, reason: 'too_many_attempts' };
+  }
+
+  const match = await bcrypt.compare(String(code || ''), row.code_hash);
+  if (!match) {
+    await query('update pending_registrations set attempts = attempts + 1 where id = $1', [row.id]);
+    return { ok: false, reason: 'invalid' };
+  }
+
+  return { ok: true, pending: row };
+}
 
 const router = Router();
 
@@ -172,80 +249,89 @@ router.post('/register', async (req, res) => {
   // маршрути користувачів, щоб людина не могла видати права сама собі.
   const normalizedRole = ROLE.CLIENT;
 
+  const emailLc = email.toLowerCase();
   const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
   try {
-    // Створення користувача та доменної сутності виконуємо в одній транзакції,
-    // щоб уникнути сирітських users без відповідного запису clients/trainers.
-    const user = await withClient(async (client) => {
-      await client.query('begin');
-      const result = await client.query(
-        `insert into users (name, email, password, role)
-         values ($1, $2, $3, $4)
-         returning id, name, email, role`,
-        [name, email.toLowerCase(), passwordHash, normalizedRole]
-      );
+    // Якщо email уже належить підтвердженому користувачу — реєстрація неможлива.
+    const existing = await query('select id from users where email = $1', [emailLc]);
+    if (existing.rows[0]) {
+      return res.status(HTTP_CONFLICT).json({ error: 'Цей email вже зареєстрований' });
+    }
 
-      const created = result.rows[0];
-
-      if (normalizedRole === ROLE.CLIENT) {
-        await client.query(
-          `insert into clients (user_id, phone)
-           values ($1, $2)`,
-          [created.id, phone || null]
-        );
-      }
-
-      await client.query('commit');
-      return created;
+    // Користувача НЕ створюємо. Дані реєстрації зберігаємо в pending_registrations
+    // і надсилаємо код. Запис у users з'явиться лише після підтвердження коду
+    // через POST /api/auth/register/verify.
+    const code = await upsertPendingRegistration({
+      name,
+      email: emailLc,
+      passwordHash,
+      phone,
+      role: normalizedRole,
     });
-
-    // Реєстрацію не завершуємо одразу: вимагаємо підтвердження двофакторним
-    // кодом. Акаунт створено з twofa_enabled = false; токен НЕ видаємо, доки
-    // користувач не підтвердить код через POST /api/auth/register/verify.
-    const code = await issueCode(user.id, OTP_PURPOSE.ENABLE_2FA);
-    await sendOtpEmail(user.email, code, OTP_PURPOSE.ENABLE_2FA);
+    await sendOtpEmail(emailLc, code, OTP_PURPOSE.ENABLE_2FA);
     return res.json({
       twofaRequired: true,
-      email: user.email,
+      email: emailLc,
       resendIn: OTP_RESEND_COOLDOWN_SEC,
       // У dev-режимі без SMTP повертаємо код, щоб можна було протестувати.
       ...(isMailConfigured ? {} : { devCode: code }),
     });
   } catch (error) {
-    if (error.code === PG_UNIQUE_VIOLATION) {
-      return res.status(HTTP_CONFLICT).json({ error: 'Цей email вже зареєстрований' });
-    }
     return res.status(HTTP_SERVER_ERROR).json({ error: 'Registration failed' });
   }
 });
 
-// Другий крок реєстрації: підтвердження email-коду. У разі успіху вмикаємо
-// двофакторну автентифікацію і видаємо токен (завершуємо вхід).
+// Другий крок реєстрації: підтвердження email-коду. Лише ПІСЛЯ успішної
+// перевірки створюємо користувача (з увімкненою 2FA) і видаємо токен.
 router.post('/register/verify', async (req, res) => {
   const { email, code } = req.body || {};
   if (!email || !code) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Вкажіть email і код' });
   }
+  const emailLc = email.toLowerCase();
 
-  const result = await query(
-    `select id, name, email, role, twofa_enabled
-     from users where email = $1`,
-    [email.toLowerCase()]
-  );
-  const user = result.rows[0];
-  // Підтверджувати можна лише акаунт, який ще не пройшов 2FA-підтвердження.
-  if (!user || user.twofa_enabled) {
-    return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний запит' });
-  }
-
-  const check = await verifyCode(user.id, OTP_PURPOSE.ENABLE_2FA, code);
+  const check = await verifyPendingCode(emailLc, code);
   if (!check.ok) {
     return res.status(HTTP_UNAUTHORIZED).json({ error: OTP_ERRORS[check.reason] || 'Невірний код' });
   }
 
-  await query('update users set twofa_enabled = true where id = $1', [user.id]);
-  return res.json(authResponse({ ...user, twofa_enabled: true }));
+  const pending = check.pending;
+  try {
+    // Створення користувача та доменної сутності — в одній транзакції,
+    // щоб уникнути сирітських users без відповідного запису clients/trainers.
+    const user = await withClient(async (client) => {
+      await client.query('begin');
+      const result = await client.query(
+        `insert into users (name, email, password, role, twofa_enabled)
+         values ($1, $2, $3, $4, true)
+         returning id, name, email, role`,
+        [pending.name, pending.email, pending.password, pending.role]
+      );
+
+      const created = result.rows[0];
+
+      if (pending.role === ROLE.CLIENT) {
+        await client.query(
+          `insert into clients (user_id, phone) values ($1, $2)`,
+          [created.id, pending.phone || null]
+        );
+      }
+
+      await client.query('delete from pending_registrations where id = $1', [pending.id]);
+      await client.query('commit');
+      return created;
+    });
+
+    return res.json(authResponse(user));
+  } catch (error) {
+    if (error.code === PG_UNIQUE_VIOLATION) {
+      // Email зайняли між реєстрацією і підтвердженням.
+      await query('delete from pending_registrations where id = $1', [pending.id]);
+      return res.status(HTTP_CONFLICT).json({ error: 'Цей email вже зареєстрований' });
+    }
+    return res.status(HTTP_SERVER_ERROR).json({ error: 'Registration failed' });
+  }
 });
 
 // Повторне надсилання коду підтвердження реєстрації (антиспам).
@@ -254,17 +340,18 @@ router.post('/register/resend', async (req, res) => {
   if (!email) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Вкажіть email' });
   }
+  const emailLc = email.toLowerCase();
 
   const result = await query(
-    `select id, email, twofa_enabled from users where email = $1`,
-    [email.toLowerCase()]
+    `select id, name, password, phone, role from pending_registrations where email = $1`,
+    [emailLc]
   );
-  const user = result.rows[0];
-  if (!user || user.twofa_enabled) {
+  const pending = result.rows[0];
+  if (!pending) {
     return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний запит' });
   }
 
-  const wait = await getResendWaitSeconds(user.id, OTP_PURPOSE.ENABLE_2FA);
+  const wait = await getPendingResendWait(emailLc);
   if (wait > 0) {
     return res.status(HTTP_TOO_MANY_REQUESTS).json({
       error: `Зачекайте ${wait} с перед повторним запитом коду.`,
@@ -272,11 +359,18 @@ router.post('/register/resend', async (req, res) => {
     });
   }
 
-  const code = await issueCode(user.id, OTP_PURPOSE.ENABLE_2FA);
-  await sendOtpEmail(user.email, code, OTP_PURPOSE.ENABLE_2FA);
+  // Оновлюємо код (зберігаючи збережені дані реєстрації).
+  const code = await upsertPendingRegistration({
+    name: pending.name,
+    email: emailLc,
+    passwordHash: pending.password,
+    phone: pending.phone,
+    role: pending.role,
+  });
+  await sendOtpEmail(emailLc, code, OTP_PURPOSE.ENABLE_2FA);
   return res.json({
     ok: true,
-    email: user.email,
+    email: emailLc,
     resendIn: OTP_RESEND_COOLDOWN_SEC,
     ...(isMailConfigured ? {} : { devCode: code }),
   });
