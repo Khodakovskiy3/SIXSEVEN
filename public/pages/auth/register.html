@@ -50,6 +50,19 @@
             </div>
             <button type="submit">Зареєструватися</button>
         </form>
+
+        <!-- Другий крок реєстрації: підтвердження коду двофакторної автентифікації -->
+        <form id="register-2fa-form" action="#" method="post" style="display:none">
+            <p class="auth-subtitle">Ми надіслали одноразовий код на вашу пошту. Введіть його, щоб завершити реєстрацію.</p>
+            <div class="form-group">
+                <label for="register-code">Код підтвердження</label>
+                <input type="text" id="register-code" name="register-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" required>
+            </div>
+            <button type="submit">Підтвердити</button>
+            <button type="button" id="register-2fa-resend" class="auth-link-btn" style="margin-top:.6rem;background:none;border:none;color:inherit;opacity:.7;cursor:pointer;text-decoration:underline">Надіслати код повторно</button>
+            <button type="button" id="register-2fa-back" class="auth-link-btn" style="margin-top:.6rem;background:none;border:none;color:inherit;opacity:.7;cursor:pointer;text-decoration:underline">Назад</button>
+        </form>
+
         <div id="register-message" class="auth-toast" role="alert" aria-live="polite"></div>
         <p class="auth-switch">Вже є акаунт? <a href="login.html">Увійти</a></p>
         </div>

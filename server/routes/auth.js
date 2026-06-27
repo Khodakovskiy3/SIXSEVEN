@@ -1,7 +1,9 @@
 /**
  * Маршрути реєстрації та авторизації користувачів.
  *
- * POST /api/auth/register      — публічна реєстрація клієнта, повертає JWT-токен.
+ * POST /api/auth/register        — публічна реєстрація клієнта; надсилає 2FA-код на email.
+ * POST /api/auth/register/verify — підтвердження коду: вмикає 2FA і повертає JWT-токен.
+ * POST /api/auth/register/resend — повторне надсилання коду підтвердження реєстрації.
  * POST /api/auth/login         — перевіряє пароль; за увімкненої 2FA надсилає код.
  * POST /api/auth/login/verify  — другий крок входу: перевірка email-коду 2FA.
  * POST /api/auth/2fa/request   — надіслати код для увімкнення 2FA.
@@ -198,14 +200,86 @@ router.post('/register', async (req, res) => {
       return created;
     });
 
-    const token = signToken(user);
-    return res.json({ token, user });
+    // Реєстрацію не завершуємо одразу: вимагаємо підтвердження двофакторним
+    // кодом. Акаунт створено з twofa_enabled = false; токен НЕ видаємо, доки
+    // користувач не підтвердить код через POST /api/auth/register/verify.
+    const code = await issueCode(user.id, OTP_PURPOSE.ENABLE_2FA);
+    await sendOtpEmail(user.email, code, OTP_PURPOSE.ENABLE_2FA);
+    return res.json({
+      twofaRequired: true,
+      email: user.email,
+      resendIn: OTP_RESEND_COOLDOWN_SEC,
+      // У dev-режимі без SMTP повертаємо код, щоб можна було протестувати.
+      ...(isMailConfigured ? {} : { devCode: code }),
+    });
   } catch (error) {
     if (error.code === PG_UNIQUE_VIOLATION) {
       return res.status(HTTP_CONFLICT).json({ error: 'Цей email вже зареєстрований' });
     }
     return res.status(HTTP_SERVER_ERROR).json({ error: 'Registration failed' });
   }
+});
+
+// Другий крок реєстрації: підтвердження email-коду. У разі успіху вмикаємо
+// двофакторну автентифікацію і видаємо токен (завершуємо вхід).
+router.post('/register/verify', async (req, res) => {
+  const { email, code } = req.body || {};
+  if (!email || !code) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Вкажіть email і код' });
+  }
+
+  const result = await query(
+    `select id, name, email, role, twofa_enabled
+     from users where email = $1`,
+    [email.toLowerCase()]
+  );
+  const user = result.rows[0];
+  // Підтверджувати можна лише акаунт, який ще не пройшов 2FA-підтвердження.
+  if (!user || user.twofa_enabled) {
+    return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний запит' });
+  }
+
+  const check = await verifyCode(user.id, OTP_PURPOSE.ENABLE_2FA, code);
+  if (!check.ok) {
+    return res.status(HTTP_UNAUTHORIZED).json({ error: OTP_ERRORS[check.reason] || 'Невірний код' });
+  }
+
+  await query('update users set twofa_enabled = true where id = $1', [user.id]);
+  return res.json(authResponse({ ...user, twofa_enabled: true }));
+});
+
+// Повторне надсилання коду підтвердження реєстрації (антиспам).
+router.post('/register/resend', async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Вкажіть email' });
+  }
+
+  const result = await query(
+    `select id, email, twofa_enabled from users where email = $1`,
+    [email.toLowerCase()]
+  );
+  const user = result.rows[0];
+  if (!user || user.twofa_enabled) {
+    return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний запит' });
+  }
+
+  const wait = await getResendWaitSeconds(user.id, OTP_PURPOSE.ENABLE_2FA);
+  if (wait > 0) {
+    return res.status(HTTP_TOO_MANY_REQUESTS).json({
+      error: `Зачекайте ${wait} с перед повторним запитом коду.`,
+      retryAfter: wait,
+    });
+  }
+
+  const code = await issueCode(user.id, OTP_PURPOSE.ENABLE_2FA);
+  await sendOtpEmail(user.email, code, OTP_PURPOSE.ENABLE_2FA);
+  return res.json({
+    ok: true,
+    email: user.email,
+    resendIn: OTP_RESEND_COOLDOWN_SEC,
+    ...(isMailConfigured ? {} : { devCode: code }),
+  });
 });
 
 router.post('/login', async (req, res) => {

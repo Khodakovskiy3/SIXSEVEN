@@ -196,10 +196,71 @@ if (registerForm) {
         body: JSON.stringify({ name, email, password, phone }),
       });
 
+      // Реєстрація вимагає підтвердження кодом 2FA — переходимо до другого кроку.
+      pendingRegisterEmail = data.email || email;
+      registerForm.style.display = 'none';
+      if (register2faForm) register2faForm.style.display = 'block';
+      showMessage(
+        messageEl,
+        data.devCode
+          ? `Код надіслано. DEV-режим: код ${data.devCode}`
+          : 'Код підтвердження надіслано на вашу пошту.',
+        false
+      );
+      document.querySelector('#register-code')?.focus();
+    } catch (error) {
+      showMessage(messageEl, error.message, true);
+    }
+  });
+}
+
+// ─── Другий крок реєстрації: підтвердження коду 2FA ──────────────────────────
+const register2faForm = document.querySelector('#register-2fa-form');
+let pendingRegisterEmail = null; // email, для якого очікується код підтвердження
+
+if (register2faForm) {
+  register2faForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const messageEl = document.querySelector('#register-message');
+    const code = document.querySelector('#register-code').value.trim();
+
+    try {
+      const data = await apiFetch('/auth/register/verify', {
+        method: 'POST',
+        body: JSON.stringify({ email: pendingRegisterEmail, code }),
+      });
       setAuth(data.token, data.user);
       redirectByRole(data.user.role);
     } catch (error) {
       showMessage(messageEl, error.message, true);
     }
+  });
+
+  document.querySelector('#register-2fa-resend')?.addEventListener('click', async () => {
+    const messageEl = document.querySelector('#register-message');
+    try {
+      const data = await apiFetch('/auth/register/resend', {
+        method: 'POST',
+        body: JSON.stringify({ email: pendingRegisterEmail }),
+      });
+      showMessage(
+        messageEl,
+        data.devCode
+          ? `Новий код надіслано. DEV-режим: код ${data.devCode}`
+          : 'Новий код надіслано на вашу пошту.',
+        false
+      );
+    } catch (error) {
+      showMessage(messageEl, error.message, true);
+    }
+  });
+
+  document.querySelector('#register-2fa-back')?.addEventListener('click', () => {
+    pendingRegisterEmail = null;
+    register2faForm.style.display = 'none';
+    const registerFormEl = document.querySelector('#register-form');
+    if (registerFormEl) registerFormEl.style.display = 'block';
+    const codeInput = document.querySelector('#register-code');
+    if (codeInput) codeInput.value = '';
   });
 }
