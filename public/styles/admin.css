@@ -2,10 +2,11 @@
 
 .admin-shell {
     background:
-        radial-gradient(ellipse at 10% 85%, rgba(255, 100, 36, 0.11) 0%, transparent 50%),
-        radial-gradient(ellipse at 92% 18%, rgba(255, 100, 36, 0.07) 0%, transparent 45%),
-        radial-gradient(ellipse at 55% 50%, rgba(120, 55, 15, 0.05) 0%, transparent 65%),
+        radial-gradient(ellipse 90% 70% at 0% 100%, rgba(232, 80, 2, 0.14) 0%, rgba(193, 8, 1, 0.05) 40%, transparent 60%),
+        radial-gradient(ellipse 70% 55% at 100% 0%, rgba(232, 80, 2, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse 110% 45% at 50% 100%, rgba(193, 8, 1, 0.16) 0%, transparent 55%),
         var(--bg);
+    background-attachment: fixed;
 }
 
 .admin-app {
@@ -22,11 +23,11 @@
     align-items: flex-end;
     justify-content: space-between;
     gap: 8px;
-    padding-bottom: 4px;
+    padding: 12px 0 8px;
 }
 .dash-greeting__eyebrow {
-    margin: 0 0 2px;
-    font-size: 11px;
+    margin: 0 0 6px;
+    font-size: 12px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -34,52 +35,60 @@
 }
 .dash-greeting__name {
     margin: 0;
-    font-size: 22px;
+    font-size: 34px;
     font-weight: 800;
     color: var(--text);
     line-height: 1.1;
+    letter-spacing: -0.02em;
 }
 .dash-greeting__date {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     color: var(--muted);
     text-align: right;
     flex-shrink: 0;
+    line-height: 1.6;
 }
 
-/* ── Швидкі дії ── */
+/* ── Швидкі дії (горизонтальні pill-chips) ── */
 .dash-quick-actions {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-}
-.dash-qa-btn {
     display: flex;
-    flex-direction: column;
+    gap: 10px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 0 8px;
+}
+.dash-quick-actions::-webkit-scrollbar { display: none; }
+.dash-qa-btn {
+    display: inline-flex;
+    flex-direction: row;
     align-items: center;
-    gap: 6px;
-    padding: 12px 8px;
+    gap: 8px;
+    padding: 11px 20px 11px 14px;
     border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: rgba(255,255,255,0.03);
+    border-radius: 100px;
+    background: rgba(255,255,255,0.04);
     color: var(--muted);
-    font-size: 11px;
-    font-weight: 700;
-    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
     cursor: pointer;
-    transition: background 0.2s, border-color 0.2s, color 0.2s;
-    line-height: 1.3;
+    flex-shrink: 0;
+    transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
 }
 .dash-qa-btn svg {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
     color: var(--accent);
 }
 .dash-qa-btn:hover {
-    background: rgba(255,100,36,0.07);
-    border-color: rgba(255,100,36,0.35);
+    background: rgba(232,80,2,0.08);
+    border-color: rgba(232,80,2,0.4);
     color: var(--text);
+    box-shadow: 0 2px 12px rgba(232,80,2,0.12);
 }
 
 /* ── Метрики ── */
@@ -91,7 +100,7 @@
 }
 
 .admin-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, 1fr);
 }
 
 .admin-dashboard-grid {
@@ -112,7 +121,7 @@
 .admin-metric__icon {
     width: 18px;
     height: 18px;
-    color: rgba(255,100,36,0.4);
+    color: rgba(232,80,2,0.4);
     flex-shrink: 0;
 }
 .admin-metric span {
@@ -129,7 +138,7 @@
     font-size: 32px;
     font-weight: 900;
     line-height: 1;
-    text-shadow: 0 0 24px rgba(255,100,36,0.3);
+    text-shadow: 0 0 24px rgba(232,80,2,0.3);
 }
 .admin-metric p {
     font-size: 11px;
@@ -145,8 +154,223 @@
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 .admin-metric[data-screen]:hover {
-    border-color: rgba(255,100,36,0.35);
-    box-shadow: 0 4px 20px rgba(255,100,36,0.08);
+    border-color: rgba(232,80,2,0.35);
+    box-shadow: 0 4px 20px rgba(232,80,2,0.08);
+}
+
+/* ════════════════════════════════════════
+   FINTRIXITY-STYLE DASHBOARD
+   ════════════════════════════════════════ */
+
+/* ── Загальний gap між секціями дашборду ── */
+.screen[data-screen-panel="dashboard"] {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    padding-bottom: 20px;
+}
+
+/* ── Заголовок: рядок з привітанням + чіпи ── */
+.dash-header-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.dash-header-row .dash-greeting {
+    padding-bottom: 0;
+}
+
+/* ── 3 Hero-картки ── */
+.dash-hero-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+}
+.dash-hero-card {
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 24px;
+    background: rgba(255,255,255,0.025);
+    cursor: pointer;
+    transition: border-color 0.22s, box-shadow 0.22s, transform 0.22s;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 196px;
+}
+.dash-hero-card:hover {
+    border-color: rgba(232,80,2,0.3);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3), 0 0 0 1px rgba(232,80,2,0.08);
+    transform: translateY(-2px);
+}
+
+/* Primary card — помаранчевий градієнт */
+.dash-hero-card--primary {
+    background: linear-gradient(145deg, #ff6b2b 0%, #e8501a 50%, #c23d0d 100%);
+    border-color: rgba(255,120,60,0.5);
+    box-shadow: 0 8px 32px rgba(232,80,2,0.28), inset 0 1px 0 rgba(255,255,255,0.14);
+}
+.dash-hero-card--primary::before {
+    content: '';
+    position: absolute;
+    top: -45px; right: -35px;
+    width: 140px; height: 140px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    pointer-events: none;
+}
+.dash-hero-card--primary::after {
+    content: '';
+    position: absolute;
+    bottom: -25px; right: 20px;
+    width: 90px; height: 90px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+    pointer-events: none;
+}
+.dash-hero-card--primary:hover {
+    box-shadow: 0 14px 44px rgba(232,80,2,0.38), inset 0 1px 0 rgba(255,255,255,0.14);
+    border-color: rgba(255,150,90,0.6);
+    transform: translateY(-3px);
+}
+
+/* Icon box */
+.dhc-icon-box {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.dhc-icon-box svg { width: 17px; height: 17px; color: #fff; }
+.dash-hero-card:not(.dash-hero-card--primary) .dhc-icon-box {
+    background: rgba(232,80,2,0.12);
+}
+.dash-hero-card:not(.dash-hero-card--primary) .dhc-icon-box svg {
+    color: var(--accent);
+}
+
+.dhc-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+.dhc-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+}
+.dash-hero-card--primary .dhc-label { color: rgba(255,255,255,0.72); }
+
+/* Велике число */
+.dhc-value {
+    font-size: 48px;
+    font-weight: 900;
+    color: var(--accent);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+}
+.dash-hero-card--primary .dhc-value {
+    color: #fff;
+    text-shadow: 0 2px 20px rgba(0,0,0,0.18);
+}
+
+.dhc-sub {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+}
+.dash-hero-card--primary .dhc-sub { color: rgba(255,255,255,0.65); }
+
+/* Footer із кнопкою-посиланням */
+.dhc-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-top: auto;
+    transition: color 0.18s;
+}
+.dash-hero-card--primary .dhc-footer {
+    border-top-color: rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.72);
+}
+.dhc-footer svg { width: 14px; height: 14px; flex-shrink: 0; transition: transform 0.18s; }
+.dash-hero-card:hover .dhc-footer { color: var(--text); }
+.dash-hero-card:hover .dhc-footer svg { transform: translateX(4px); }
+.dash-hero-card--primary:hover .dhc-footer { color: #fff; }
+
+/* ── Середня секція ── */
+.dash-mid-row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 12px;
+}
+
+/* Header всередині панелі (label + action) */
+.dwp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    gap: 8px;
+}
+.dwp-header .section-label { margin: 0; }
+
+/* Бейдж кількості занять сьогодні */
+.dash-today-badge {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 0 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    margin-bottom: 4px;
+}
+.dash-today-count {
+    font-size: 36px;
+    font-weight: 900;
+    color: var(--accent);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+}
+.dash-today-label {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* ── Панель активності (нижня) ── */
+.dash-activity-panel .dwp-header {
+    margin-bottom: 4px;
+}
+.dash-activity-panel .activity-list {
+    max-height: 220px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(232,80,2,0.2) transparent;
 }
 
 /* ── Тренд-індикатори ── */
@@ -183,7 +407,7 @@
 }
 .dash-search-wrap input:focus {
     outline: none;
-    border-color: rgba(255,100,36,0.4);
+    border-color: rgba(232,80,2,0.4);
     background: rgba(255,255,255,0.06);
 }
 .dash-search-results {
@@ -212,7 +436,7 @@
     transition: background 0.15s;
 }
 .dash-sr-item:last-child { border-bottom: none; }
-.dash-sr-item:hover { background: rgba(255,100,36,0.07); }
+.dash-sr-item:hover { background: rgba(232,80,2,0.07); }
 .dash-sr-name { color: var(--text); font-size: 13px; font-weight: 600; }
 .dash-sr-meta { color: var(--muted); font-size: 11px; }
 .dash-sr-empty { padding: 12px 14px; color: var(--muted); font-size: 13px; }
@@ -226,7 +450,7 @@
     max-height: 166px;
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255,100,36,0.25) transparent;
+    scrollbar-color: rgba(232,80,2,0.25) transparent;
 }
 @media (min-width: 900px) {
     .timeline { max-height: none; overflow-y: visible; }
@@ -252,7 +476,7 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    border: 2px solid rgba(255,100,36,0.45);
+    border: 2px solid rgba(232,80,2,0.45);
     background: transparent;
     flex-shrink: 0;
     margin: 0 auto;
@@ -320,10 +544,12 @@
     border-radius: 2px 0 0 2px;
 }
 .attention-item__icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    background: rgba(255,100,36,0.1);
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: linear-gradient(145deg, rgba(232,80,2,0.22) 0%, rgba(232,80,2,0.10) 100%);
+    border: 1px solid rgba(232,80,2,0.25);
+    box-shadow: 0 4px 14px rgba(232,80,2,0.18), inset 0 1px 0 rgba(255,255,255,0.08);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -331,8 +557,8 @@
     color: var(--accent);
 }
 .attention-item__icon svg {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
 }
 .attention-item__body {
     display: flex;
@@ -351,12 +577,16 @@
 }
 .attention-item.warning::before { background: #ffbf17; }
 .attention-item.warning .attention-item__icon {
-    background: rgba(255,191,23,0.1);
+    background: linear-gradient(145deg, rgba(255,191,23,0.22) 0%, rgba(255,191,23,0.10) 100%);
+    border-color: rgba(255,191,23,0.28);
+    box-shadow: 0 4px 14px rgba(255,191,23,0.18), inset 0 1px 0 rgba(255,255,255,0.08);
     color: #ffbf17;
 }
 .attention-item.danger::before { background: var(--danger); }
 .attention-item.danger .attention-item__icon {
-    background: rgba(220,50,50,0.1);
+    background: linear-gradient(145deg, rgba(220,50,50,0.22) 0%, rgba(220,50,50,0.10) 100%);
+    border-color: rgba(220,50,50,0.28);
+    box-shadow: 0 4px 14px rgba(220,50,50,0.18), inset 0 1px 0 rgba(255,255,255,0.08);
     color: var(--danger);
 }
 
@@ -739,7 +969,7 @@
 .clients-search-wrap input[type="search"]:focus {
     outline: none;
     border-color: var(--accent);
-    background: rgba(255,100,36,0.04);
+    background: rgba(232,80,2,0.04);
 }
 .clients-search-wrap input[type="search"]::placeholder { color: var(--muted); }
 .clients-search-wrap input[type="search"]::-webkit-search-cancel-button { display: none; }
@@ -841,7 +1071,7 @@
     max-height: calc(100dvh - 370px);
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255,100,36,0.25) transparent;
+    scrollbar-color: rgba(232,80,2,0.25) transparent;
 }
 
 /* ── Пошук клієнта у формі тренера ── */
@@ -916,7 +1146,7 @@
     max-height: calc(100dvh - 370px);
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255,100,36,0.25) transparent;
+    scrollbar-color: rgba(232,80,2,0.25) transparent;
 }
 #clients-table .table-row {
     grid-template-columns: 2fr 1.2fr 1.6fr 1.5fr 1fr 1fr 150px;
@@ -947,10 +1177,159 @@
     grid-template-columns: 1fr;
 }
 
-.trainer-table .table-row,
-.message-table .table-row {
+.trainer-table .table-row {
     grid-template-columns: 118px 112px 150px 136px 82px 170px;
     min-width: 770px;
+}
+
+/* ── Повідомлення: сучасні message-item рядки ───────────────────── */
+#messages-feedback:not([data-type="error"]) { display: none; }
+
+.message-table .table-row {
+    grid-template-columns: 1fr 130px 130px 108px 108px 200px;
+    min-width: 760px;
+    border-radius: 12px;
+    padding: 14px 18px 14px 22px;
+    position: relative;
+    overflow: hidden;
+    align-items: center;
+    border: 1px solid transparent;
+    transition: background .18s, border-color .18s;
+}
+.message-table .table-row:not(.table-head) {
+    border-color: rgba(255,255,255,0.05);
+    background: rgba(255,255,255,0.02);
+}
+.message-table .table-row:not(.table-head):hover {
+    background: rgba(255,255,255,0.04);
+    border-color: rgba(255,255,255,0.09);
+}
+/* Кольорова ліва смуга — за замовчуванням нейтральна */
+.message-table .table-row:not(.table-head)::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 8px; bottom: 8px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: rgba(255,255,255,0.10);
+}
+/* Тема — перший span */
+.message-table .table-row:not(.table-head) > span:first-child {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* Аудиторія — другий span */
+.message-table .table-row:not(.table-head) > span:nth-child(2) {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: rgba(255,255,255,0.60);
+    letter-spacing: 0.02em;
+}
+/* Статус pill */
+.message-table .status {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    backdrop-filter: blur(6px);
+}
+.message-table .status.active,
+.message-table .status.sent {
+    background: rgba(57,217,138,0.12);
+    color: #70f0aa;
+    border: 1px solid rgba(57,217,138,0.22);
+}
+.message-table .status.planned {
+    background: rgba(232,80,2,0.12);
+    color: var(--accent);
+    border: 1px solid rgba(232,80,2,0.24);
+}
+/* Дати */
+.message-table .table-row:not(.table-head) > span:nth-child(4),
+.message-table .table-row:not(.table-head) > span:nth-child(5) {
+    font-size: 12px;
+    color: var(--muted);
+}
+/* Хедер таблиці */
+.message-table .table-head {
+    background: transparent;
+    border-color: transparent;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-radius: 0;
+}
+
+/* ── Chip, toolbar, search покращення ──────────────────────────── */
+/* Search input у admin-toolbar */
+.admin-toolbar input[type="search"],
+.admin-toolbar input[type="text"] {
+    height: 42px;
+    padding: 0 14px 0 40px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 14px;
+    transition: border-color .18s, background .18s, box-shadow .18s;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.3)' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: 16px;
+    background-position: 12px center;
+}
+.admin-toolbar input[type="search"]:focus,
+.admin-toolbar input[type="text"]:focus {
+    outline: none;
+    border-color: rgba(232,80,2,0.45);
+    background-color: rgba(232,80,2,0.04);
+    box-shadow: 0 0 0 3px rgba(232,80,2,0.08);
+}
+.admin-toolbar input[type="search"]::placeholder,
+.admin-toolbar input[type="text"]::placeholder { color: var(--muted); }
+.admin-toolbar input[type="search"]::-webkit-search-cancel-button { display: none; }
+
+/* Chip hover + transition */
+.admin-app .chip {
+    transition: border-color .15s, background .15s, color .15s, box-shadow .15s;
+    border-radius: 12px;
+    padding: 7px 14px;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+}
+.admin-app .chip:hover:not(.active) {
+    border-color: rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
+}
+.admin-app .chip.active {
+    background: rgba(232,80,2,0.14);
+    border-color: rgba(232,80,2,0.36);
+    color: var(--accent);
+    box-shadow: 0 0 12px rgba(232,80,2,0.10);
+}
+
+/* chip-row subtle separator below */
+.admin-app .chip-row {
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    margin-bottom: 4px;
 }
 
 .schedule-table .table-row {
@@ -964,7 +1343,7 @@
 }
 
 .table-head {
-    background: #111113;
+    background: #080808;
     color: var(--muted);
     font-size: 10px;
     font-weight: 900;
@@ -1021,30 +1400,260 @@
     color: #ffcf47;
 }
 
-.manage-card {
-    display: grid;
-    gap: 10px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background:
-        radial-gradient(circle at top right, rgba(255, 100, 36, 0.1), transparent 32%),
-        var(--surface-2);
-    padding: 14px;
-}
+/* ── Абонементи: двотонні pricing cards ─────────────────────────────── */
+#plans-feedback:not([data-type="error"]) { display: none; }
 
-.manage-card.featured {
-    border-color: rgba(255, 100, 36, 0.55);
-}
-
-.manage-card div {
+/* Карусель-обгортка */
+.plans-carousel-wrap {
+    position: relative;
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
 }
 
-.manage-card strong {
+/* Стрілки карусель */
+.plans-nav-btn {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .18s, border-color .18s, opacity .18s;
+    cursor: pointer;
+    z-index: 2;
+}
+.plans-nav-btn:hover:not(:disabled) {
+    background: rgba(232,80,2,0.14);
+    border-color: rgba(232,80,2,0.30);
     color: var(--accent);
-    font-size: 20px;
+}
+.plans-nav-btn:disabled {
+    opacity: 0.20;
+    cursor: default;
+    pointer-events: none;
+}
+
+/* Сітка карток — горизонтальний скрол */
+#plans-grid {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    gap: 14px;
+    padding: 4px 2px 16px;
+    flex: 1;
+    min-width: 0;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+#plans-grid::-webkit-scrollbar { display: none; }
+
+/* ── Картка ── */
+.manage-card {
+    flex: 0 0 280px;
+    width: 280px;
+    scroll-snap-align: start;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 20px;
+    overflow: hidden;
+    transition: transform .28s cubic-bezier(.22,1,.36,1), box-shadow .28s, border-color .25s;
+}
+.manage-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(232,80,2,0.22);
+    box-shadow: 0 20px 48px rgba(0,0,0,.55), 0 0 32px rgba(232,80,2,0.09);
+}
+
+/* ── Темна верхня частина ── */
+.manage-card__dark {
+    background: #0d0d0d;
+    padding: 24px 22px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.manage-card.featured .manage-card__dark {
+    background: linear-gradient(175deg, #150800 0%, #0a0300 100%);
+}
+
+/* Назва */
+.manage-card h3 {
+    font-size: 19px;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    margin: 0 0 5px;
+    line-height: 1.25;
+}
+/* Опис */
+.manage-card__desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin: 0 0 18px;
+}
+
+/* ── Ціна ── */
+.manage-card__price {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    margin-bottom: 18px;
+}
+.manage-card__currency {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    opacity: 0.60;
+    line-height: 1;
+    padding-bottom: 10px;
+}
+.manage-card__price strong {
+    font-size: 64px;
+    font-weight: 900;
+    color: var(--text);
+    letter-spacing: -0.05em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+.manage-card.featured .manage-card__price strong,
+.manage-card.featured .manage-card__currency {
+    color: var(--text);
+    opacity: 1;
+}
+.manage-card__period {
+    font-size: 13px;
+    color: var(--muted);
+    padding-bottom: 10px;
+    line-height: 1;
+}
+
+/* ── CTA кнопка ── */
+.manage-card__cta .primary-btn,
+.manage-card__cta .danger-btn,
+.manage-card__cta .ghost-btn {
+    width: 100%;
+    padding: 13px;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    transition: transform .18s, box-shadow .18s;
+}
+/* Активний (Вимкнути) — яскрава помаранчева кнопка, як зелена на референсі */
+.manage-card.featured .manage-card__cta .danger-btn {
+    background: var(--accent);
+    color: #fff;
+    font-weight: 800;
+    border: none;
+    box-shadow: 0 4px 24px rgba(232,80,2,0.50);
+    letter-spacing: 0.01em;
+}
+.manage-card.featured .manage-card__cta .danger-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 32px rgba(232,80,2,0.65);
+    background: #f16001;
+}
+/* Неактивний (Увімкнути) */
+.manage-card:not(.featured) .manage-card__cta .primary-btn {
+    background: rgba(255,255,255,0.07);
+    color: rgba(255,255,255,0.65);
+    border: 1px solid rgba(255,255,255,0.12);
+}
+.manage-card:not(.featured) .manage-card__cta .primary-btn:hover {
+    background: rgba(232,80,2,0.12);
+    border-color: rgba(232,80,2,0.28);
+    color: var(--accent);
+}
+
+/* ── Світла нижня частина — помітніший контраст з верхом ── */
+.manage-card__light {
+    background: #2a2a2a;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+.manage-card.featured .manage-card__light {
+    background: #2a1508;
+    border-top-color: rgba(232,80,2,0.18);
+}
+
+/* ── Features list ── */
+.manage-card__features {
+    list-style: none;
+    margin: 0;
+    padding: 18px 22px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+}
+.manage-card__features li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.70);
+    line-height: 1.4;
+}
+.manage-card__features li svg {
+    flex-shrink: 0;
+    color: rgba(255,255,255,0.35);
+}
+.manage-card.featured .manage-card__features li svg {
+    color: var(--accent);
+}
+.manage-card.featured .manage-card__features li {
+    color: rgba(255,255,255,0.85);
+}
+
+/* ── Футер ── */
+.manage-card__footer {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 22px 16px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    flex-wrap: wrap;
+}
+.manage-card__footer .ghost-btn,
+.manage-card__footer .danger-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+/* ── Статус-бейдж ── */
+.manage-card .status {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 3px 10px;
+    border-radius: 999px;
+    margin-left: auto;
+}
+.manage-card .status.active {
+    background: rgba(57,217,138,0.13);
+    color: #70f0aa;
+    border: 1px solid rgba(57,217,138,0.22);
+}
+.manage-card .status.inactive {
+    background: rgba(255,255,255,0.05);
+    color: var(--muted);
+    border: 1px solid rgba(255,255,255,0.09);
 }
 
 .sheet-content {
@@ -1109,7 +1718,7 @@
     transition: background .15s;
 }
 .cmf-field:first-of-type { border-top: none; }
-.cmf-field:focus-within { background: rgba(255,100,36,0.05); }
+.cmf-field:focus-within { background: rgba(232,80,2,0.05); }
 .cmf-field--disabled { opacity: .5; }
 
 .cmf-icon {
@@ -1179,13 +1788,13 @@
 }
 .spec-chip input[type="checkbox"] { display: none; }
 .spec-chip:hover {
-    border-color: rgba(255,100,36,.5);
+    border-color: rgba(232,80,2,.5);
     color: var(--text);
 }
 .spec-chip.checked,
 .spec-chip:has(input:checked) {
     border-color: var(--accent);
-    background: rgba(255,100,36,.15);
+    background: rgba(232,80,2,.15);
     color: var(--accent);
 }
 
@@ -1218,8 +1827,8 @@
     align-items: center;
     gap: 10px;
     padding: 10px 12px;
-    background: rgba(255,100,36,.08);
-    border: 1px solid rgba(255,100,36,.28);
+    background: rgba(232,80,2,.08);
+    border: 1px solid rgba(232,80,2,.28);
     border-radius: 10px;
 }
 .tcf-clear-btn {
@@ -1325,17 +1934,21 @@
 
 /* ── Дашборд: без скролу сторінки на мобільному ── */
 @media (max-width: 719px) {
-    /* Швидкі дії — компактніші */
-    .dash-qa-btn {
-        padding: 8px 4px;
-        gap: 4px;
-        font-size: 10px;
-    }
-    .dash-qa-btn svg { width: 17px; height: 17px; }
+    /* Привітання — менший розмір */
+    .dash-greeting__name { font-size: 22px; }
+    .dash-header-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+    /* Hero cards: стек */
+    .dash-hero-cards { grid-template-columns: 1fr; gap: 10px; }
+    .dash-hero-card { min-height: 130px; padding: 14px; }
+    .dhc-value { font-size: 34px; }
+
+    /* Середня секція: стек */
+    .dash-mid-row { grid-template-columns: 1fr; }
+    .dash-today-count { font-size: 28px; }
 
     /* Метрики — менший padding */
     .admin-metric { padding: 10px; }
-    .admin-metric strong { font-size: 28px; }
 
     /* Відступ між метриками та гридом */
     .admin-dashboard-grid { margin-top: 10px; }
@@ -1356,8 +1969,17 @@
 }
 
 @media (min-width: 720px) {
+    /* Асиметричний layout: велика ліворуч + 3 стек праворуч */
     .admin-metrics {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: 1fr 160px;
+        grid-template-rows: repeat(3, 1fr);
+    }
+    .admin-metric--primary {
+        grid-column: 1;
+        grid-row: 1 / 4;
+    }
+    .admin-metric--sm {
+        grid-column: 2;
     }
 
     .admin-toolbar {
@@ -1367,22 +1989,29 @@
 }
 
 @media (min-width: 900px) {
+    /* На десктопі: велика ліворуч + 3 стек праворуч (ширший) */
     .admin-metrics {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: 1fr 190px;
+        grid-template-rows: repeat(3, 1fr);
         gap: 12px;
+    }
+    .admin-metric--primary {
+        grid-column: 1;
+        grid-row: 1 / 4;
+    }
+    .admin-metric--sm {
+        grid-column: 2;
+    }
+    .admin-metric--primary strong {
+        font-size: 64px !important;
+    }
+    .admin-metric--sm strong {
+        font-size: 26px !important;
     }
 
     .admin-metric {
         aspect-ratio: auto;
         padding: 16px;
-    }
-
-    .admin-metric::after {
-        right: -22px;
-        bottom: -32px;
-        width: 108px;
-        height: 108px;
-        border-width: 16px;
     }
 
     .admin-metric span {
@@ -1400,6 +2029,14 @@
         gap: 12px;
     }
 
+    /* Hero cards і mid-row на десктопі */
+    .dash-hero-cards { gap: 20px; }
+    .dash-hero-card { padding: 30px; min-height: 220px; }
+    .dhc-value { font-size: 58px; }
+    .dash-mid-row { grid-template-columns: 1.3fr 1fr; gap: 16px; }
+    .dash-today-count { font-size: 48px; }
+    .dash-greeting__name { font-size: 40px; }
+
     .admin-cards {
         grid-template-columns: repeat(3, minmax(0, 1fr));
     }
@@ -1416,9 +2053,13 @@
         font-size: 14px;
     }
 
-    .trainer-table .table-row,
-    .message-table .table-row {
+    .trainer-table .table-row {
         grid-template-columns: 170px 150px 200px 190px 120px 240px;
+        min-width: 1080px;
+    }
+
+    .message-table .table-row {
+        grid-template-columns: 1fr 150px 150px 120px 120px 220px;
         min-width: 1080px;
     }
 
@@ -1455,7 +2096,7 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    padding-bottom: 56px;
+    /* bottom-nav is fixed — no padding needed here */
 }
 .admin-app--schedule .screen.active[data-screen-panel="schedule"] {
     flex: 1;
@@ -1475,17 +2116,18 @@
 
 /* Date strip */
 .sched-date-strip {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding: 12px 16px;
+    display: grid;
+    /* grid-template-columns встановлюється з JS: repeat(N, 1fr) */
+    grid-template-columns: repeat(14, 1fr);
+    gap: 5px;
+    padding: 10px 16px;
     flex-shrink: 0;
-    scrollbar-width: none;
+    width: 100%;
+    box-sizing: border-box;
 }
-.sched-date-strip::-webkit-scrollbar { display: none; }
 
 .sched-date-pill {
-    flex: 0 0 52px;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1499,10 +2141,10 @@
     transition: border-color .15s, background .15s;
     text-align: center;
 }
-.sched-date-pill:hover { border-color: rgba(255,100,36,.4); background: rgba(255,100,36,.04); }
+.sched-date-pill:hover { border-color: rgba(232,80,2,.4); background: rgba(232,80,2,.04); }
 .sched-date-pill.active {
     border-color: var(--accent);
-    background: rgba(255,100,36,.12);
+    background: rgba(232,80,2,.12);
 }
 .sched-date-pill.today .sdp-count { color: var(--accent); font-weight: 700; }
 .sdp-weekday { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
@@ -1533,14 +2175,14 @@
     white-space: nowrap;
     transition: border-color .15s, color .15s, background .15s;
 }
-.sched-range-btn:hover { border-color: rgba(255,100,36,.4); color: var(--text); }
-.sched-range-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(255,100,36,.08); }
+.sched-range-btn:hover { border-color: rgba(232,80,2,.4); color: var(--text); }
+.sched-range-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(232,80,2,.08); }
 #sched-range-label:empty { display: none; }
 
 .sched-range-popup {
     position: fixed;
     z-index: 200;
-    background: #191919;
+    background: #0d0d0d;
     border: 1px solid var(--line);
     border-radius: 16px;
     padding: 12px 12px 14px;
@@ -1586,7 +2228,7 @@
     color: var(--muted);
     transition: color .15s, border-color .15s;
 }
-.sched-cal-nav:hover { color: var(--text); border-color: rgba(255,100,36,.4); }
+.sched-cal-nav:hover { color: var(--text); border-color: rgba(232,80,2,.4); }
 
 .sched-cal-grid {
     display: grid;
@@ -1619,7 +2261,7 @@
 .sched-cal-cell.empty { pointer-events: none; }
 .sched-cal-cell:hover:not(.empty) { background: rgba(255,255,255,.08); }
 .sched-cal-cell.today { color: var(--accent); font-weight: 800; }
-.sched-cal-cell.in-range { background: rgba(255,100,36,.15); border-radius: 0; }
+.sched-cal-cell.in-range { background: rgba(232,80,2,.15); border-radius: 0; }
 .sched-cal-cell.range-lo { background: var(--accent); color: #fff; border-radius: 6px 0 0 6px; font-weight: 700; }
 .sched-cal-cell.range-hi { background: var(--accent); color: #fff; border-radius: 0 6px 6px 0; font-weight: 700; }
 .sched-cal-cell.range-lo.range-hi { border-radius: 6px; }
@@ -1642,13 +2284,14 @@
 /* Day list */
 .sched-day-list {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    padding: 0 16px 16px;
+    padding: 0 16px 72px; /* 72px кліренс для fixed bottom-nav */
     display: flex;
     flex-direction: column;
     gap: 10px;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255,100,36,.25) transparent;
+    scrollbar-color: rgba(232,80,2,.25) transparent;
 }
 
 /* Empty state */
@@ -1677,7 +2320,7 @@
     padding: 14px 16px;
     transition: border-color .15s;
 }
-.sched-card:hover { border-color: rgba(255,100,36,.3); }
+.sched-card:hover { border-color: rgba(232,80,2,.3); }
 
 .sched-card-time {
     flex-shrink: 0;
@@ -1806,176 +2449,705 @@
     min-height: 16px;
 }
 
-/* ── Картки послуг в адмінці ─────────────────────────────────────────── */
-.admin-cards:has(.svc-admin-card) {
+/* ── Послуги: карусель 2×2 (стиль публічної сторінки) ────────────────── */
+#services-feedback { display: none; }
+
+.admin-app--services {
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.screen.active[data-screen-panel="services"] {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+.screen.active[data-screen-panel="services"] .panel.admin-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding-bottom: 0;
+}
+.adm-svc-carousel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow: hidden;
+}
+.admin-app .svc-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: 1fr;
+    gap: 14px;
+    flex: 1;
+    min-height: 0;
+}
+.admin-app .svc-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     gap: 16px;
+    flex-shrink: 0;
+}
+.admin-app .svc-nav-btn {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,.04);
+    color: var(--text);
+    cursor: pointer;
+    transition: background .2s, border-color .2s;
+}
+.admin-app .svc-nav-btn:hover {
+    background: rgba(232,80,2,.12);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.admin-app .svc-nav-btn:disabled { opacity: .25; pointer-events: none; }
+.admin-app .svc-nav-dots { display: flex; gap: 7px; }
+.admin-app .svc-nav-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,.2);
+    transition: background .2s, transform .2s;
+}
+.admin-app .svc-nav-dot.active {
+    background: var(--accent);
+    transform: scale(1.35);
 }
 
-.svc-admin-card {
+/* Базові стилі svc-card (копія з home.css для адмінки) */
+.admin-app .svc-card {
     position: relative;
-    min-height: 300px;
+    height: 100%;
+    min-height: 220px;
     border-radius: 14px;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255,255,255,.07);
+    cursor: pointer;
     background-size: cover;
     background-position: center;
-    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-                box-shadow 0.28s,
-                border-color 0.28s;
+    transition: transform .32s cubic-bezier(.22,1,.36,1),
+                box-shadow .32s,
+                border-color .32s;
 }
-
-.svc-admin-card:hover {
+.admin-app .svc-card:hover {
     transform: translateY(-4px);
-    border-color: color-mix(in srgb, var(--svc-color, #ff6424) 55%, transparent);
-    box-shadow: 0 20px 48px rgba(0,0,0,0.55),
-                0 0 32px color-mix(in srgb, var(--svc-color, #ff6424) 18%, transparent);
+    border-color: color-mix(in srgb, var(--svc-color, var(--accent)) 55%, transparent);
+    box-shadow: 0 20px 48px rgba(0,0,0,.55),
+                0 0 32px color-mix(in srgb, var(--svc-color, var(--accent)) 18%, transparent);
+    filter: brightness(1.12) saturate(1.12);
 }
-
-.svc-admin-card__overlay {
+.admin-app .svc-card__overlay {
     position: absolute;
     inset: 0;
     background: linear-gradient(to top,
-        rgba(5,5,7,0.97) 0%,
-        rgba(5,5,7,0.82) 50%,
-        rgba(5,5,7,0.50) 100%);
-    transition: background 0.35s ease;
+        rgba(5,5,7,.96) 0%,
+        rgba(5,5,7,.60) 35%,
+        rgba(5,5,7,.18) 65%,
+        transparent 100%);
+    transition: background .35s;
 }
-
-.svc-admin-card:hover .svc-admin-card__overlay {
+.admin-app .svc-card:hover .svc-card__overlay {
     background: linear-gradient(to top,
-        rgba(5,5,7,0.93) 0%,
-        rgba(5,5,7,0.58) 50%,
-        rgba(5,5,7,0.22) 100%);
+        rgba(5,5,7,.88) 0%,
+        rgba(5,5,7,.35) 38%,
+        rgba(5,5,7,.05) 68%,
+        transparent 100%);
 }
-
-.svc-admin-card__body {
+.admin-app .svc-card__num {
+    position: absolute;
+    top: 16px;
+    left: 18px;
+    z-index: 1;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .18em;
+    color: rgba(255,255,255,.58);
+    text-shadow: 0 1px 6px rgba(0,0,0,.7);
+    transition: color .3s;
+}
+.admin-app .svc-card:hover .svc-card__num { color: rgba(255,255,255,.9); }
+.admin-app .svc-card__body {
     position: relative;
     z-index: 1;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 22px;
+    gap: 8px;
+    padding: 18px 18px 14px;
     height: 100%;
     justify-content: flex-end;
 }
+.admin-app .svc-card__title {
+    font-size: 22px;
+    font-weight: 900;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin: 0;
+    line-height: 1.1;
+    text-shadow: 0 2px 12px rgba(0,0,0,.6);
+}
+.admin-app .svc-card__desc {
+    font-size: 12.5px;
+    color: rgba(255,255,255,.72);
+    font-weight: 500;
+    line-height: 1.5;
+    margin: 0;
+    text-shadow: 0 1px 6px rgba(0,0,0,.5);
+}
+.admin-app .svc-card__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.admin-app .svc-card__chips span {
+    border: 1px solid rgba(255,255,255,.22);
+    border-radius: 999px;
+    padding: 3px 11px;
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255,255,255,.75);
+    background: rgba(255,255,255,.10);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
 
-/* Статус — вгорі зліва */
-.svc-admin-card__status {
+/* Картка-обгортка для адмінки */
+.adm-svc-card {
+    height: 100%;
+    min-height: 220px;
+}
+/* Кнопки дій — у правому верхньому куті, з'являються при hover */
+.adm-svc-actions {
     position: absolute;
-    top: 14px;
-    left: 16px;
-    z-index: 2;
+    top: 12px;
+    right: 12px;
+    z-index: 3;
+    display: flex;
+    gap: 6px;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity .2s, transform .2s;
+}
+.adm-svc-card:hover .adm-svc-actions {
+    opacity: 1;
+    transform: translateY(0);
+}
+.adm-svc-btn {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: background .18s;
+}
+.adm-svc-btn--edit {
+    background: rgba(255,255,255,.18);
+    color: #fff;
+}
+.adm-svc-btn--edit:hover { background: rgba(255,255,255,.32); }
+.adm-svc-btn--toggle.toggle-off {
+    background: rgba(255,191,23,.2);
+    color: #ffcf47;
+}
+.adm-svc-btn--toggle.toggle-off:hover { background: rgba(255,191,23,.38); }
+.adm-svc-btn--toggle.toggle-on {
+    background: rgba(57,217,138,.2);
+    color: #70f0aa;
+}
+.adm-svc-btn--toggle.toggle-on:hover { background: rgba(57,217,138,.38); }
+.adm-svc-btn--delete {
+    background: rgba(224,68,68,.2);
+    color: #ff8585;
+}
+.adm-svc-btn--delete:hover { background: rgba(224,68,68,.4); }
+
+/* Статус-бейдж — лівий верх */
+.adm-svc-status {
+    position: absolute;
+    bottom: 14px;
+    right: 16px;
+    z-index: 3;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    backdrop-filter: blur(6px);
+}
+.adm-svc-status.active {
+    background: rgba(57,217,138,.18);
+    color: #70f0aa;
+    border: 1px solid rgba(57,217,138,.25);
+}
+.adm-svc-status.inactive {
+    background: rgba(224,68,68,.18);
+    color: #ff8585;
+    border: 1px solid rgba(224,68,68,.25);
+}
+
+/* ════════════════════════════════════════
+/* ════════════════════════════════════════
+   ЧАТ З ГОСТЯМИ (повідомлення → Чат)
+   ════════════════════════════════════════ */
+.msg-chat-chip {
+    display: inline-flex;
+    align-items: center;
+}
+
+/* ── Висота повідомлень: займає весь viewport коли чат відкритий ── */
+/* ── Main-контейнер сторінки повідомлень: фіксована висота ── */
+.admin-app--messages {
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.admin-app--messages .screen.active[data-screen-panel="messages"] {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.admin-app--messages .panel.admin-section {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: 0;
+}
+
+/* Broadcast-панель: прокручується вертикально */
+#messages-broadcast-panel {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    align-content: start;
+}
+
+/* Чат-панель: за замовчуванням схована, при display:flex — займає весь простір */
+.msg-chat-panel {
+    display: none;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    flex-direction: column;
+}
+.msg-chat-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    flex: 1;
+    height: 100%;
+    min-height: 0;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+}
+.msg-chat-list {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    min-height: 0;
+    height: 100%;
+    border-right: 1px solid var(--line);
+    background: rgba(255,255,255,0.02);
+}
+.msg-chat-list-empty {
+    padding: 20px 16px;
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+}
+.msg-chat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+    border-bottom: 1px solid var(--line);
+    transition: background .15s;
+    font: inherit;
+}
+.msg-chat-item:hover { background: rgba(255,255,255,0.04); }
+.msg-chat-item.active { background: rgba(232,80,2,.08); border-left: 2px solid var(--accent); }
+.msg-chat-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+}
+.msg-chat-item-name { font-size: 13px; font-weight: 700; }
+.msg-chat-item-time { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+.msg-chat-item-preview {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.msg-chat-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #111;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 0 4px;
+    flex-shrink: 0;
+}
+.msg-chat-window {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    height: 100%;
+}
+.msg-chat-placeholder {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 40px;
+}
+.msg-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+}
+.msg-bubble {
+    max-width: 72%;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.msg-bubble--guest { align-self: flex-start; }
+.msg-bubble--admin { align-self: flex-end; }
+.msg-bubble-text {
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    word-break: break-word;
+}
+.msg-bubble--guest .msg-bubble-text {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid var(--line);
+    border-radius: 14px 14px 14px 4px;
+}
+.msg-bubble--admin .msg-bubble-text {
+    background: rgba(232,80,2,.15);
+    border: 1px solid rgba(232,80,2,.25);
+    color: #fff;
+    border-radius: 14px 14px 4px 14px;
+}
+.msg-bubble-time {
+    font-size: 10px;
+    color: var(--muted);
+    padding: 0 4px;
+}
+.msg-bubble--admin .msg-bubble-time { text-align: right; }
+.msg-chat-reply {
+    display: flex;
+    gap: 8px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--line);
+    background: rgba(255,255,255,0.02);
+    flex-shrink: 0;
+}
+.msg-chat-reply input {
+    flex: 1;
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+}
+.msg-chat-reply input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* ════════════════════════════════════════
+   КНОПКИ: orange outline стиль для адмінки
+   ════════════════════════════════════════ */
+.admin-app .primary-btn,
+.admin-modal .primary-btn,
+.sheet-close.primary-btn {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+}
+.admin-app .primary-btn:hover:not(:disabled),
+.admin-modal .primary-btn:hover:not(:disabled),
+.sheet-close.primary-btn:hover {
+    background: rgba(232,80,2,.12);
+}
+.admin-app .primary-btn:disabled {
+    border-color: #47474d;
+    color: var(--muted);
+    background: transparent;
+}
+.admin-app .ghost-btn,
+.admin-app .ghost {
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--text);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+}
+.admin-app .ghost-btn:hover,
+.admin-app .ghost:hover {
+    background: rgba(255,255,255,.06);
+    border-color: rgba(255,255,255,.22);
+}
+
+/* ════════════════════════════════════════
+   ПРОФІЛЬ АДМІНА: редизайн
+   ════════════════════════════════════════ */
+.screen.active[data-screen-panel="profile"] {
+    overflow-y: auto;
+}
+.adm-profile-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 4px 0 24px;
+    align-items: center;
+    max-width: 520px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* ── Верхня частина: аватар + статистика ── */
+.adm-profile-left {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+}
+.adm-profile-hero {
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: linear-gradient(160deg, rgba(232,80,2,.08) 0%, rgba(19,19,22,.9) 60%);
+    padding: 28px 20px 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 6px;
+    position: relative;
+    overflow: hidden;
+}
+.adm-profile-hero::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 160px; height: 160px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(232,80,2,.18) 0%, transparent 70%);
+    pointer-events: none;
+}
+.adm-profile-ring {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    padding: 3px;
+    background: linear-gradient(135deg, var(--accent), #ff9a5c);
+    margin-bottom: 8px;
+    flex-shrink: 0;
+}
+.adm-profile-avatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: #111111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    font-weight: 900;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+}
+.adm-profile-role-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(232,80,2,.12);
+    border: 1px solid rgba(232,80,2,.25);
+    color: var(--accent);
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    padding: 4px 9px;
-    border-radius: 999px;
-    backdrop-filter: blur(6px);
 }
-
-.svc-admin-card__status.active {
-    background: rgba(57, 217, 138, 0.18);
-    color: #70f0aa;
-    border: 1px solid rgba(57, 217, 138, 0.25);
+.adm-profile-name {
+    margin: 4px 0 0;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.15;
 }
-
-.svc-admin-card__status.inactive {
-    background: rgba(224, 68, 68, 0.18);
-    color: #ff8585;
-    border: 1px solid rgba(224, 68, 68, 0.25);
-}
-
-.svc-admin-card__title {
+.adm-profile-email,
+.adm-profile-phone {
     margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+/* Статистика */
+.adm-profile-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+.adm-pstat {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: rgba(255,255,255,.025);
+    padding: 12px 8px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.adm-pstat strong {
     font-size: 22px;
     font-weight: 900;
+    color: var(--accent);
+    letter-spacing: -0.03em;
+    line-height: 1;
+}
+.adm-pstat span {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #fff;
-    line-height: 1.1;
+    letter-spacing: 0.05em;
 }
 
-.svc-admin-card__desc {
-    margin: 0;
-    font-size: 13px;
-    color: rgba(255,255,255,0.6);
-    line-height: 1.5;
+/* ── Нижня частина: меню ── */
+.adm-profile-right {
+    width: 100%;
 }
-
-.svc-admin-card__cap {
-    margin: 0;
+.adm-profile-menu {
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: linear-gradient(180deg, #111111, #080808);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.adm-menu-section-label {
+    margin: 0 0 8px;
     font-size: 11px;
-    color: rgba(255,255,255,0.28);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
 }
-
-/* Дії — з'являються при наведенні */
-.svc-admin-card__actions {
+.adm-menu-item {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-top: 6px;
-    opacity: 0;
-    transform: translateY(8px);
-    transition: opacity 0.24s, transform 0.24s;
-}
-
-.svc-admin-card:hover .svc-admin-card__actions {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-/* Базова кнопка дії */
-.svc-action-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border: none;
-    border-radius: 8px;
-    font: inherit;
-    font-size: 12px;
-    font-weight: 700;
+    gap: 14px;
+    padding: 13px 14px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text);
     cursor: pointer;
-    transition: background 0.18s, color 0.18s;
-    padding: 7px 14px;
-    backdrop-filter: blur(6px);
+    font: inherit;
+    text-align: left;
+    transition: background .15s, border-color .15s;
 }
-
-/* Редагувати — прозора кнопка */
-.svc-action-edit {
-    background: rgba(255,255,255,0.12);
-    color: #fff;
-    flex: 1;
+.adm-menu-item:hover {
+    background: rgba(255,255,255,.04);
+    border-color: var(--line);
+}
+.adm-menu-icon {
+    display: flex;
+    align-items: center;
     justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid var(--line);
+    flex-shrink: 0;
+    color: var(--muted);
 }
-.svc-action-edit:hover {
-    background: rgba(255,255,255,0.22);
-}
-
-/* Вимкнути / Увімкнути */
-.svc-action-toggle.toggle-off {
-    background: rgba(255,191,23,0.15);
-    color: #ffcf47;
-}
-.svc-action-toggle.toggle-off:hover {
-    background: rgba(255,191,23,0.28);
-}
-.svc-action-toggle.toggle-on {
-    background: rgba(57,217,138,0.15);
-    color: #70f0aa;
-}
-.svc-action-toggle.toggle-on:hover {
-    background: rgba(57,217,138,0.28);
-}
-
-/* Видалити — тільки іконка */
-.svc-action-delete {
-    background: rgba(224,68,68,0.15);
+.adm-menu-icon--danger {
+    background: rgba(224,68,68,.08);
+    border-color: rgba(224,68,68,.2);
     color: #ff8585;
-    padding: 7px 10px;
 }
-.svc-action-delete:hover {
-    background: rgba(224,68,68,0.30);
+.adm-menu-label {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.adm-menu-label strong {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+}
+.adm-menu-label small {
+    font-size: 11px;
+    color: var(--muted);
+}
+.adm-menu-item--danger .adm-menu-label strong { color: #ff8585; }
+.adm-menu-item--danger:hover { background: rgba(224,68,68,.06); border-color: rgba(224,68,68,.2); }
+.adm-menu-divider {
+    height: 1px;
+    background: var(--line);
+    margin: 6px 0;
 }

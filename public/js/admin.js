@@ -75,6 +75,8 @@ let scheduleServices = [];
 let scheduleTrainers = [];
 let services = [];
 let servicesFilter = 'all';
+let _adminSvcOffset = 0;
+const ADM_SVC_VISIBLE = 4;
 let plans = [];
 let plansFilter = 'all';
 let subscriptions = [];
@@ -112,6 +114,7 @@ const ENDING_SOON_DAYS = 7;
 const messagesPage = document.querySelector('[data-screen-panel="messages"]');
 const messagesTableBody = document.querySelector('#messages-table-body');
 const messagesSearch = document.querySelector('#messages-search');
+const profilePage = document.querySelector('[data-screen-panel="profile"]');
 const clubForm = document.querySelector('#club-form');
 
 let messages = [];
@@ -382,6 +385,7 @@ function getFilteredServices() {
 function getFilteredPlans() {
   const query = normalizeText(plansSearch?.value);
   return plans.filter((plan) => {
+    if (plan.status === 'deleted') return false;
     const matchesFilter = plansFilter === 'all'
       || plan.status === plansFilter
       || plan.plan_type === plansFilter;
@@ -400,7 +404,10 @@ function renderScheduleDateStrip() {
   }
 
   const today = todayIso();
-  scheduleDateStrip.innerHTML = getScheduleDates().map((date) => {
+  const dates = getScheduleDates();
+  // Grid з N рівних колонок — пігулки завжди заповнюють всю ширину
+  scheduleDateStrip.style.gridTemplateColumns = `repeat(${dates.length}, 1fr)`;
+  scheduleDateStrip.innerHTML = dates.map((date) => {
     const isActive = date === selectedScheduleDate;
     const isToday = date === today;
     const dayCount = schedules.filter((s) => formatDate(s.date) === date).length;
@@ -800,70 +807,128 @@ async function loadTrainers() {
   }
 }
 
+const _svcTheme = {
+  'trx':          { color: '#ff6424', gradient: 'linear-gradient(135deg,#ff6424 0%,#8a2200 100%)' },
+  'фітнес':       { color: '#ff6424', gradient: 'linear-gradient(135deg,#ff6424 0%,#c23a00 100%)' },
+  'йога':         { color: '#6ec8a0', gradient: 'linear-gradient(135deg,#2a8a62 0%,#0e3d2c 100%)' },
+  'персональні':  { color: '#ffbf17', gradient: 'linear-gradient(135deg,#ffbf17 0%,#b87800 100%)' },
+  'єдиноборства': { color: '#e05555', gradient: 'linear-gradient(135deg,#c93333 0%,#6b0a0a 100%)' },
+};
+
+function _buildAdminSvcCard(service, globalIndex) {
+  const key = String(service.name).toLowerCase();
+  const theme = _svcTheme[key] || { color: '#ff6424', gradient: 'linear-gradient(135deg,#ff6424 0%,#8a2200 100%)' };
+  const bg = service.image_url
+    ? `background-image:url('${escapeHtml(service.image_url)}')`
+    : `background:${theme.gradient}`;
+  const isActive = (service.status || 'active') === 'active';
+  const num = String(globalIndex + 1).padStart(2, '0');
+  const capacity = Number(service.max_clients) > 1
+    ? `До ${escapeHtml(String(service.max_clients))} осіб`
+    : 'Індивідуально';
+  const statusLabel = isActive ? '● Активна' : '● Неактивна';
+
+  return `
+    <article class="svc-card adm-svc-card" style="--svc-color:${theme.color};${bg}">
+      <span class="svc-card__num">${num}</span>
+      <div class="svc-card__overlay"></div>
+      <div class="adm-svc-actions">
+        <button class="adm-svc-btn adm-svc-btn--edit" data-service-edit="${service.id}" title="Редагувати">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="adm-svc-btn adm-svc-btn--toggle ${isActive ? 'toggle-off' : 'toggle-on'}"
+          data-service-status="${service.id}" data-next-status="${isActive ? 'inactive' : 'active'}" title="${isActive ? 'Вимкнути' : 'Увімкнути'}">
+          ${isActive
+            ? `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`
+            : `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`}
+        </button>
+        <button class="adm-svc-btn adm-svc-btn--delete" data-service-delete="${service.id}" title="Видалити">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div>
+      <span class="adm-svc-status ${isActive ? 'active' : 'inactive'}">${statusLabel}</span>
+      <div class="svc-card__body">
+        <h3 class="svc-card__title">${escapeHtml(service.name)}</h3>
+        <p class="svc-card__desc">${escapeHtml(service.description || 'Опис не вказано')}</p>
+        <div class="svc-card__chips"><span>${capacity}</span></div>
+      </div>
+    </article>
+  `;
+}
+
 function renderServices() {
   if (!servicesGrid) return;
+  const all = getFilteredServices();
 
-  const visibleServices = getFilteredServices();
-  if (visibleServices.length === 0) {
-    servicesGrid.innerHTML = '<article class="manage-card"><p>Послуг не знайдено</p></article>';
+  if (all.length === 0) {
+    servicesGrid.innerHTML = '<p style="color:var(--muted);grid-column:1/-1;padding:20px 0">Послуг не знайдено</p>';
+    _updateSvcNav(all);
     return;
   }
 
-  const svcTheme = {
-    'фітнес':       '#ff6424',
-    'йога':         '#6ec8a0',
-    'персональні':  '#ffbf17',
-    'єдиноборства': '#e05555',
-  };
-  const svcGradient = {
-    'фітнес':       'linear-gradient(135deg,#ff6424 0%,#c23a00 100%)',
-    'йога':         'linear-gradient(135deg,#2a8a62 0%,#0e3d2c 100%)',
-    'персональні':  'linear-gradient(135deg,#ffbf17 0%,#b87800 100%)',
-    'єдиноборства': 'linear-gradient(135deg,#c93333 0%,#6b0a0a 100%)',
-  };
+  const slice = all.slice(_adminSvcOffset, _adminSvcOffset + ADM_SVC_VISIBLE);
+  servicesGrid.innerHTML = slice.map((s, i) => _buildAdminSvcCard(s, _adminSvcOffset + i)).join('');
+  _updateSvcNav(all);
+}
 
-  servicesGrid.innerHTML = visibleServices.map((service) => {
-    const status = service.status || 'active';
-    const key = String(service.name).toLowerCase();
-    const color = svcTheme[key] || '#ff6424';
-    const bg = service.image_url
-      ? `background-image:url('${escapeHtml(service.image_url)}')`
-      : `background:${svcGradient[key] || 'linear-gradient(135deg,#ff6424 0%,#8a2200 100%)'}`;
-    const statusButton = status === 'active'
-      ? `<button class="danger-btn" data-service-status="${service.id}" data-next-status="inactive">Вимкнути</button>`
-      : `<button class="primary-btn" data-service-status="${service.id}" data-next-status="active">Увімкнути</button>`;
+function _updateSvcNav(all) {
+  const total = all.length;
+  const prevBtn = document.getElementById('svc-prev');
+  const nextBtn = document.getElementById('svc-next');
+  const dotsEl = document.getElementById('svc-dots');
+  if (prevBtn) prevBtn.disabled = _adminSvcOffset === 0;
+  if (nextBtn) nextBtn.disabled = _adminSvcOffset + ADM_SVC_VISIBLE >= total;
+  if (dotsEl) {
+    const steps = Math.max(1, Math.ceil(total / ADM_SVC_VISIBLE));
+    const active = Math.floor(_adminSvcOffset / ADM_SVC_VISIBLE);
+    dotsEl.innerHTML = Array.from({ length: steps }, (_, i) =>
+      `<span class="svc-nav-dot ${i === active ? 'active' : ''}"></span>`
+    ).join('');
+  }
+}
 
-    const isActive = status === 'active';
-    const toggleIcon = isActive
-      ? `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`
-      : `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>`;
+// ── Plans carousel ──
+const _plansGrid = document.getElementById('plans-grid');
+const _plansPrev = document.getElementById('plans-prev');
+const _plansNext = document.getElementById('plans-next');
 
-    return `
-      <article class="svc-admin-card" style="--svc-color:${color};${bg}">
-        <div class="svc-admin-card__overlay"></div>
-        <span class="svc-admin-card__status ${status}">${isActive ? '● Активна' : '● Неактивна'}</span>
-        <div class="svc-admin-card__body">
-          <h3 class="svc-admin-card__title">${escapeHtml(service.name)}</h3>
-          <p class="svc-admin-card__desc">${escapeHtml(service.description || 'Опис не вказано')}</p>
-          <p class="svc-admin-card__cap">До ${escapeHtml(service.max_clients || '—')} клієнтів</p>
-          <div class="svc-admin-card__actions">
-            <button class="svc-action-btn svc-action-edit" data-service-edit="${service.id}" title="Редагувати">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              Редагувати
-            </button>
-            <button class="svc-action-btn svc-action-toggle ${isActive ? 'toggle-off' : 'toggle-on'}"
-              data-service-status="${service.id}" data-next-status="${isActive ? 'inactive' : 'active'}" title="${isActive ? 'Вимкнути' : 'Увімкнути'}">
-              ${toggleIcon}
-              ${isActive ? 'Вимкнути' : 'Увімкнути'}
-            </button>
-            <button class="svc-action-btn svc-action-delete" data-service-delete="${service.id}" title="Видалити">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-            </button>
-          </div>
-        </div>
-      </article>
-    `;
-  }).join('');
+function _updatePlansBtns() {
+  if (!_plansPrev || !_plansNext || !_plansGrid) return;
+  // якщо layout ще не готовий — не блокуємо кнопки
+  if (_plansGrid.scrollWidth <= 1) return;
+  _plansPrev.disabled = _plansGrid.scrollLeft <= 2;
+  _plansNext.disabled = _plansGrid.scrollLeft + _plansGrid.clientWidth >= _plansGrid.scrollWidth - 2;
+}
+
+// Перевіряємо state кнопок після стабілізації layout
+function _deferUpdatePlansBtns() {
+  // подвійний rAF гарантує що layout вже прорахований
+  requestAnimationFrame(() => requestAnimationFrame(_updatePlansBtns));
+}
+
+if (_plansGrid && _plansPrev && _plansNext) {
+  _plansPrev.addEventListener('click', () => {
+    const step = (_plansGrid.querySelector('.manage-card')?.offsetWidth ?? 280) + 14;
+    _plansGrid.scrollBy({ left: -step, behavior: 'smooth' });
+  });
+  _plansNext.addEventListener('click', () => {
+    const step = (_plansGrid.querySelector('.manage-card')?.offsetWidth ?? 280) + 14;
+    _plansGrid.scrollBy({ left: step, behavior: 'smooth' });
+  });
+  _plansGrid.addEventListener('scroll', _updatePlansBtns, { passive: true });
+}
+
+function _initAdminSvcCarousel() {
+  const prevBtn = document.getElementById('svc-prev');
+  const nextBtn = document.getElementById('svc-next');
+  if (!prevBtn || !nextBtn) return;
+  prevBtn.addEventListener('click', () => {
+    if (_adminSvcOffset > 0) { _adminSvcOffset -= ADM_SVC_VISIBLE; renderServices(); }
+  });
+  nextBtn.addEventListener('click', () => {
+    const all = getFilteredServices();
+    if (_adminSvcOffset + ADM_SVC_VISIBLE < all.length) { _adminSvcOffset += ADM_SVC_VISIBLE; renderServices(); }
+  });
 }
 
 async function loadServices() {
@@ -871,7 +936,9 @@ async function loadServices() {
   servicesGrid.innerHTML = '<article class="manage-card"><p>Завантаження послуг...</p></article>';
   try {
     services = await apiFetch('/workouts');
+    _adminSvcOffset = 0;
     renderServices();
+    _initAdminSvcCarousel();
     setServicesFeedback(`Завантажено послуг: ${services.length}`, 'success');
   } catch (error) {
     setServicesFeedback(`Не вдалося завантажити послуги: ${error.message}`, 'error');
@@ -899,17 +966,38 @@ function renderPlans() {
       ? `<button class="danger-btn" data-plan-status="${plan.id}" data-next-status="inactive">Вимкнути</button>`
       : `<button class="primary-btn" data-plan-status="${plan.id}" data-next-status="active">Увімкнути</button>`;
 
+    const checkSvg = `<svg viewBox="0 0 16 16" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5 8.5 6 12 13.5 4"/></svg>`;
+    const priceNum = Number(plan.price || 0).toLocaleString('uk-UA', { maximumFractionDigits: 0 });
+    const period = isSubscription ? '/ міс' : '/ відв.';
+    const features = [
+      isSubscription ? `${plan.duration_days || 0} днів доступу` : `${plan.usage_count || 0} відвідувань`,
+      access,
+      isSubscription ? 'Необмежені відвідування' : 'Разовий прохід',
+    ];
+
     return `
       <article class="manage-card ${status === 'active' ? 'featured' : ''}">
-        <h3>${escapeHtml(plan.name)}</h3>
-        <p>${escapeHtml(plan.description || 'Опис не вказано')}</p>
-        <p>${planTypeLabels[plan.plan_type] || plan.plan_type} · ${escapeHtml(access)} · ${escapeHtml(meta)}</p>
-        <strong>${formatMoney(plan.price)}</strong>
-        <span class="status ${status}">${statusLabels[status] || status}</span>
-        <div>
-          <button class="ghost-btn" data-plan-edit="${plan.id}">Редагувати</button>
-          ${statusAction}
-          <button class="danger-btn" data-plan-delete="${plan.id}">Видалити</button>
+        <div class="manage-card__dark">
+          <h3>${escapeHtml(plan.name)}</h3>
+          <p class="manage-card__desc">${escapeHtml(plan.description || 'Опис відсутній')}</p>
+          <div class="manage-card__price">
+            <sup class="manage-card__currency">грн</sup>
+            <strong>${escapeHtml(priceNum)}</strong>
+            <span class="manage-card__period">${period}</span>
+          </div>
+          <div class="manage-card__cta">
+            ${statusAction}
+          </div>
+        </div>
+        <div class="manage-card__light">
+          <ul class="manage-card__features">
+            ${features.map(f => `<li>${checkSvg}<span>${escapeHtml(f)}</span></li>`).join('')}
+          </ul>
+          <div class="manage-card__footer">
+            <button class="ghost-btn" data-plan-edit="${plan.id}">Редагувати</button>
+            <button class="danger-btn" data-plan-delete="${plan.id}">Видалити</button>
+            <span class="status ${status}">${statusLabels[status] || status}</span>
+          </div>
         </div>
       </article>
     `;
@@ -954,6 +1042,7 @@ async function loadPlans() {
   try {
     plans = await apiFetch('/subscriptions/plans');
     renderPlans();
+    _deferUpdatePlansBtns();
     setPlansFeedback(`Завантажено тарифів: ${plans.length}`, 'success');
   } catch (error) {
     setPlansFeedback(`Не вдалося завантажити тарифи: ${error.message}`, 'error');
@@ -2213,17 +2302,43 @@ document.querySelectorAll('.chip, .cseg-btn').forEach((button) => {
 
     if (button.dataset.serviceFilter) {
       servicesFilter = button.dataset.serviceFilter;
+      _adminSvcOffset = 0;
       renderServices();
     }
 
     if (button.dataset.planFilter) {
       plansFilter = button.dataset.planFilter;
       renderPlans();
+      _deferUpdatePlansBtns();
     }
 
     if (button.dataset.messageFilter) {
       messagesFilter = button.dataset.messageFilter;
-      renderMessages();
+      const broadcastPanel  = document.getElementById('messages-broadcast-panel');
+      const chatPanel       = document.getElementById('messages-chat-panel');
+      const createBtn       = document.getElementById('open-message-modal');
+      const searchInput     = document.getElementById('messages-search');
+      const feedbackEl      = document.getElementById('messages-feedback');
+
+      if (messagesFilter === 'chat') {
+        // Ховаємо все зайве
+        if (broadcastPanel) broadcastPanel.style.display = 'none';
+        if (createBtn)      createBtn.style.display = 'none';
+        if (searchInput)    searchInput.closest('.admin-toolbar').style.display = 'none';
+        if (feedbackEl)     feedbackEl.style.display = 'none';
+        // Показуємо чат на повну висоту
+        if (chatPanel) { chatPanel.style.display = 'flex'; chatPanel.removeAttribute('hidden'); }
+        startChatListPolling();
+      } else {
+        // Відновлюємо видимість
+        if (broadcastPanel) broadcastPanel.style.display = '';
+        if (createBtn)      createBtn.style.display = '';
+        if (searchInput)    searchInput.closest('.admin-toolbar').style.display = '';
+        if (feedbackEl)     feedbackEl.style.display = '';
+        if (chatPanel) { chatPanel.style.display = 'none'; chatPanel.setAttribute('hidden', ''); }
+        stopChatPolling();
+        renderMessages();
+      }
     }
   });
 });
@@ -2860,7 +2975,7 @@ function resetSchedRange() {
   renderSchedules();
   scrollScheduleStripToActive();
 }
-servicesSearch?.addEventListener('input', renderServices);
+servicesSearch?.addEventListener('input', () => { _adminSvcOffset = 0; renderServices(); });
 plansSearch?.addEventListener('input', renderPlans);
 messagesSearch?.addEventListener('input', renderMessages);
 
@@ -3538,3 +3653,169 @@ if (currentUser && plansPage) {
   loadSubscriptions();
   loadClients();
 }
+if (currentUser && profilePage) {
+  loadProfileStats();
+}
+
+/* ══════════════════════════════════════════
+   ЧАТ З ПОТЕНЦІЙНИМИ КЛІЄНТАМИ (messages → Чат)
+   ══════════════════════════════════════════ */
+let chatConversations = [];
+let activeChatId = null;
+let _chatMsgPollTimer = null;   // поллінг повідомлень активної розмови
+let _chatListPollTimer = null;  // поллінг списку розмов
+let _lastMsgId = 0;             // id останнього отриманого повідомлення
+
+/* ── Список розмов ── */
+async function loadChatConversations() {
+  const listEl = document.getElementById('msg-chat-list');
+  if (!listEl) return;
+  try {
+    const data = await apiFetch('/chat/admin/conversations');
+    chatConversations = data || [];
+    renderChatList();
+  } catch (e) {
+    listEl.innerHTML = '<div class="msg-chat-list-empty">Помилка завантаження</div>';
+  }
+}
+
+function renderChatList() {
+  const listEl = document.getElementById('msg-chat-list');
+  if (!listEl) return;
+  if (!chatConversations.length) {
+    listEl.innerHTML = '<div class="msg-chat-list-empty">Нових діалогів немає</div>';
+    return;
+  }
+  listEl.innerHTML = chatConversations.map((conv) => {
+    const unread = conv.unread_count > 0
+      ? `<span class="msg-chat-badge">${conv.unread_count}</span>` : '';
+    const preview = escapeHtml(conv.last_message || '…').slice(0, 48);
+    const time = conv.updated_at
+      ? new Date(conv.updated_at).toLocaleTimeString('uk', { hour: '2-digit', minute: '2-digit' }) : '';
+    const active = conv.id === activeChatId ? ' active' : '';
+    return `
+      <button class="msg-chat-item${active}" data-conv-id="${conv.id}">
+        <div class="msg-chat-item-header">
+          <span class="msg-chat-item-name">Гість #${conv.id}</span>
+          <span class="msg-chat-item-time">${time}</span>
+        </div>
+        <div class="msg-chat-item-preview">${preview}${unread}</div>
+      </button>`;
+  }).join('');
+  listEl.querySelectorAll('[data-conv-id]').forEach(btn => {
+    btn.addEventListener('click', () => openChatConversation(Number(btn.dataset.convId)));
+  });
+}
+
+/* ── Відкрити розмову ── */
+async function openChatConversation(id) {
+  activeChatId = id;
+  _lastMsgId = 0;
+  clearInterval(_chatMsgPollTimer);
+  renderChatList(); // підсвітити активну
+
+  _renderChatWindowShell(id); // одразу рендеримо форму (більше не чіпаємо її)
+  await _loadAndAppendMsgs(id, false); // перший раз — всі повідомлення
+
+  // Поллінг нових повідомлень кожні 3с — ТІЛЬКИ дописуємо нові, не перебудовуємо форму
+  _chatMsgPollTimer = setInterval(() => _loadAndAppendMsgs(id, true), 3000);
+}
+
+/* ── Шаблон вікна (один раз при відкритті розмови) ── */
+function _renderChatWindowShell(id) {
+  const win = document.getElementById('msg-chat-window');
+  if (!win) return;
+  win.innerHTML = `
+    <div class="msg-chat-messages" id="msg-chat-messages"></div>
+    <form class="msg-chat-reply" id="msg-chat-reply-form">
+      <input type="text" id="msg-chat-input" placeholder="Відповідь…" autocomplete="off">
+      <button type="submit" class="clients-add-btn" style="flex-shrink:0;height:40px;padding:0 16px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Надіслати
+      </button>
+    </form>`;
+
+  win.querySelector('#msg-chat-reply-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = win.querySelector('#msg-chat-input');
+    const body = input?.value.trim();
+    if (!body) return;
+    input.value = '';
+    try {
+      await apiFetch(`/chat/admin/conversations/${id}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ body }),
+      });
+      await _loadAndAppendMsgs(id, true); // відразу показуємо відповідь
+      loadChatConversations();            // оновити прев'ю в списку
+    } catch (err) {
+      console.error('Chat send error:', err);
+    }
+  });
+}
+
+/* ── Підвантаження повідомлень ── */
+function _buildBubble(m) {
+  const isAdmin = m.sender === 'admin';
+  const time = m.created_at
+    ? new Date(m.created_at).toLocaleTimeString('uk', { hour: '2-digit', minute: '2-digit' }) : '';
+  return `<div class="msg-bubble ${isAdmin ? 'msg-bubble--admin' : 'msg-bubble--guest'}">
+    <div class="msg-bubble-text">${escapeHtml(m.body)}</div>
+    <div class="msg-bubble-time">${time}</div>
+  </div>`;
+}
+
+async function _loadAndAppendMsgs(id, incremental) {
+  const msgList = document.getElementById('msg-chat-messages');
+  if (!msgList) return;
+  try {
+    const after = incremental ? _lastMsgId : 0;
+    const msgs = await apiFetch(`/chat/admin/conversations/${id}/messages?after=${after}`);
+    if (!msgs || msgs.length === 0) return; // нічого нового — не чіпаємо DOM
+
+    if (!incremental) {
+      msgList.innerHTML = msgs.map(_buildBubble).join('');
+    } else {
+      msgs.forEach(m => msgList.insertAdjacentHTML('beforeend', _buildBubble(m)));
+    }
+    _lastMsgId = msgs[msgs.length - 1].id;
+    msgList.scrollTop = msgList.scrollHeight;
+
+    // Оновити список якщо прийшло нове (від гостя)
+    if (msgs.some(m => m.sender === 'guest')) loadChatConversations();
+  } catch (e) {
+    console.error('Chat poll error:', e);
+  }
+}
+
+/* ── Запуск/зупинка поллінгу списку розмов ── */
+function startChatListPolling() {
+  clearInterval(_chatListPollTimer);
+  clearInterval(_chatMsgPollTimer);
+  loadChatConversations();
+  _chatListPollTimer = setInterval(loadChatConversations, 5000);
+}
+function stopChatPolling() {
+  clearInterval(_chatListPollTimer);
+  clearInterval(_chatMsgPollTimer);
+  activeChatId = null;
+  _lastMsgId = 0;
+}
+
+/* ══════════════════════════════════════════
+   СТАТИСТИКА ПРОФІЛЮ АДМІНА
+   ══════════════════════════════════════════ */
+async function loadProfileStats() {
+  try {
+    const [cls, trs, pls] = await Promise.all([
+      apiFetch('/clients').catch(() => []),
+      apiFetch('/trainers').catch(() => []),
+      apiFetch('/subscriptions/plans').catch(() => []),
+    ]);
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setEl('prof-stat-clients', cls.length ?? '—');
+    setEl('prof-stat-trainers', trs.length ?? '—');
+    setEl('prof-stat-plans', (pls.filter ? pls.filter(p => p.status !== 'deleted') : pls).length ?? '—');
+  } catch (_) { /* ігноруємо */ }
+}
+

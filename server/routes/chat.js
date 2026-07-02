@@ -5,7 +5,7 @@
  *   POST /api/chat/guest/messages         — надіслати повідомлення.
  *   GET  /api/chat/guest/messages         — отримати повідомлення діалогу (polling).
  *
- * Адмінська частина (захищена простим паролем у заголовку X-Chat-Password):
+ * Адмінська частина (JWT-авторизація, role=admin):
  *   GET  /api/chat/admin/conversations               — список діалогів.
  *   GET  /api/chat/admin/conversations/:id/messages  — повідомлення діалогу (polling).
  *   POST /api/chat/admin/conversations/:id/messages  — відповісти гостю.
@@ -15,26 +15,16 @@
  */
 
 import { Router } from 'express';
-import { timingSafeEqual } from 'node:crypto';
 
 import { query } from '../db.js';
+import { authRequired, requireRole } from '../middleware/auth.js';
 import {
   HTTP_BAD_REQUEST,
   HTTP_CREATED,
   HTTP_NOT_FOUND,
-  HTTP_UNAUTHORIZED,
 } from '../utils/constants.js';
 
 const router = Router();
-
-// Пароль адмін-частини чату. За замовчуванням '123' (вимога бети),
-// але переозначується через .env, щоб легко підняти безпеку пізніше.
-const INSECURE_CHAT_ADMIN_PASSWORD = '123';
-const CHAT_ADMIN_PASSWORD = process.env.CHAT_ADMIN_PASSWORD || INSECURE_CHAT_ADMIN_PASSWORD;
-
-if (process.env.NODE_ENV === 'production' && CHAT_ADMIN_PASSWORD === INSECURE_CHAT_ADMIN_PASSWORD) {
-  throw new Error('CHAT_ADMIN_PASSWORD must be set in production.');
-}
 
 // Обмеження довжини, щоб уникнути зловживань і переповнення.
 const MAX_BODY_LENGTH = 2000;
@@ -91,17 +81,6 @@ function parseAfter(value) {
   return Number.isFinite(num) && num > 0 ? num : 0;
 }
 
-function isSameSecret(provided, expected) {
-  if (typeof provided !== 'string' || typeof expected !== 'string') {
-    return false;
-  }
-
-  const providedBuffer = Buffer.from(provided);
-  const expectedBuffer = Buffer.from(expected);
-  return providedBuffer.length === expectedBuffer.length
-    && timingSafeEqual(providedBuffer, expectedBuffer);
-}
-
 // ─── Гостьова частина ─────────────────────────────────────────────────────────
 
 router.post('/guest/messages', async (req, res) => {
@@ -155,21 +134,9 @@ router.get('/guest/messages', async (req, res) => {
   return res.json(result.rows);
 });
 
-// ─── Адмінська частина (за паролем) ───────────────────────────────────────────
+// ─── Адмінська частина (JWT, role=admin) ─────────────────────────────────────
 
-/**
- * Middleware: пропускає лише запити з правильним паролем у заголовку
- * X-Chat-Password. Свідомо проста «заглушка» під вимогу бети.
- */
-function requireChatPassword(req, res, next) {
-  const provided = req.headers['x-chat-password'];
-  if (!isSameSecret(provided, CHAT_ADMIN_PASSWORD)) {
-    return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний пароль' });
-  }
-  return next();
-}
-
-router.use('/admin', requireChatPassword);
+router.use('/admin', authRequired, requireRole('admin'));
 
 router.get('/admin/conversations', async (req, res) => {
   const result = await query(

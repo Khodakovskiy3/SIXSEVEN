@@ -25,7 +25,7 @@
             <button class="logout ghost">Вийти</button>
         </aside>
 
-        <main class="client-app admin-app">
+        <main class="client-app admin-app admin-app--services">
             <header class="topbar">
                 <div>
                     <div class="brand">OLIMP</div>
@@ -55,7 +55,18 @@
                         <button class="chip" data-service-filter="inactive">Неактивні</button>
                     </div>
                     <p class="admin-feedback" id="services-feedback" role="status"></p>
-                    <div class="admin-cards" id="services-grid"></div>
+                    <div class="adm-svc-carousel">
+                        <section class="svc-grid" id="services-grid"></section>
+                        <div class="svc-nav">
+                            <button class="svc-nav-btn" id="svc-prev" aria-label="Назад">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+                            </button>
+                            <span class="svc-nav-dots" id="svc-dots"></span>
+                            <button class="svc-nav-btn" id="svc-next" aria-label="Вперед">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </section>
         </main>

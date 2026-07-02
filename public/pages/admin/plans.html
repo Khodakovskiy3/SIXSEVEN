@@ -58,23 +58,17 @@
                         <button class="chip" data-plan-filter="single">Разові</button>
                     </div>
                     <p class="admin-feedback" id="plans-feedback" role="status"></p>
-                    <div class="admin-cards" id="plans-grid"></div>
-                </div>
-
-                <div class="panel admin-section">
-                    <h2>Видані абонементи</h2>
-                    <div class="admin-table subscription-table">
-                        <div class="table-row table-head">
-                            <span>Клієнт</span>
-                            <span>Email</span>
-                            <span>Абонемент</span>
-                            <span>Статус</span>
-                            <span>Діє до</span>
-                            <span>Дії</span>
-                        </div>
-                        <div id="subscriptions-table-body"></div>
+                    <div class="plans-carousel-wrap">
+                        <button class="plans-nav-btn" id="plans-prev" aria-label="Попередній">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+                        </button>
+                        <div class="admin-cards" id="plans-grid"></div>
+                        <button class="plans-nav-btn plans-nav-btn--next" id="plans-next" aria-label="Наступний">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                        </button>
                     </div>
                 </div>
+
             </section>
         </main>
 

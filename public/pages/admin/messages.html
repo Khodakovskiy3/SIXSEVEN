@@ -25,7 +25,7 @@
             <button class="logout ghost">Вийти</button>
         </aside>
 
-        <main class="client-app admin-app">
+        <main class="client-app admin-app admin-app--messages">
             <header class="topbar">
                 <div>
                     <div class="brand">OLIMP</div>
@@ -55,11 +55,32 @@
                         <button class="chip" data-message-filter="trainers">Тренерам</button>
                         <button class="chip" data-message-filter="planned">Заплановані</button>
                         <button class="chip" data-message-filter="sent">Надіслані</button>
+                        <button class="chip msg-chat-chip" data-message-filter="chat">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="12" height="12" style="margin-right:3px"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            Чат
+                        </button>
                     </div>
                     <p class="admin-feedback" id="messages-feedback" role="status" aria-live="polite"></p>
-                    <div class="admin-table message-table">
+
+                    <!-- Оголошення -->
+                    <div class="admin-table message-table" id="messages-broadcast-panel">
                         <div class="table-row table-head"><span>Тема</span><span>Кому</span><span>Статус</span><span>Створено</span><span>Надсилання</span><span>Дії</span></div>
                         <div id="messages-table-body"></div>
+                    </div>
+
+                    <!-- Чат з потенційними клієнтами -->
+                    <div class="msg-chat-panel" id="messages-chat-panel">
+                        <div class="msg-chat-layout">
+                            <div class="msg-chat-list" id="msg-chat-list">
+                                <div class="msg-chat-list-empty">Завантаження…</div>
+                            </div>
+                            <div class="msg-chat-window" id="msg-chat-window">
+                                <div class="msg-chat-placeholder">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40" opacity=".3"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                    <p>Оберіть діалог зі списку</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>

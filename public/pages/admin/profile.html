@@ -44,18 +44,89 @@
             </header>
 
             <section class="screen active" data-screen-panel="profile">
-                <div class="profile-grid">
-                    <article class="panel profile-card">
-                        <div class="profile-avatar" data-account-field="initials"></div>
-                        <h2 data-account-field="name">Завантаження…</h2>
-                        <p><span data-account-field="email"></span> · <span data-account-field="phone" data-account-fallback="—"></span></p>
-                    </article>
-                    <article class="panel menu-card">
-                        <button data-screen-link="admin-personal">Особисті дані <span>›</span></button>
-                        <button data-screen-link="club-settings">Дані клубу <span>›</span></button>
-                        <button data-screen-link="admin-settings">Налаштування <span>›</span></button>
-                        <button class="logout-row">Вийти</button>
-                    </article>
+                <div class="adm-profile-wrap">
+
+                    <!-- Ліва колонка: аватар + дані -->
+                    <div class="adm-profile-left">
+                        <div class="adm-profile-hero">
+                            <div class="adm-profile-ring">
+                                <div class="adm-profile-avatar" data-account-field="initials">AD</div>
+                            </div>
+                            <div class="adm-profile-role-badge">Адміністратор</div>
+                            <h2 class="adm-profile-name" data-account-field="name">Завантаження…</h2>
+                            <p class="adm-profile-email" data-account-field="email"></p>
+                            <p class="adm-profile-phone" data-account-field="phone" data-account-fallback="Телефон не вказано"></p>
+                        </div>
+
+                        <!-- Статистика -->
+                        <div class="adm-profile-stats">
+                            <div class="adm-pstat">
+                                <strong id="prof-stat-clients">—</strong>
+                                <span>Клієнтів</span>
+                            </div>
+                            <div class="adm-pstat">
+                                <strong id="prof-stat-trainers">—</strong>
+                                <span>Тренерів</span>
+                            </div>
+                            <div class="adm-pstat">
+                                <strong id="prof-stat-plans">—</strong>
+                                <span>Тарифів</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Права колонка: меню -->
+                    <div class="adm-profile-right">
+                        <div class="adm-profile-menu">
+                            <h3 class="adm-menu-section-label">Налаштування</h3>
+
+                            <button class="adm-menu-item" data-screen-link="admin-personal">
+                                <span class="adm-menu-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                </span>
+                                <span class="adm-menu-label">
+                                    <strong>Особисті дані</strong>
+                                    <small>Ім'я, email, телефон</small>
+                                </span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+
+                            <button class="adm-menu-item" data-screen-link="club-settings">
+                                <span class="adm-menu-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                                </span>
+                                <span class="adm-menu-label">
+                                    <strong>Дані клубу</strong>
+                                    <small>Адреса, графік, контакти</small>
+                                </span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+
+                            <button class="adm-menu-item" data-screen-link="admin-settings">
+                                <span class="adm-menu-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                                </span>
+                                <span class="adm-menu-label">
+                                    <strong>Налаштування</strong>
+                                    <small>Пароль, сповіщення</small>
+                                </span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+
+                            <div class="adm-menu-divider"></div>
+
+                            <button class="adm-menu-item adm-menu-item--danger logout-row">
+                                <span class="adm-menu-icon adm-menu-icon--danger">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                                </span>
+                                <span class="adm-menu-label">
+                                    <strong>Вийти</strong>
+                                    <small>Завершити сесію</small>
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
                 </div>
             </section>
         </main>
