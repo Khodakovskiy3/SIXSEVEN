@@ -1,0 +1,12 @@
+node_modules
+.git
+.env
+.env.example
+.claude
+.DS_Store
+graphify-out
+server-run.out
+server-run.err
+*.docx
+Dockerfile
+docker-compose.yml
