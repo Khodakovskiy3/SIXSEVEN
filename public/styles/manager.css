@@ -604,8 +604,361 @@
   color: #ddd;
 }
 
+/* 5-column variant for analytics tables */
+.manager-table--5col .manager-table-head,
+.manager-table--5col .manager-table-row {
+  grid-template-columns: 1.6fr 0.8fr 0.9fr 0.9fr 1.2fr;
+}
+
+/* Fill bar for trainer efficiency */
+.fill-bar {
+  display: inline-block;
+  vertical-align: middle;
+  width: 64px;
+  height: 6px;
+  background: var(--line);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-right: 6px;
+}
+.fill-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  transition: width .3s;
+}
+
 .manager-table-row button {
   margin-right: 6px;
+}
+
+/* ═══════════════════════════════════════════════════════
+   DASHBOARD KPI CARDS
+═══════════════════════════════════════════════════════ */
+.dash-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.dash-kpi-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  overflow: hidden;
+  min-height: 90px;
+}
+
+.dash-kpi-card__left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-kpi-card__ico {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.dash-kpi-card__ico svg {
+  width: 20px;
+  height: 20px;
+}
+
+.dash-kpi-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.dash-kpi-card__body > span {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dash-kpi-card__body > strong {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+  letter-spacing: -.02em;
+}
+
+.dash-trend--up  { font-size: 11px; font-weight: 700; color: #39d98a; }
+.dash-trend--down{ font-size: 11px; font-weight: 700; color: #ff5555; }
+
+.dash-kpi-card__deco {
+  flex-shrink: 0;
+  margin-left: 8px;
+  opacity: .6;
+}
+.dash-kpi-card__deco svg {
+  width: 52px;
+  height: 28px;
+  display: block;
+}
+
+/* ═══════════════════════════════════════════════════════
+   DASHBOARD REVENUE CHART
+═══════════════════════════════════════════════════════ */
+.dash-chart-panel {
+  margin-bottom: 14px;
+}
+
+.dash-chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.dash-chart-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dash-chart-period {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dash-chart-wrap {
+  /* outer wrapper used by the panel — height drives everything */
+  height: 240px;
+  position: relative;
+  width: 100%;
+}
+
+/* ── new layout: y-axis column + chart column ── */
+.dch-layout {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  gap: 0;
+}
+
+/* Y-axis labels column */
+.dch-yaxis {
+  flex-shrink: 0;
+  width: 52px;
+  position: relative;
+  padding-bottom: 22px; /* leave room for x-axis row */
+}
+
+.dch-yaxis span {
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Right column: SVG area + X-axis row */
+.dch-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* SVG chart area */
+.dch-area {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+.dch-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Grid lines (inside SVG, normalized) */
+.dch-grid {
+  stroke: var(--line);
+  stroke-width: 0.4;
+  stroke-dasharray: 2 2;
+}
+
+/* Dots — HTML, perfectly circular */
+.dch-dot {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2.5px solid var(--accent);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Summary label (HTML overlay) */
+.dch-sum {
+  position: absolute;
+  transform: translate(-100%, -100%);
+  text-align: right;
+  pointer-events: none;
+}
+
+.dch-sum strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.dch-sum span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* X-axis labels row */
+.dch-xaxis {
+  height: 22px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.dch-xaxis span {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--muted);
+  top: 5px;
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════
+   DASHBOARD BARS (workout + trainer)
+═══════════════════════════════════════════════════════ */
+.dbar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.dbar-head__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dbar-head__badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.dbar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dbar-item {
+  display: grid;
+  grid-template-columns: 28px 120px 1fr 80px;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Workout icon */
+.dbar-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  width: 22px;
+}
+
+.dbar-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Trainer avatar circle */
+.dbar-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.dbar-name {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dbar-name--wrap {
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.dbar-track {
+  height: 8px;
+  background: rgba(255,255,255,.06);
+  border-radius: 99px;
+  overflow: hidden;
+  display: block;
+}
+
+.dbar-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #e85002 0%, #ff7a3c 100%);
+  border-radius: 99px;
+  transition: width .5s cubic-bezier(.25,.8,.25,1);
+}
+
+.dbar-val {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
 }
 
 @media (max-width: 900px) {
@@ -631,6 +984,27 @@
 
   .manager-chart-row b {
     text-align: left;
+  }
+
+  /* Dashboard responsive */
+  .dash-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dash-chart-wrap {
+    height: 180px;
+  }
+
+  .dbar-item {
+    grid-template-columns: 28px 1fr 80px;
+  }
+
+  .dbar-name {
+    grid-column: 2;
+  }
+
+  .dbar-track {
+    grid-column: 2 / -1;
   }
 }
 .manager-search {

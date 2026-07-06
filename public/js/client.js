@@ -1,6 +1,7 @@
 import { apiFetch, clearAuth, formatDate, requireFreshAuth, setAuth } from './api.js';
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE, STORAGE_KEY } from './constants.js';
+import { initSidebar } from './sidebar.js';
 
 const titles = {
   home: 'Головна',
@@ -371,44 +372,77 @@ async function bookSchedule(scheduleId) {
   }
 }
 
+const MONTHS_UA = ['СІЧ','ЛЮТ','БЕР','КВІ','ТРА','ЧЕР','ЛИП','СЕР','ВЕР','ЖОВ','ЛИС','ГРУ'];
+
+function bookingDateBadge(dateStr, past = false) {
+  const d = new Date(dateStr);
+  const day = d.getDate();
+  const month = MONTHS_UA[d.getMonth()];
+  const cls = past ? 'rc-date-badge rc-date-badge--past' : 'rc-date-badge';
+  return `<div class="${cls}"><strong>${day}</strong><span>${month}</span></div>`;
+}
+
 function renderBookingsPage() {
   const futureList = document.querySelector('#future-bookings-list');
   const historyList = document.querySelector('#history-bookings-list');
   if (!futureList || !historyList) return;
 
   const today = new Date().toISOString().slice(0, 10);
-  const future = bookings.filter((booking) => booking.status === 'active' && formatDate(booking.date) >= today);
-  const history = bookings.filter((booking) => booking.status !== 'active' || formatDate(booking.date) < today);
+  const future = bookings.filter((b) => b.status === 'active' && formatDate(b.date) >= today);
+  const history = bookings.filter((b) => b.status !== 'active' || formatDate(b.date) < today);
 
-  futureList.innerHTML = future.length ? future.map((booking) => `
+  futureList.innerHTML = future.length ? future.map((b) => `
     <article class="record-card">
-      <h3>${escapeHtml(booking.workout_name)}</h3>
-      <p>${formatDate(booking.date)} · ${formatTime(booking.time)}</p>
-      <p>Тренер ${escapeHtml(booking.trainer_name || 'не призначений')}</p>
-      <div class="record-actions">
-        <button class="ghost-btn" data-booking-details="${booking.schedule_id}">Деталі</button>
-        <button class="danger-btn" data-cancel-booking="${booking.id}">Скасувати</button>
+      ${bookingDateBadge(b.date)}
+      <div class="rc-info">
+        <h3 class="rc-title">${escapeHtml(b.workout_name)}</h3>
+        <p class="rc-meta">${formatTime(b.time)} · Тренер ${escapeHtml(b.trainer_name || 'не призначений')}</p>
+      </div>
+      <div class="rc-actions">
+        <button class="ghost-btn" data-booking-details="${b.schedule_id}">Деталі</button>
+        <button class="danger-btn" data-cancel-booking="${b.id}">Скасувати</button>
       </div>
     </article>
   `).join('') : `
-    <article class="record-card">
-      <h3>Немає майбутніх записів</h3>
-      <p>Перейдіть у розклад, щоб записатися на заняття.</p>
-      <button class="primary-btn" data-screen-link="schedule">Перейти до розкладу</button>
-    </article>
+    <div class="records-empty">
+      <div class="records-empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="34" height="34">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+          <line x1="8" y1="14" x2="8" y2="14" stroke-width="2.5"/>
+          <line x1="12" y1="14" x2="12" y2="14" stroke-width="2.5"/>
+          <line x1="16" y1="14" x2="16" y2="14" stroke-width="2.5"/>
+        </svg>
+      </div>
+      <h3>Записів ще немає</h3>
+      <p>Оберіть заняття в розкладі — і ми збережемо його тут</p>
+      <button class="primary-btn" data-screen-link="schedule">Переглянути розклад</button>
+    </div>
   `;
 
-  historyList.innerHTML = history.length ? history.map((booking) => `
+  historyList.innerHTML = history.length ? history.map((b) => {
+    const done = b.status === 'active';
+    return `
     <article class="record-card">
-      <h3>${escapeHtml(booking.workout_name)}</h3>
-      <p>${formatDate(booking.date)} · ${formatTime(booking.time)}</p>
-      <p>${booking.status === 'active' ? 'Завершено' : 'Скасовано'}</p>
+      ${bookingDateBadge(b.date, true)}
+      <div class="rc-info">
+        <h3 class="rc-title">${escapeHtml(b.workout_name)}</h3>
+        <p class="rc-meta">${formatTime(b.time)} · Тренер ${escapeHtml(b.trainer_name || 'не призначений')}</p>
+      </div>
+      <span class="rc-status ${done ? 'rc-status--done' : 'rc-status--cancelled'}">${done ? 'Завершено' : 'Скасовано'}</span>
     </article>
-  `).join('') : `
-    <article class="record-card">
+  `}).join('') : `
+    <div class="records-empty">
+      <div class="records-empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="34" height="34">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+      </div>
       <h3>Історія порожня</h3>
-      <p>Минулі тренування з’являться тут автоматично.</p>
-    </article>
+      <p>Завершені та скасовані тренування з'являться тут</p>
+    </div>
   `;
 }
 
@@ -457,6 +491,12 @@ function renderNextTraining() {
   const nextBooking = upcomingBookings[0];
   if (!nextBooking) {
     container.innerHTML = `
+      <div class="panel-icon">
+        <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="4" width="16" height="14" rx="2"/>
+          <path d="M2 8h16M7 2v4M13 2v4"/>
+        </svg>
+      </div>
       <div class="training-main">
         <div>
           <h2>Немає записів</h2>
@@ -497,6 +537,14 @@ function renderHomeSubscription(subscriptions = []) {
 
   if (!activeSubscription) {
     container.innerHTML = `
+      <div class="sub-ring-wrap">
+        <svg viewBox="0 0 52 52" width="52" height="52" style="transform:rotate(-90deg)">
+          <circle class="ring-track" cx="26" cy="26" r="21" stroke-width="3.5" fill="none"/>
+          <circle class="ring-fill" cx="26" cy="26" r="21" stroke-width="3.5" fill="none"
+            stroke-dasharray="0 132" stroke-linecap="round"/>
+        </svg>
+        <span class="sub-ring-label">0%</span>
+      </div>
       <div>
         <h2>Немає активного</h2>
         <p>Оберіть тариф у розділі «Абонемент».</p>
@@ -520,44 +568,51 @@ function renderHomeSubscription(subscriptions = []) {
  */
 function renderTodaySchedule() {
   const list = document.querySelector('#client-today-list');
-  if (!list) {
-    return;
-  }
+  if (!list) return;
 
   const today = new Date().toISOString().slice(0, 10);
   const todaySchedules = schedules
     .filter((item) => formatDate(item.date) === today)
-    .sort((first, second) => formatTime(first.time).localeCompare(formatTime(second.time)));
+    .sort((a, b) => formatTime(a.time).localeCompare(formatTime(b.time)));
 
   if (todaySchedules.length === 0) {
     list.innerHTML = `
-      <div class="class-card">
-        <div class="class-info">
-          <h3>Сьогодні занять немає</h3>
-          <p>Перегляньте розклад на інші дні.</p>
-        </div>
+      <div class="tl-count-badge">
+        <span class="tl-count-num">0</span>
+        <span class="tl-count-label">занять сьогодні</span>
       </div>
+      <p class="tl-empty">Сьогодні занять немає — перегляньте інші дні</p>
     `;
     return;
   }
 
-  list.innerHTML = todaySchedules.map((item) => {
+  const countBadge = `
+    <div class="tl-count-badge">
+      <span class="tl-count-num">${todaySchedules.length}</span>
+      <span class="tl-count-label">занять сьогодні</span>
+    </div>
+  `;
+
+  const items = todaySchedules.map((item) => {
     const isBooked = isAlreadyBooked(item.id);
     const available = Number(item.available || 0);
     const disabled = available <= 0 || isBooked;
-    const actionText = isBooked ? 'Записано' : (available > 0 ? 'Запис' : '—');
+    const btnText = isBooked ? 'Записано' : (available > 0 ? 'Записатись' : 'Немає місць');
 
     return `
-      <div class="class-card ${disabled && !isBooked ? 'disabled' : ''}">
-        <div class="class-time">${formatTime(item.time)}</div>
-        <div class="class-info">
-          <h3>${escapeHtml(item.workout_name)}</h3>
-          <p>${escapeHtml(item.trainer_name || 'без тренера')} · ${available > 0 ? `${available} місць` : 'місць немає'}</p>
+      <div class="tl-item${isBooked ? ' booked' : ''}">
+        <div class="tl-time">${formatTime(item.time)}</div>
+        <div class="tl-dot"></div>
+        <div class="tl-body">
+          <strong>${escapeHtml(item.workout_name)}</strong>
+          <span>${escapeHtml(item.trainer_name || 'без тренера')} · ${available > 0 ? `${available} місць` : 'місць немає'}</span>
         </div>
-        <button class="primary-btn small" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${actionText}</button>
+        <button class="primary-btn small" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${btnText}</button>
       </div>
     `;
   }).join('');
+
+  list.innerHTML = countBadge + items;
 }
 
 /**
@@ -996,6 +1051,8 @@ passwordModal?.addEventListener('click', (event) => {
     closePasswordModal();
   }
 });
+
+initSidebar();
 
 const currentUser = await requireFreshAuth([ROLE.CLIENT]);
 if (currentUser) {

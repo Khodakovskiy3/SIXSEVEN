@@ -1,0 +1,22 @@
+# Graphify ignore — LLM extraction not needed for these
+public/styles/
+public/pages/
+public/manifest.json
+public/sw.js
+*.html
+*.css
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.ico
+*.svg
+node_modules/
+graphify-out/
+*.md
+.claude/
+package-lock.json
+package.json
+README.MD
+README.md

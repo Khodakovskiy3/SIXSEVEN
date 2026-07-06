@@ -478,10 +478,9 @@ p {
 }
 
 .content-shell {
-    grid-template-rows: auto auto;
-    align-content: start;
-    height: auto;
-    min-height: 100svh;
+    grid-template-rows: auto 1fr;
+    height: 100svh;
+    overflow: hidden;
     gap: 22px;
 }
 
@@ -743,7 +742,10 @@ p {
 .svc-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: 1fr;
     gap: 18px;
+    flex: 1;
+    min-height: 0;
 }
 
 /* ── Carousel wrapper + nav ── */
@@ -751,6 +753,7 @@ p {
     display: flex;
     flex-direction: column;
     gap: 20px;
+    min-height: 0;
 }
 
 .svc-nav {
@@ -805,14 +808,13 @@ p {
 
 .svc-card {
     position: relative;
-    height: 340px;
+    height: 100%;
+    min-height: 180px;
     border-radius: 14px;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.07);
     cursor: pointer;
     transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-                box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1),
-                border-color 0.32s;
+                box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 
     /* Фонове зображення або градієнт */
     background-size: cover;
@@ -821,7 +823,6 @@ p {
 
 .svc-card:hover {
     transform: translateY(-5px);
-    border-color: color-mix(in srgb, var(--svc-color, var(--accent)) 60%, transparent);
     box-shadow:
         0 24px 52px rgba(0, 0, 0, 0.55),
         0 0 36px color-mix(in srgb, var(--svc-color, var(--accent)) 18%, transparent);
@@ -1994,7 +1995,8 @@ body:has(.about-shell) .page-shell {
     }
 
     .svc-card {
-        height: 260px;
+        height: 100%;
+        min-height: 160px;
     }
 
     .svc-card__body {

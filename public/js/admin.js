@@ -1,6 +1,7 @@
 import { apiFetch, clearAuth, formatDate, requireFreshAuth, setAuth } from './api.js';
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
+import { initSidebar } from './sidebar.js';
 
 const titles = {
   dashboard: 'Головна',
@@ -904,6 +905,8 @@ function _updatePlansBtns() {
 function _deferUpdatePlansBtns() {
   // подвійний rAF гарантує що layout вже прорахований
   requestAnimationFrame(() => requestAnimationFrame(_updatePlansBtns));
+  // запасний таймер для випадків з margin:auto / flex layout
+  setTimeout(_updatePlansBtns, 120);
 }
 
 if (_plansGrid && _plansPrev && _plansNext) {
@@ -916,6 +919,7 @@ if (_plansGrid && _plansPrev && _plansNext) {
     _plansGrid.scrollBy({ left: step, behavior: 'smooth' });
   });
   _plansGrid.addEventListener('scroll', _updatePlansBtns, { passive: true });
+  window.addEventListener('resize', _deferUpdatePlansBtns);
 }
 
 function _initAdminSvcCarousel() {
@@ -951,7 +955,8 @@ function renderPlans() {
 
   const visiblePlans = getFilteredPlans();
   if (visiblePlans.length === 0) {
-    plansGrid.innerHTML = '<article class="manage-card"><p>Тарифів не знайдено</p></article>';
+    plansGrid.innerHTML = '<article class="manage-card"><p style="padding:20px">Тарифів не знайдено</p></article>';
+    _deferUpdatePlansBtns();
     return;
   }
 
@@ -978,6 +983,10 @@ function renderPlans() {
     return `
       <article class="manage-card ${status === 'active' ? 'featured' : ''}">
         <div class="manage-card__dark">
+          <div class="manage-card__topline">
+            <span class="manage-card__type">${planTypeLabels[plan.plan_type] || 'Тариф'} · ${escapeHtml(meta)}</span>
+            <span class="status ${status}">${statusLabels[status] || status}</span>
+          </div>
           <h3>${escapeHtml(plan.name)}</h3>
           <p class="manage-card__desc">${escapeHtml(plan.description || 'Опис відсутній')}</p>
           <div class="manage-card__price">
@@ -994,14 +1003,21 @@ function renderPlans() {
             ${features.map(f => `<li>${checkSvg}<span>${escapeHtml(f)}</span></li>`).join('')}
           </ul>
           <div class="manage-card__footer">
-            <button class="ghost-btn" data-plan-edit="${plan.id}">Редагувати</button>
-            <button class="danger-btn" data-plan-delete="${plan.id}">Видалити</button>
-            <span class="status ${status}">${statusLabels[status] || status}</span>
+            <button class="manage-card__action" data-plan-edit="${plan.id}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+              <span>Редагувати</span>
+            </button>
+            <button class="manage-card__action manage-card__action--danger" data-plan-delete="${plan.id}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span>Вилучити</span>
+            </button>
           </div>
         </div>
       </article>
     `;
   }).join('');
+
+  _deferUpdatePlansBtns();
 }
 
 function renderSubscriptions() {
@@ -2308,8 +2324,8 @@ document.querySelectorAll('.chip, .cseg-btn').forEach((button) => {
 
     if (button.dataset.planFilter) {
       plansFilter = button.dataset.planFilter;
+      if (_plansGrid) _plansGrid.scrollLeft = 0;
       renderPlans();
-      _deferUpdatePlansBtns();
     }
 
     if (button.dataset.messageFilter) {
@@ -2976,7 +2992,10 @@ function resetSchedRange() {
   scrollScheduleStripToActive();
 }
 servicesSearch?.addEventListener('input', () => { _adminSvcOffset = 0; renderServices(); });
-plansSearch?.addEventListener('input', renderPlans);
+plansSearch?.addEventListener('input', () => {
+  if (_plansGrid) _plansGrid.scrollLeft = 0;
+  renderPlans();
+});
 messagesSearch?.addEventListener('input', renderMessages);
 
 /**
@@ -3619,6 +3638,8 @@ passwordModal?.addEventListener('click', (event) => {
     closePasswordModal();
   }
 });
+
+initSidebar();
 
 const currentUser = await requireFreshAuth([ROLE.ADMIN]);
 if (currentUser) {

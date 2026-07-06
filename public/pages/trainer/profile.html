@@ -9,79 +9,115 @@
     <meta name="theme-color" content="#111111">
 </head>
 <body>
-    <div class="app-shell trainer-shell">
+    <div class="app-shell">
         <aside class="sidebar">
             <div class="brand brand-sidebar">OLIMP</div>
+            <button class="sidebar-toggle" aria-label="Розгорнути меню">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
             <nav class="side-nav" aria-label="Навігація тренера">
-                <button class="nav-item" data-screen="home">Головна</button>
-                <button class="nav-item" data-screen="schedule">Розклад</button>
-                <button class="nav-item active" data-screen="profile">Профіль</button>
+                <button class="nav-item" data-screen="home"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><polyline points="9 21 9 12 15 12 15 21"/></svg></span><span class="nav-label">Головна</span></button>
+                <button class="nav-item" data-screen="schedule"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span><span class="nav-label">Розклад</span></button>
+                <button class="nav-item" data-screen="clients"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="nav-label">Клієнти</span></button>
+                <button class="nav-item active" data-screen="profile"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="nav-label">Профіль</span></button>
             </nav>
-            <button class="logout ghost">Вийти</button>
+            <button class="logout ghost"><span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span><span class="nav-label">Вийти</span></button>
         </aside>
 
-        <main class="client-app trainer-app">
+        <main class="client-app">
             <header class="topbar">
                 <div>
                     <div class="brand">OLIMP</div>
                     <h1 id="screen-title">Профіль</h1>
                 </div>
                 <div class="top-actions">
-                    <button class="icon-btn notification-btn" aria-label="Повідомлення">
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <button class="icon-btn notification-btn" aria-label="Повідомлення"><svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="M12 22a2.8 2.8 0 0 0 2.7-2h-5.4A2.8 2.8 0 0 0 12 22Z"></path>
                             <path d="M18.2 16.5c-.9-1-1.4-2.2-1.4-3.6V10a4.8 4.8 0 0 0-3.5-4.6V4a1.3 1.3 0 1 0-2.6 0v1.4A4.8 4.8 0 0 0 7.2 10v2.9c0 1.4-.5 2.7-1.4 3.6l-.6.7c-.6.7-.1 1.8.8 1.8h12c.9 0 1.4-1.1.8-1.8l-.6-.7Z"></path>
                         </svg>
-                        <span class="notification-dot"></span>
-                    </button>
+                        <span class="notification-dot"></span></button>
                     <button class="avatar" data-screen-link="profile" aria-label="Мій профіль" data-account-field="initials"></button>
                 </div>
             </header>
 
             <section class="screen active" data-screen-panel="profile">
-                <div class="profile-grid">
-                    <article class="panel profile-card">
-                        <div class="profile-avatar" data-account-field="initials"></div>
-                        <h2 data-account-field="name">Завантаження…</h2>
-                        <p>Тренер · <span data-account-field="specialization" data-account-fallback="спеціалізацію не вказано"></span></p>
-                    </article>
-                    <article class="panel menu-card">
-                        <button data-screen-link="personal">Особисті дані <span>›</span></button>
-                        <button data-screen-link="specialization">Моя спеціалізація <span>›</span></button>
-                        <button data-screen-link="settings">Налаштування <span>›</span></button>
-                        <button class="logout-row">Вийти</button>
-                    </article>
+                <div class="adm-profile-wrap">
+
+                    <div class="adm-profile-left">
+                        <div class="adm-profile-hero">
+                            <div class="adm-profile-ring">
+                                <div class="adm-profile-avatar" data-account-field="initials"></div>
+                            </div>
+                            <div class="adm-profile-role-badge">Тренер</div>
+                            <h2 class="adm-profile-name" data-account-field="name">Завантаження…</h2>
+                            <p class="adm-profile-email" data-account-field="email"></p>
+                            <p class="adm-profile-phone" data-account-field="phone" data-account-fallback="Телефон не вказано"></p>
+                        </div>
+                    </div>
+
+                    <div class="adm-profile-right">
+                        <div class="adm-profile-menu">
+                            <h3 class="adm-menu-section-label">Мій кабінет</h3>
+
+                            <button class="adm-menu-item" data-screen-link="personal"><span class="adm-menu-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                </span>
+                                <span class="adm-menu-label">
+                                    <strong>Особисті дані</strong>
+                                    <small>Ім'я, email, телефон</small>
+                                </span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><polyline points="9 18 15 12 9 6"/></svg></button>
+
+                            <button class="adm-menu-item" data-screen-link="specialization"><span class="adm-menu-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                                </span>
+                                <span class="adm-menu-label">
+                                    <strong>Моя спеціалізація</strong>
+                                    <small>Напрямки, досвід, сертифікати</small>
+                                </span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><polyline points="9 18 15 12 9 6"/></svg></button>
+
+                            <button class="adm-menu-item" data-screen-link="settings"><span class="adm-menu-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                                </span>
+                                <span class="adm-menu-label">
+                                    <strong>Налаштування</strong>
+                                    <small>Пароль, сповіщення</small>
+                                </span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><polyline points="9 18 15 12 9 6"/></svg></button>
+
+                            <div class="adm-menu-divider"></div>
+
+                            <button class="adm-menu-item adm-menu-item--danger logout-row">
+                                <span class="adm-menu-icon adm-menu-icon--danger">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                                </span>
+                                <span class="adm-menu-label">
+                                    <strong>Вийти</strong>
+                                    <small>Завершити сесію</small>
+                                </span>
+                            </button>
+                        </div>
+                    </div>
+
                 </div>
             </section>
         </main>
 
-        <nav class="bottom-nav " aria-label="Нижня навігація">
+        <nav class="bottom-nav" aria-label="Нижня навігація">
             <button class="bottom-item" data-screen="home">Головна</button>
-                <button class="bottom-item" data-screen="schedule">Розклад</button>
-                <button class="bottom-item active" data-screen="profile">Профіль</button>
+            <button class="bottom-item" data-screen="schedule">Розклад</button>
+            <button class="bottom-item" data-screen="clients">Клієнти</button>
+            <button class="bottom-item active" data-screen="profile">Профіль</button>
         </nav>
     </div>
 
     <div class="sheet-backdrop" id="sheet">
         <div class="bottom-sheet">
             <div class="sheet-handle"></div>
-            <h2 id="sheet-title">Фітнес</h2>
-            <p id="sheet-text">Силове функціональне тренування для витривалості та загального тонусу.</p>
-            <dl id="sheet-details"></dl>
+            <h2 id="sheet-title">Деталі</h2>
+            <div id="sheet-content" class="sheet-content"></div>
             <button class="primary-btn sheet-close">Закрити</button>
-        </div>
-    </div>
-
-    <div class="modal-backdrop" id="password-modal">
-        <div class="modal">
-            <h2>Змінити пароль</h2>
-            <label>Поточний пароль<input type="password"></label>
-            <label>Новий пароль<input type="password"></label>
-            <label>Підтвердити пароль<input type="password"></label>
-            <div class="modal-actions">
-                <button class="ghost-btn modal-close">Скасувати</button>
-                <button class="primary-btn modal-close">Зберегти</button>
-            </div>
         </div>
     </div>
 

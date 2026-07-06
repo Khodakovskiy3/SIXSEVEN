@@ -11,6 +11,7 @@
 import { apiFetch, clearAuth, formatDate, requireFreshAuth } from './api.js';
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
+import { initSidebar } from './sidebar.js';
 
 // Кількість днів у стрічці розкладу (тиждень наперед від сьогодні).
 const WEEK_LENGTH = 7;
@@ -432,6 +433,8 @@ async function loadTrainerData() {
 }
 
 // ─── Старт ───────────────────────────────────────────────────────────────────────
+
+initSidebar();
 
 const currentUser = await requireFreshAuth([ROLE.TRAINER]);
 if (currentUser) {

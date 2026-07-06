@@ -156,16 +156,17 @@ router.get('/manager', async (req, res) => {
     // 2. Дохід по днях
     // ------------------------------------------------------
 
+    // generate_series fills gaps so every day in range appears (with 0 on days with no payments)
     const revenueByDay = await query(
       `
       select
-        date,
-        coalesce(sum(amount), 0) as revenue,
-        count(*) as payments_count
-      from payments
-      where date between $1 and $2
-      group by date
-      order by date
+        d.date::date                        as date,
+        coalesce(sum(p.amount), 0)          as revenue,
+        count(p.id)                         as payments_count
+      from generate_series($1::date, $2::date, '1 day') as d(date)
+      left join payments p on p.date = d.date
+      group by d.date
+      order by d.date
       `,
       [
         startDate,
@@ -181,12 +182,12 @@ router.get('/manager', async (req, res) => {
     const visitsByDay = await query(
       `
       select
-        visit_time::date as date,
-        count(*) as visits_count
-      from visits
-      where visit_time::date between $1 and $2
-      group by visit_time::date
-      order by visit_time::date
+        d.date::date               as date,
+        count(v.id)                as visits_count
+      from generate_series($1::date, $2::date, '1 day') as d(date)
+      left join visits v on v.visit_time::date = d.date
+      group by d.date
+      order by d.date
       `,
       [
         startDate,
