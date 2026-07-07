@@ -102,6 +102,9 @@
             justify-content: space-between;
         }
 
+        .back-link { font-size: 12px; font-weight: 600; color: var(--muted); text-decoration: none; }
+        .back-link:hover { color: var(--text); }
+
         .conv-list { flex: 1; overflow-y: auto; }
 
         .conv-item {
@@ -156,6 +159,45 @@
 
         .msg.admin { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
         .msg.guest { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+        .msg.system { align-self: center; background: none; color: var(--muted); font-size: 12px; font-style: italic; }
+
+        /* ─── Статуси діалогів та панель взяття в роботу ── */
+        .conv-status {
+            font-size: 11px;
+            font-weight: 700;
+            border-radius: 10px;
+            padding: 1px 8px;
+            margin-left: 6px;
+            white-space: nowrap;
+        }
+
+        .conv-status.waiting { background: rgba(255, 191, 23, 0.18); color: #ffbf17; }
+        .conv-status.mine { background: rgba(58, 200, 120, 0.18); color: #3ac878; }
+        .conv-status.other { background: var(--surface-2); color: var(--muted); }
+
+        .claim-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            border-top: 1px solid var(--line);
+        }
+
+        .claim-bar:empty { display: none; }
+        .claim-note { font-size: 12px; color: var(--muted); }
+
+        .claim-btn,
+        .release-btn {
+            border: none;
+            border-radius: 10px;
+            padding: 8px 16px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .claim-btn { background: var(--accent); color: #fff; }
+        .release-btn { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); }
 
         .composer { display: none; gap: 10px; padding: 14px; border-top: 1px solid var(--line); }
         .composer.active { display: flex; }
@@ -195,16 +237,12 @@
     <link rel="manifest" href="/manifest.json">
 </head>
 <body>
-    <!-- Екран пароля -->
+    <!-- Екран входу: сторінка вимагає активної сесії адміністратора -->
     <div class="gate" data-gate>
         <div class="gate-card">
             <h1>Чат з клієнтами</h1>
-            <p>Введіть пароль для доступу</p>
-            <form data-gate-form>
-                <input type="password" data-password placeholder="Пароль" autocomplete="off" autofocus>
-                <div class="gate-error" data-gate-error></div>
-                <button type="submit">Увійти</button>
-            </form>
+            <p>Потрібен вхід з обліковим записом адміністратора</p>
+            <a href="../pages/auth/login.html"><button type="button">Перейти до входу</button></a>
         </div>
     </div>
 
@@ -213,12 +251,14 @@
         <aside class="sidebar">
             <div class="sidebar-head">
                 <span>Діалоги</span>
+                <a class="back-link" href="admin/index.html">← Кабінет</a>
             </div>
             <div class="conv-list" data-conv-list></div>
         </aside>
         <section class="main">
             <div class="main-empty" data-main-empty>Оберіть діалог зліва</div>
             <div class="thread" data-thread></div>
+            <div class="claim-bar" data-claim-bar></div>
             <form class="composer" data-composer>
                 <textarea data-reply placeholder="Ваша відповідь…" maxlength="2000"></textarea>
                 <button type="submit">Надіслати</button>

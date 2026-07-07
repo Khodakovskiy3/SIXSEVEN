@@ -1,19 +1,39 @@
 /**
- * Плаваючий чат-віджет на головній сторінці для неавторизованого гостя.
+ * Плаваючий чат-віджет «відвідувач ↔ адміністратор».
  *
- * Гість анонімний: ідентифікується випадковим токеном у localStorage, тож
- * діалог зберігається між перезавантаженнями. Нові повідомлення підтягуються
- * через polling (кожні CHAT_POLL_MS), активний лише поки панель відкрита.
+ * Працює у двох режимах:
+ *  - гість (публічні сторінки): анонімний випадковий токен у localStorage,
+ *    діалог зберігається між перезавантаженнями у межах браузера;
+ *  - авторизований користувач (кабінет клієнта): діалог прив'язаний до
+ *    облікового запису через JWT, тож доступний з будь-якого пристрою,
+ *    а адміністратор бачить ім'я клієнта замість «Гість #N».
  *
- * API (публічне, без авторизації):
- *   POST /api/chat/guest/messages  { guestToken, body }
+ * Нові повідомлення підтягуються через polling (кожні CHAT_POLL_MS),
+ * активний лише поки панель відкрита.
+ *
+ * API:
+ *   POST /api/chat/guest/messages   { guestToken, body }      — без авторизації
  *   GET  /api/chat/guest/messages?token=…&after=<lastId>
+ *   POST /api/chat/client/messages  { body }                  — Bearer <token>
+ *   GET  /api/chat/client/messages?after=<lastId>
  */
 
 (function initChatWidget() {
   const API_BASE = '/api';
   const TOKEN_KEY = 'chat_guest_token';
+  const AUTH_TOKEN_KEY = 'token';
+  const AUTH_USER_KEY = 'user';
   const CHAT_POLL_MS = 3000;
+
+  // Режим авторизованого користувача: є JWT і збережений профіль.
+  const authToken = localStorage.getItem(AUTH_TOKEN_KEY);
+  let authUser = null;
+  try {
+    authUser = JSON.parse(localStorage.getItem(AUTH_USER_KEY) || 'null');
+  } catch {
+    authUser = null;
+  }
+  const isAuthenticated = Boolean(authToken && authUser && authUser.id);
 
   /**
    * Повертає токен гостя, створюючи його при першому виклику.
@@ -86,7 +106,12 @@
       hasMessages = true;
     }
     const el = document.createElement('div');
-    el.className = `chat-msg ${message.sender === 'admin' ? 'admin' : 'guest'}`;
+    if (message.sender === 'system') {
+      // Службові події (адміністратор приєднався тощо) — нейтральним рядком.
+      el.className = 'chat-msg system';
+    } else {
+      el.className = `chat-msg ${message.sender === 'admin' ? 'admin' : 'guest'}`;
+    }
     el.innerHTML = escapeHtml(message.body);
     bodyEl.appendChild(el);
     bodyEl.scrollTop = bodyEl.scrollHeight;
@@ -102,11 +127,27 @@
     errorEl.classList.remove('show');
   }
 
+  /**
+   * Формує URL і заголовки під поточний режим (гість або клієнт).
+   *
+   * @returns {{ url: string, headers: object }}
+   */
+  function buildFetchParams() {
+    if (isAuthenticated) {
+      return {
+        url: `${API_BASE}/chat/client/messages?after=${lastMessageId}`,
+        headers: { Authorization: `Bearer ${authToken}` },
+      };
+    }
+    const params = `token=${encodeURIComponent(guestToken)}&after=${lastMessageId}`;
+    return { url: `${API_BASE}/chat/guest/messages?${params}`, headers: {} };
+  }
+
   /** Підтягує нові повідомлення діалогу (polling). */
   async function fetchMessages() {
     try {
-      const url = `${API_BASE}/chat/guest/messages?token=${encodeURIComponent(guestToken)}&after=${lastMessageId}`;
-      const response = await fetch(url);
+      const { url, headers } = buildFetchParams();
+      const response = await fetch(url, { headers });
       if (!response.ok) return;
       const messages = await response.json();
       messages.forEach((message) => {
@@ -159,10 +200,17 @@
 
     inputEl.value = '';
     try {
-      const response = await fetch(`${API_BASE}/chat/guest/messages`, {
+      const postUrl = isAuthenticated
+        ? `${API_BASE}/chat/client/messages`
+        : `${API_BASE}/chat/guest/messages`;
+      const postHeaders = { 'Content-Type': 'application/json' };
+      if (isAuthenticated) {
+        postHeaders.Authorization = `Bearer ${authToken}`;
+      }
+      const response = await fetch(postUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ guestToken, body }),
+        headers: postHeaders,
+        body: JSON.stringify(isAuthenticated ? { body } : { guestToken, body }),
       });
       const data = await response.json();
       if (!response.ok) {

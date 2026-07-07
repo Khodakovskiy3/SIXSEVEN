@@ -136,6 +136,15 @@
     border-bottom-left-radius: 4px;
 }
 
+/* Службові повідомлення (адміністратор приєднався тощо). */
+.chat-msg.system {
+    align-self: center;
+    background: none;
+    color: var(--muted, rgba(255, 255, 255, 0.55));
+    font-size: 12px;
+    font-style: italic;
+}
+
 .chat-widget-form {
     display: flex;
     gap: 8px;

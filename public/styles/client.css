@@ -1525,6 +1525,11 @@ dd {
         transition: background 0.15s, color 0.15s;
     }
 
+    /* Пункт меню може бути і посиланням (наприклад, «Чат» у адміна). */
+    a.nav-item {
+        text-decoration: none;
+    }
+
     .nav-item:hover {
         background: var(--surface-2);
         color: var(--text);
