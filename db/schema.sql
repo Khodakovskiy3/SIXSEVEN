@@ -172,6 +172,8 @@ CREATE TABLE IF NOT EXISTS public.chat_conversations (
     guest_name        varchar(120) NULL,
     -- Адміністратор, який взяв діалог у роботу; NULL — звернення очікує.
     assigned_admin_id int4 NULL REFERENCES public.users(id) ON DELETE SET NULL,
+    -- Час завершення діалогу адміністратором; NULL — діалог відкритий.
+    closed_at         timestamp NULL,
     created_at        timestamp NOT NULL DEFAULT now(),
     updated_at        timestamp NOT NULL DEFAULT now()
 );

@@ -3700,6 +3700,26 @@ async function loadChatConversations() {
   }
 }
 
+/**
+ * Формує позначку стану діалогу: очікує / ваш / ім'я іншого адміна / завершено.
+ *
+ * @param {object} conv Діалог зі списку /chat/admin/conversations.
+ * @returns {string} HTML-рядок статусу.
+ */
+function buildChatStatusChip(conv) {
+  if (conv.closed_at) {
+    return '<span class="msg-chat-status closed">завершено</span>';
+  }
+  if (conv.assigned_admin_id === null) {
+    return '<span class="msg-chat-status waiting">очікує</span>';
+  }
+  if (conv.assigned_admin_id === currentUser.id) {
+    return '<span class="msg-chat-status mine">ваш</span>';
+  }
+  const adminName = escapeHtml(conv.assigned_admin_name || 'інший адмін');
+  return `<span class="msg-chat-status other">${adminName}</span>`;
+}
+
 function renderChatList() {
   const listEl = document.getElementById('msg-chat-list');
   if (!listEl) return;
@@ -3708,16 +3728,17 @@ function renderChatList() {
     return;
   }
   listEl.innerHTML = chatConversations.map((conv) => {
-    const unread = conv.unread_count > 0
-      ? `<span class="msg-chat-badge">${conv.unread_count}</span>` : '';
+    const unread = conv.unread > 0
+      ? `<span class="msg-chat-badge">${conv.unread}</span>` : '';
     const preview = escapeHtml(conv.last_message || '…').slice(0, 48);
     const time = conv.updated_at
       ? new Date(conv.updated_at).toLocaleTimeString('uk', { hour: '2-digit', minute: '2-digit' }) : '';
     const active = conv.id === activeChatId ? ' active' : '';
+    const title = conv.guest_name ? escapeHtml(conv.guest_name) : `Гість #${conv.id}`;
     return `
       <button class="msg-chat-item${active}" data-conv-id="${conv.id}">
         <div class="msg-chat-item-header">
-          <span class="msg-chat-item-name">Гість #${conv.id}</span>
+          <span class="msg-chat-item-name">${title} ${buildChatStatusChip(conv)}</span>
           <span class="msg-chat-item-time">${time}</span>
         </div>
         <div class="msg-chat-item-preview">${preview}${unread}</div>
@@ -3726,6 +3747,9 @@ function renderChatList() {
   listEl.querySelectorAll('[data-conv-id]').forEach(btn => {
     btn.addEventListener('click', () => openChatConversation(Number(btn.dataset.convId)));
   });
+
+  // Стан активного діалогу міг змінитись (взяв інший адмін, завершено).
+  updateChatControls();
 }
 
 /* ── Відкрити розмову ── */
@@ -3747,6 +3771,7 @@ function _renderChatWindowShell(id) {
   const win = document.getElementById('msg-chat-window');
   if (!win) return;
   win.innerHTML = `
+    <div class="msg-chat-topbar" id="msg-chat-topbar"></div>
     <div class="msg-chat-messages" id="msg-chat-messages"></div>
     <form class="msg-chat-reply" id="msg-chat-reply-form">
       <input type="text" id="msg-chat-input" placeholder="Відповідь…" autocomplete="off">
@@ -3755,6 +3780,8 @@ function _renderChatWindowShell(id) {
         Надіслати
       </button>
     </form>`;
+
+  updateChatControls();
 
   win.querySelector('#msg-chat-reply-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -3768,15 +3795,85 @@ function _renderChatWindowShell(id) {
         body: JSON.stringify({ body }),
       });
       await _loadAndAppendMsgs(id, true); // відразу показуємо відповідь
-      loadChatConversations();            // оновити прев'ю в списку
+      loadChatConversations();            // оновити прев'ю та стан у списку
     } catch (err) {
+      // Наприклад, діалог щойно взяв інший адмін — список покаже, хто саме.
+      loadChatConversations();
       console.error('Chat send error:', err);
     }
   });
 }
 
+/**
+ * Оновлює верхню панель активного діалогу (хто веде, кнопки дій)
+ * та доступність поля відповіді. Викликається при відкритті діалогу
+ * і після кожного оновлення списку, щоб стан не застарівав.
+ *
+ * @returns {void}
+ */
+function updateChatControls() {
+  const topbar = document.getElementById('msg-chat-topbar');
+  const replyForm = document.getElementById('msg-chat-reply-form');
+  if (!topbar || activeChatId === null) return;
+
+  const conv = chatConversations.find((item) => item.id === activeChatId);
+  if (!conv) return;
+
+  const isMine = conv.assigned_admin_id === currentUser.id;
+  const isFree = conv.assigned_admin_id === null;
+  const isClosed = Boolean(conv.closed_at);
+
+  if (isClosed) {
+    topbar.innerHTML = '<span class="msg-chat-note">Діалог завершено</span>';
+  } else if (isFree) {
+    topbar.innerHTML = `
+      <button type="button" class="clients-add-btn msg-chat-claim" data-chat-claim>Взяти в роботу</button>
+      <span class="msg-chat-note">або просто відповідайте</span>
+      <button type="button" class="msg-chat-close-btn" data-chat-close>Завершити</button>`;
+  } else if (isMine) {
+    topbar.innerHTML = `
+      <span class="msg-chat-note">Ви ведете цей діалог</span>
+      <button type="button" class="msg-chat-close-btn" data-chat-close>Завершити чат</button>`;
+  } else {
+    const adminName = escapeHtml(conv.assigned_admin_name || 'інший адміністратор');
+    topbar.innerHTML = `<span class="msg-chat-note">Веде ${adminName} — лише перегляд</span>`;
+  }
+
+  if (replyForm) {
+    replyForm.style.display = (isClosed || (!isFree && !isMine)) ? 'none' : '';
+  }
+
+  const claimBtn = topbar.querySelector('[data-chat-claim]');
+  if (claimBtn) {
+    claimBtn.addEventListener('click', async () => {
+      try {
+        await apiFetch(`/chat/admin/conversations/${activeChatId}/claim`, { method: 'POST' });
+      } catch (err) {
+        console.error('Chat claim error:', err); // 409 — випередив інший адмін
+      }
+      loadChatConversations();
+    });
+  }
+
+  const closeBtn = topbar.querySelector('[data-chat-close]');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', async () => {
+      try {
+        await apiFetch(`/chat/admin/conversations/${activeChatId}/close`, { method: 'POST' });
+        await _loadAndAppendMsgs(activeChatId, true); // системне «діалог завершено»
+      } catch (err) {
+        console.error('Chat close error:', err);
+      }
+      loadChatConversations();
+    });
+  }
+}
+
 /* ── Підвантаження повідомлень ── */
 function _buildBubble(m) {
+  if (m.sender === 'system') {
+    return `<div class="msg-bubble--system">${escapeHtml(m.body)}</div>`;
+  }
   const isAdmin = m.sender === 'admin';
   const time = m.created_at
     ? new Date(m.created_at).toLocaleTimeString('uk', { hour: '2-digit', minute: '2-digit' }) : '';

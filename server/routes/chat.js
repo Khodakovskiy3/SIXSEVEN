@@ -17,6 +17,7 @@
  *   POST /api/chat/admin/conversations/:id/messages  — відповісти гостю.
  *   POST /api/chat/admin/conversations/:id/claim     — взяти діалог у роботу.
  *   POST /api/chat/admin/conversations/:id/release   — повернути діалог у чергу.
+ *   POST /api/chat/admin/conversations/:id/close     — завершити діалог.
  *
  * Розподіл звернень: нове звернення «нічиє» і видиме всім адміністраторам.
  * Перший адміністратор, який виконує claim (або просто відповідає),
@@ -122,6 +123,7 @@ router.post('/guest/messages', async (req, res) => {
     [token]
   );
   const conversationId = conversation.rows[0].id;
+  await reopenIfClosed(conversationId);
 
   const message = await query(
     `insert into chat_messages (conversation_id, sender, body)
@@ -152,6 +154,23 @@ router.get('/guest/messages', async (req, res) => {
 
   return res.json(result.rows);
 });
+
+/**
+ * Знову відкриває завершений діалог після нового повідомлення відвідувача.
+ * Діалог повертається в чергу очікування (assigned_admin_id скидається),
+ * бо попередній адміністратор може бути вже не на зміні.
+ *
+ * @param {number} conversationId Ідентифікатор діалогу.
+ * @returns {Promise<void>}
+ */
+async function reopenIfClosed(conversationId) {
+  await query(
+    `update chat_conversations
+     set closed_at = null, assigned_admin_id = null, updated_at = now()
+     where id = $1 and closed_at is not null`,
+    [conversationId]
+  );
+}
 
 // ─── Клієнтська частина (JWT, будь-яка роль) ─────────────────────────────────
 
@@ -184,6 +203,7 @@ router.post('/client/messages', async (req, res) => {
   }
 
   const conversationId = await findOrCreateClientConversation(req.user);
+  await reopenIfClosed(conversationId);
   const message = await query(
     `insert into chat_messages (conversation_id, sender, body)
      values ($1, 'guest', $2)
@@ -253,6 +273,7 @@ router.get('/admin/conversations', async (req, res) => {
             c.guest_name,
             c.updated_at,
             c.assigned_admin_id,
+            c.closed_at,
             u.name as assigned_admin_name,
             (select body from chat_messages
              where conversation_id = c.id
@@ -263,7 +284,9 @@ router.get('/admin/conversations', async (req, res) => {
                and read_by_admin = false) as unread
      from chat_conversations c
      left join users u on u.id = c.assigned_admin_id
-     order by (c.assigned_admin_id is null) desc, c.updated_at desc`
+     order by (c.closed_at is null) desc,
+              (c.assigned_admin_id is null and c.closed_at is null) desc,
+              c.updated_at desc`
   );
 
   return res.json(result.rows);
@@ -273,11 +296,14 @@ router.post('/admin/conversations/:id/claim', async (req, res) => {
   const { id } = req.params;
 
   const existing = await query(
-    'select assigned_admin_id from chat_conversations where id = $1',
+    'select assigned_admin_id, closed_at from chat_conversations where id = $1',
     [id]
   );
   if (existing.rows.length === 0) {
     return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+  }
+  if (existing.rows[0].closed_at !== null) {
+    return res.status(HTTP_CONFLICT).json({ error: 'Діалог завершено' });
   }
 
   // Повторний claim власного діалогу — не помилка (ідемпотентність).
@@ -326,6 +352,44 @@ router.post('/admin/conversations/:id/release', async (req, res) => {
   return res.json({ id: Number(id), assignedAdminId: null });
 });
 
+router.post('/admin/conversations/:id/close', async (req, res) => {
+  const { id } = req.params;
+
+  const existing = await query(
+    'select assigned_admin_id, closed_at from chat_conversations where id = $1',
+    [id]
+  );
+  if (existing.rows.length === 0) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+  }
+  if (existing.rows[0].closed_at !== null) {
+    return res.json({ id: Number(id), closed: true });
+  }
+
+  // Завершити може відповідальний адміністратор; «нічий» діалог — будь-хто
+  // (щоб можна було закривати спам, який ніхто не брав у роботу).
+  const assignedAdminId = existing.rows[0].assigned_admin_id;
+  if (assignedAdminId !== null && assignedAdminId !== req.user.id) {
+    return res
+      .status(HTTP_FORBIDDEN)
+      .json({ error: 'Завершити може лише адміністратор, який веде діалог' });
+  }
+
+  await query(
+    `update chat_conversations
+     set closed_at = now(), updated_at = now()
+     where id = $1`,
+    [id]
+  );
+  await query(
+    `insert into chat_messages (conversation_id, sender, body, read_by_admin)
+     values ($1, 'system', $2, true)`,
+    [id, `Діалог завершено адміністратором ${req.user.name}`]
+  );
+
+  return res.json({ id: Number(id), closed: true });
+});
+
 router.get('/admin/conversations/:id/messages', async (req, res) => {
   const { id } = req.params;
   const after = parseAfter(req.query.after);
@@ -370,11 +434,14 @@ router.post('/admin/conversations/:id/messages', async (req, res) => {
   }
 
   const exists = await query(
-    'select id, assigned_admin_id from chat_conversations where id = $1',
+    'select id, assigned_admin_id, closed_at from chat_conversations where id = $1',
     [id]
   );
   if (exists.rows.length === 0) {
     return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+  }
+  if (exists.rows[0].closed_at !== null) {
+    return res.status(HTTP_CONFLICT).json({ error: 'Діалог завершено' });
   }
 
   // Відповідь у «нічий» діалог автоматично бере його в роботу; якщо діалог
