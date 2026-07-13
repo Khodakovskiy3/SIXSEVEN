@@ -4,3 +4,4 @@ node_modules/
 .codex-screenshots/
 *.zip
 server-run.*
+.claude/settings.local.json
