@@ -438,6 +438,7 @@ router.get('/me/schedule/:id/clients', authRequired, requireRole(ROLE.TRAINER), 
       select
         b.id as booking_id,
         b.status,
+        c.id as client_id,
         u.name as client_name,
         u.email as client_email,
         c.phone as client_phone
@@ -545,6 +546,72 @@ router.get('/me/notifications', authRequired, requireRole(ROLE.TRAINER), async (
     res.status(500).json({
       error: 'Помилка отримання сповіщень',
     });
+  }
+});
+
+// ======================================================
+// GET  /api/trainers/me/client-notes
+// Всі нотатки тренера по клієнтах
+// ======================================================
+
+router.get('/me/client-notes', requireRole(ROLE.TRAINER), async (req, res) => {
+  try {
+    const trainerRow = await query(
+      'select id from trainers where user_id = $1',
+      [req.user.id]
+    );
+    if (!trainerRow.rows.length) {
+      return res.status(HTTP_NOT_FOUND).json({ error: 'Trainer not found' });
+    }
+    const trainerId = trainerRow.rows[0].id;
+    const result = await query(
+      `select client_id, note, exercises, updated_at
+       from trainer_client_notes
+       where trainer_id = $1`,
+      [trainerId]
+    );
+    return res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    return res.status(HTTP_SERVER_ERROR).json({ error: 'Failed to load notes' });
+  }
+});
+
+// ======================================================
+// PUT /api/trainers/me/client-notes/:clientId
+// Зберегти (upsert) нотатку по клієнту
+// ======================================================
+
+router.put('/me/client-notes/:clientId', requireRole(ROLE.TRAINER), async (req, res) => {
+  const clientId = Number(req.params.clientId);
+  const { note = '', exercises = '' } = req.body || {};
+
+  if (!clientId) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid clientId' });
+  }
+
+  try {
+    const trainerRow = await query(
+      'select id from trainers where user_id = $1',
+      [req.user.id]
+    );
+    if (!trainerRow.rows.length) {
+      return res.status(HTTP_NOT_FOUND).json({ error: 'Trainer not found' });
+    }
+    const trainerId = trainerRow.rows[0].id;
+
+    const result = await query(
+      `insert into trainer_client_notes (trainer_id, client_id, note, exercises, updated_at)
+       values ($1, $2, $3, $4, now())
+       on conflict (trainer_id, client_id)
+       do update set note = excluded.note, exercises = excluded.exercises, updated_at = now()
+       returning client_id, note, exercises, updated_at`,
+      [trainerId, clientId, String(note).trim(), String(exercises).trim()]
+    );
+    return res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    return res.status(HTTP_SERVER_ERROR).json({ error: 'Failed to save note' });
   }
 });
 

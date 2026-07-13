@@ -2,6 +2,8 @@ import { apiFetch, clearAuth, formatDate, requireFreshAuth, setAuth } from './ap
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE, STORAGE_KEY } from './constants.js';
 import { initSidebar } from './sidebar.js';
+import { initTheme } from './theme.js';
+import { initNotifications } from './notifications.js';
 
 const titles = {
   home: 'Головна',
@@ -11,6 +13,7 @@ const titles = {
   subscription: 'Абонемент',
   personal: 'Особисті дані',
   activity: 'Моя активність',
+  anthropometry: 'Антропометрія',
   settings: 'Налаштування',
 };
 
@@ -32,6 +35,34 @@ const accessTypeLabels = {
   personal: 'Персональне',
   gym_group: 'Зал + групові',
 };
+
+/**
+ * Кастомний діалог підтвердження замість window.confirm()
+ * Повертає Promise<boolean>
+ */
+function showConfirm(message) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'custom-confirm-overlay';
+    overlay.innerHTML = `
+      <div class="custom-confirm-box">
+        <p class="custom-confirm-msg">${escapeHtml(message)}</p>
+        <div class="custom-confirm-actions">
+          <button class="ghost-btn custom-confirm-cancel">Скасувати</button>
+          <button class="danger-btn custom-confirm-ok">Видалити</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const cleanup = (result) => {
+      overlay.remove();
+      resolve(result);
+    };
+    overlay.querySelector('.custom-confirm-ok').addEventListener('click', () => cleanup(true));
+    overlay.querySelector('.custom-confirm-cancel').addEventListener('click', () => cleanup(false));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); });
+  });
+}
 
 function escapeHtml(value = '') {
   return String(value)
@@ -142,6 +173,7 @@ const pageRoutes = {
   subscription: '/pages/client/subscription.html',
   personal: '/pages/client/personal.html',
   activity: '/pages/client/activity.html',
+  anthropometry: '/pages/client/anthropometry.html',
   settings: '/pages/client/settings.html',
 };
 
@@ -207,25 +239,51 @@ function renderAvailablePlans() {
   if (!grid) return;
 
   if (activePlans.length === 0) {
-    grid.innerHTML = `
-      <article class="plan-card">
-        <h3>Немає доступних тарифів</h3>
-        <p>Адміністратор поки не увімкнув абонементи для купівлі.</p>
-      </article>
-    `;
+    grid.innerHTML = `<article class="manage-card"><p style="padding:20px">Тарифів не знайдено</p></article>`;
     return;
   }
 
-  grid.innerHTML = activePlans.map((plan, index) => `
-    <article class="plan-card ${index === 0 ? 'featured' : ''}">
-      <span class="visual-chip">${planTypeLabels[plan.plan_type] || plan.plan_type}</span>
-      <h3>${escapeHtml(plan.name)}</h3>
-      <p>${escapeHtml(plan.description || describePlan(plan))}</p>
-      <p>${escapeHtml(describePlan(plan))}</p>
-      <strong>${formatMoney(plan.price)}</strong>
-      <button class="primary-btn" data-purchase-plan="${plan.id}">Придбати</button>
-    </article>
-  `).join('');
+  const checkSvg = `<svg viewBox="0 0 16 16" fill="none" width="14" height="14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="2.5 8.5 6 12 13.5 4"/></svg>`;
+
+  grid.innerHTML = activePlans.map((plan) => {
+    const isSubscription = plan.plan_type === 'subscription';
+    const meta = isSubscription
+      ? `${plan.duration_days || 0} днів`
+      : `${plan.usage_count || 0} використання`;
+    const access = accessTypeLabels[plan.access_type] || plan.access_type || 'Доступ';
+    const priceNum = Number(plan.price || 0).toLocaleString('uk-UA', { maximumFractionDigits: 0 });
+    const period = isSubscription ? '/ міс' : '/ відв.';
+    const features = [
+      isSubscription ? `${plan.duration_days || 0} днів доступу` : `${plan.usage_count || 0} відвідувань`,
+      access,
+      isSubscription ? 'Необмежені відвідування' : 'Разовий прохід',
+    ];
+
+    return `
+      <article class="manage-card featured">
+        <div class="manage-card__dark">
+          <div class="manage-card__topline">
+            <span class="manage-card__type">${planTypeLabels[plan.plan_type] || 'Тариф'} · ${escapeHtml(meta)}</span>
+          </div>
+          <h3>${escapeHtml(plan.name)}</h3>
+          <p class="manage-card__desc">${escapeHtml(plan.description || describePlan(plan))}</p>
+          <div class="manage-card__price">
+            <sup class="manage-card__currency">грн</sup>
+            <strong>${escapeHtml(priceNum)}</strong>
+            <span class="manage-card__period">${period}</span>
+          </div>
+          <div class="manage-card__cta">
+            <button class="primary-btn" data-purchase-plan="${plan.id}">Придбати</button>
+          </div>
+        </div>
+        <div class="manage-card__light">
+          <ul class="manage-card__features">
+            ${features.map((f) => `<li>${checkSvg}<span>${escapeHtml(f)}</span></li>`).join('')}
+          </ul>
+        </div>
+      </article>
+    `;
+  }).join('');
 }
 
 function renderDateStrip() {
@@ -236,7 +294,8 @@ function renderDateStrip() {
 
   const today = new Date().toISOString().slice(0, 10);
   const dates = getScheduleDates();
-  strip.style.gridTemplateColumns = `repeat(${dates.length}, 1fr)`;
+  const pillW = window.innerWidth < 720 ? '54px' : '1fr';
+  strip.style.gridTemplateColumns = `repeat(${dates.length}, ${pillW})`;
   strip.innerHTML = dates.map((date) => {
     const isActive = date === selectedScheduleDate;
     const isToday = date === today;
@@ -273,6 +332,14 @@ function isAlreadyBooked(scheduleId) {
   ));
 }
 
+function getBookingIdBySchedule(scheduleId) {
+  const b = bookings.find((booking) => (
+    String(booking.schedule_id) === String(scheduleId)
+    && booking.status === 'active'
+  ));
+  return b ? b.id : null;
+}
+
 function renderScheduleList() {
   const list = document.querySelector('#client-schedule-list');
   if (!list) return;
@@ -296,13 +363,17 @@ function renderScheduleList() {
 
   list.innerHTML = visibleSchedules.map((item) => {
     const booked = isAlreadyBooked(item.id);
+    const bookingId = booked ? getBookingIdBySchedule(item.id) : null;
     const available = Number(item.available || 0);
     const maxClients = Number(item.max_clients || 0);
     const bookedCount = maxClients - available;
     const fillPct = maxClients > 0 ? Math.round((bookedCount / maxClients) * 100) : 0;
     const isFull = available <= 0 && maxClients > 0;
     const disabled = isFull && !booked;
-    const actionText = booked ? 'Записано ✓' : (available > 0 ? 'Записатися' : 'Лист очікування');
+
+    const actionBtn = booked
+      ? `<button class="danger-btn" data-cancel-booking="${bookingId}">Скасувати</button>`
+      : `<button class="${available > 0 ? 'primary-btn' : 'ghost-btn'}" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${available > 0 ? 'Записатися' : 'Лист очікування'}</button>`;
 
     return `
       <div class="sched-card${isFull && !booked ? ' sched-card--full' : ''}">
@@ -317,7 +388,7 @@ function renderScheduleList() {
         </div>
         <div class="sched-card-actions">
           <button class="ghost-btn" data-schedule-details="${item.id}">Опис</button>
-          <button class="${booked ? 'ghost-btn' : 'primary-btn'}" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${actionText}</button>
+          ${actionBtn}
         </div>
       </div>
     `;
@@ -469,7 +540,9 @@ async function loadRecordsPage() {
 async function cancelBooking(bookingId) {
   try {
     await apiFetch(`/bookings/${bookingId}`, { method: 'DELETE' });
-    await loadRecordsPage();
+    // Оновлюємо bookings і всі сторінки що від них залежать
+    bookings = await apiFetch('/bookings/me').catch(() => bookings);
+    await Promise.all([loadRecordsPage(), loadSchedulePage(), loadHomePage()]);
   } catch {
     const futureList = document.querySelector('#future-bookings-list');
     if (futureList) {
@@ -602,9 +675,13 @@ function renderTodaySchedule() {
 
   const items = todaySchedules.map((item) => {
     const isBooked = isAlreadyBooked(item.id);
+    const bookingId = isBooked ? getBookingIdBySchedule(item.id) : null;
     const available = Number(item.available || 0);
-    const disabled = available <= 0 || isBooked;
-    const btnText = isBooked ? 'Записано' : (available > 0 ? 'Записатись' : 'Немає місць');
+    const disabled = available <= 0 && !isBooked;
+
+    const actionBtn = isBooked
+      ? `<button class="danger-btn small" data-cancel-booking="${bookingId}">Скасувати</button>`
+      : `<button class="primary-btn small" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${available > 0 ? 'Записатись' : 'Немає місць'}</button>`;
 
     return `
       <div class="tl-item${isBooked ? ' booked' : ''}">
@@ -614,7 +691,7 @@ function renderTodaySchedule() {
           <strong>${escapeHtml(item.workout_name)}</strong>
           <span>${escapeHtml(item.trainer_name || 'без тренера')} · ${available > 0 ? `${available} місць` : 'місць немає'}</span>
         </div>
-        <button class="primary-btn small" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${btnText}</button>
+        ${actionBtn}
       </div>
     `;
   }).join('');
@@ -723,6 +800,151 @@ async function loadActivityPage() {
   } catch (error) {
     list.innerHTML = `<p>Не вдалося завантажити активність: ${escapeHtml(error.message)}</p>`;
   }
+}
+
+// ── Антропометрія ─────────────────────────────────────────────────────────────
+
+const ANTHRO_FIELDS = [
+  { key: 'weight', label: 'Вага', unit: 'кг' },
+  { key: 'height', label: 'Зріст', unit: 'см' },
+  { key: 'chest',  label: 'Груди', unit: 'см' },
+  { key: 'waist',  label: 'Талія', unit: 'см' },
+  { key: 'hips',   label: 'Стегна', unit: 'см' },
+  { key: 'bicep',  label: 'Біцепс', unit: 'см' },
+  { key: 'thigh',  label: 'Стегно', unit: 'см' },
+];
+
+function fmtAnthroDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function renderAnthroProgress(entries) {
+  const wrap = document.querySelector('#anthro-progress-wrap');
+  const grid = document.querySelector('#anthro-progress');
+  if (!wrap || !grid || entries.length < 2) {
+    if (wrap) wrap.style.display = 'none';
+    return;
+  }
+  const first = entries[entries.length - 1];
+  const last = entries[0];
+  const rows = ANTHRO_FIELDS
+    .filter((f) => first[f.key] != null || last[f.key] != null)
+    .map((f) => {
+      const a = parseFloat(first[f.key]);
+      const b = parseFloat(last[f.key]);
+      if (isNaN(a) || isNaN(b)) return '';
+      const diff = +(b - a).toFixed(1);
+      const sign = diff > 0 ? '+' : '';
+      const cls = diff < 0 ? 'anthro-delta--down' : diff > 0 ? 'anthro-delta--up' : 'anthro-delta--same';
+      return `<div class="anthro-progress-row">
+        <span class="anthro-progress-label">${f.label}</span>
+        <span class="anthro-progress-val">${b} ${f.unit}</span>
+        <span class="anthro-delta ${cls}">${sign}${diff}</span>
+      </div>`;
+    }).join('');
+  grid.innerHTML = rows || '<p class="form-note">Недостатньо даних</p>';
+  wrap.style.display = '';
+}
+
+function renderAnthroHistory(entries) {
+  const list = document.querySelector('#anthro-history');
+  if (!list) return;
+  if (!entries.length) {
+    list.innerHTML = '<p class="form-note" style="text-align:center;padding:24px 0">Ще немає вимірів — додайте перший!</p>';
+    return;
+  }
+  list.innerHTML = entries.map((e) => {
+    const fields = ANTHRO_FIELDS
+      .filter((f) => e[f.key] != null)
+      .map((f) => `<span class="anthro-chip"><b>${e[f.key]}</b> ${f.unit} ${f.label}</span>`)
+      .join('');
+    return `<div class="anthro-entry" data-anthro-id="${e.id}">
+      <div class="anthro-entry-head">
+        <span class="anthro-entry-date">${fmtAnthroDate(e.recorded_at)}</span>
+        <button class="anthro-delete-btn" data-id="${e.id}" aria-label="Видалити">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div>
+      ${fields ? `<div class="anthro-chips">${fields}</div>` : ''}
+      ${e.note ? `<p class="anthro-note">${escapeHtml(e.note)}</p>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function loadAnthropometryPage() {
+  const saveBtn = document.querySelector('#anthro-save-btn');
+  if (!saveBtn) return;
+
+  // Встановити сьогоднішню дату за замовчуванням
+  const dateInput = document.querySelector('#anthro-date');
+  if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+
+  async function reload() {
+    try {
+      const entries = await apiFetch('/anthropometry/me');
+      renderAnthroProgress(entries);
+      renderAnthroHistory(entries);
+    } catch {
+      const h = document.querySelector('#anthro-history');
+      if (h) h.innerHTML = '<p class="form-note">Не вдалося завантажити дані</p>';
+    }
+  }
+
+  await reload();
+
+  // Зберегти новий вимір
+  saveBtn.addEventListener('click', async () => {
+    const val = (id) => document.querySelector(`#${id}`)?.value.trim() || '';
+    const body = {
+      recorded_at: val('anthro-date') || new Date().toISOString().slice(0, 10),
+      weight: val('af-weight'), height: val('af-height'),
+      chest: val('af-chest'),   waist: val('af-waist'),
+      hips: val('af-hips'),     bicep: val('af-bicep'),
+      thigh: val('af-thigh'),   note: val('af-note'),
+    };
+    const hasValue = ANTHRO_FIELDS.some((f) => body[f.key] !== '');
+    if (!hasValue) {
+      setFormNote(document.querySelector('#anthro-feedback'), 'Заповніть хоча б одне поле', 'error');
+      return;
+    }
+    saveBtn.disabled = true;
+    try {
+      await apiFetch('/anthropometry/me', { method: 'POST', body: JSON.stringify(body) });
+      setFormNote(document.querySelector('#anthro-feedback'), 'Збережено ✓', 'success');
+      ANTHRO_FIELDS.forEach((f) => { const el = document.querySelector(`#af-${f.key}`); if (el) el.value = ''; });
+      const noteEl = document.querySelector('#af-note'); if (noteEl) noteEl.value = '';
+      await reload();
+      // Підсвічуємо і показуємо новий запис в історії
+      const firstEntry = document.querySelector('#anthro-history .anthro-entry');
+      if (firstEntry) {
+        firstEntry.style.outline = '2px solid var(--accent)';
+        firstEntry.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => { firstEntry.style.outline = ''; }, 2500);
+      }
+    } catch (err) {
+      console.error('[anthro save]', err);
+      setFormNote(document.querySelector('#anthro-feedback'), `Помилка: ${err.message}`, 'error');
+      // Скролимо до повідомлення про помилку щоб воно було видно
+      document.querySelector('#anthro-feedback')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  // Видалити запис (делегування)
+  document.querySelector('#anthro-history')?.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.anthro-delete-btn');
+    if (!btn) return;
+    if (!await showConfirm('Видалити цей вимір?')) return;
+    try {
+      await apiFetch(`/anthropometry/me/${btn.dataset.id}`, { method: 'DELETE' });
+      await reload();
+    } catch (err) {
+      setFormNote(document.querySelector('#anthro-feedback'), `Не вдалося видалити: ${err.message}`, 'error');
+    }
+  });
 }
 
 /**
@@ -860,11 +1082,11 @@ document.querySelectorAll('.sheet-open').forEach((button) => {
   });
 });
 
-document.querySelector('.sheet-close').addEventListener('click', () => {
-  sheet.classList.remove('active');
+document.querySelector('.sheet-close')?.addEventListener('click', () => {
+  sheet?.classList.remove('active');
 });
 
-sheet.addEventListener('click', (event) => {
+sheet?.addEventListener('click', (event) => {
   if (event.target === sheet) {
     sheet.classList.remove('active');
   }
@@ -1060,6 +1282,8 @@ passwordModal?.addEventListener('click', (event) => {
 });
 
 initSidebar();
+initTheme();
+initNotifications();
 
 const currentUser = await requireFreshAuth([ROLE.CLIENT]);
 if (currentUser) {
@@ -1069,5 +1293,6 @@ if (currentUser) {
   loadRecordsPage();
   loadSubscriptionPage();
   loadActivityPage();
+  loadAnthropometryPage();
   loadSettingsPage();
 }

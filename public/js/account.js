@@ -1,12 +1,12 @@
 /**
  * Підстановка даних поточного користувача у сторінки профілю.
  *
- * Замість «зашитих» у HTML значень (ім’я, email, телефон тощо) сторінки
+ * Замість «зашитих» у HTML значень (ім'я, email, телефон тощо) сторінки
  * позначають елементи атрибутом data-account-field, а цей модуль заповнює їх
  * реальними даними акаунта з API.
  *
  * Підтримувані поля (data-account-field):
- *  • name           — ім’я користувача;
+ *  • name           — ім'я користувача;
  *  • email          — email;
  *  • phone          — телефон (клієнт/тренер; для admin/manager відсутній);
  *  • specialization — спеціалізація тренера;
@@ -30,7 +30,7 @@ function computeInitials(name = '') {
 }
 
 /**
- * Заповнює всі елементи з data-account-field значеннями з об’єкта даних.
+ * Заповнює всі елементи з data-account-field значеннями з об'єкта даних.
  *
  * @param {Record<string, unknown>} data
  */
@@ -82,9 +82,12 @@ async function fetchAccount(roleHint) {
     } else if (role === 'trainer') {
       const res = await apiFetch('/trainers/me');
       if (res) data = { ...data, ...res };
+    } else if (role === 'admin' || role === 'manager') {
+      const res = await apiFetch('/auth/profile');
+      if (res && res.user && res.user.phone) data = { ...data, phone: res.user.phone };
     }
   } catch {
-    // Телефон/спеціалізація — необов’язкові: показуємо запасні значення.
+    // Телефон/спеціалізація — необов'язкові: показуємо запасні значення.
   }
 
   return data;

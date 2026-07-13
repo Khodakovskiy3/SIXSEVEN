@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
+    <script>(function(){var t=localStorage.getItem("olimp-theme");if(t==="light")document.documentElement.setAttribute("data-theme","light");})()</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OLIMP - Кабінет тренера - Особисті дані</title>
@@ -44,7 +45,7 @@
                     <button class="back-btn" data-screen-link="profile">Назад</button>
                     <h2>Особисті дані</h2>
                     <label>Ім’я<input type="text" data-account-field="name"></label>
-                    <label>Телефон<input type="text" data-account-field="phone"></label>
+                    <label>Телефон<input type="tel" data-account-field="phone" data-phone-input inputmode="tel" autocomplete="tel" maxlength="13" placeholder="+380XXXXXXXXX"></label>
                     <label>Email<input type="email" data-account-field="email"></label>
                     <button class="primary-btn modal-open">Змінити пароль</button>
                 </div>

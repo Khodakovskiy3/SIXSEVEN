@@ -99,7 +99,7 @@
 }
 
 .muted-note {
-    color: #c8c8cf;
+    color: var(--muted);
     font-size: 12px;
 }
 
@@ -128,8 +128,8 @@
 }
 
 .trainer-schedule-card {
-  background: #1c1c21;
-  border: 1px solid #2c2c33;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 16px;
   padding: 20px;
   min-height: 180px;
@@ -149,7 +149,7 @@
 .trainer-schedule-header h3 {
   margin: 0;
   font-size: 22px;
-  color: #ffffff;
+  color: var(--text);
 }
 
 .trainer-schedule-header span {
@@ -164,7 +164,7 @@
 .trainer-schedule-info {
   display: grid;
   gap: 8px;
-  color: #b9b9c3;
+  color: var(--muted);
   font-size: 15px;
 }
 
@@ -173,7 +173,7 @@
 }
 
 .trainer-schedule-info b {
-  color: #ffffff;
+  color: var(--text);
 }
 
 .trainer-schedule-btn {
@@ -203,17 +203,17 @@
   width: min(620px, 100%);
   max-height: 82vh;
   overflow-y: auto;
-  background: #17171b;
-  border: 1px solid #33333a;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 22px;
   padding: 26px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--shadow);
   position: relative;
 }
 
 .trainer-modal-box h2 {
   margin: 0 0 18px;
-  color: #ffffff;
+  color: var(--text);
   font-size: 26px;
 }
 
@@ -223,17 +223,17 @@
   right: 16px;
   width: 38px;
   height: 38px;
-  border: 1px solid #33333a;
+  border: 1px solid var(--line);
   border-radius: 50%;
-  background: #202026;
-  color: #ffffff;
+  background: var(--surface-2);
+  color: var(--text);
   font-size: 24px;
   cursor: pointer;
 }
 
 .trainer-modal-close:hover {
-  background: #ff6b2c;
-  color: #111111;
+  background: var(--accent);
+  color: #ffffff;
 }
 
 .trainer-client-list {
@@ -242,33 +242,200 @@
 }
 
 .trainer-client-card {
-  display: grid;
-  grid-template-columns: 42px 1fr;
-  gap: 14px;
-  align-items: center;
-  background: #1d1d22;
-  border: 1px solid #303038;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 16px;
   padding: 14px;
+  display: flex;
+  flex-direction: column;
 }
 
-.trainer-client-card span {
-  width: 34px;
-  height: 34px;
+.trainer-client-card-header {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+
+.trainer-client-card-header > span:first-child {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
   border-radius: 50%;
-  background: #ff6b2c;
-  color: #111111;
+  background: var(--accent);
+  color: #ffffff;
   font-weight: 800;
   display: grid;
   place-items: center;
 }
 
 .trainer-client-card h3 {
-  margin: 0 0 6px;
-  color: #ff6b2c;
+  margin: 0 0 2px;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .trainer-client-card p {
-  margin: 3px 0;
-  color: #c8c8d0;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trainer-note-area {
+  margin-top: 10px;
+  display: none;
+  width: 100%;
+}
+
+.trainer-note-area.open {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trainer-note-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: -4px;
+}
+
+.trainer-note-area textarea {
+  width: 100%;
+  min-height: 72px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 10px 12px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.trainer-note-area textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.trainer-note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Антропометрія клієнта (read-only блок у картці тренера) */
+.trainer-anthro-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trainer-anthro-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text);
+  padding: 3px 10px;
+}
+
+.trainer-anthro-chip b {
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.trainer-anthro-chip span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.trainer-anthro-empty {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+  margin: 0;
+}
+
+.trainer-anthro-date {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 6px 0 0;
+}
+
+.trainer-anthro-note {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+.trainer-anthro-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trainer-anthro-entry--old {
+  opacity: 0.6;
+}
+
+.trainer-anthro-divider {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 8px 0;
+}
+
+/* ══════════════════════════════════════════════════
+   СВІТЛА ТЕМА
+══════════════════════════════════════════════════ */
+[data-theme="light"] .mini-session {
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+
+/* ══════════════════════════════════════════════════
+   МОБІЛЬНА АДАПТАЦІЯ (≤ 719px)
+══════════════════════════════════════════════════ */
+@media (max-width: 719px) {
+    .trainer-app {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .metric-value {
+        font-size: 28px;
+    }
+
+    .metric-card::after {
+        width: 70px;
+        height: 70px;
+        right: -10px;
+        bottom: -16px;
+        border-width: 10px;
+    }
+
+    .trainer-schedule-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .trainer-modal-box {
+        padding: 18px;
+    }
+
+    .trainer-modal-box h2 {
+        font-size: 20px;
+        padding-right: 40px;
+    }
 }

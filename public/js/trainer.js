@@ -12,6 +12,8 @@ import { apiFetch, clearAuth, formatDate, requireFreshAuth } from './api.js';
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
 import { initSidebar } from './sidebar.js';
+import { initTheme } from './theme.js';
+import { initNotifications } from './notifications.js';
 
 // Кількість днів у стрічці розкладу (тиждень наперед від сьогодні).
 const WEEK_LENGTH = 14;
@@ -164,7 +166,8 @@ function renderDateStrip() {
 
   const today = todayIso();
   const dates = getWeekDates();
-  strip.style.gridTemplateColumns = `repeat(${dates.length}, 1fr)`;
+  const pillW = window.innerWidth < 720 ? '54px' : '1fr';
+  strip.style.gridTemplateColumns = `repeat(${dates.length}, ${pillW})`;
   strip.innerHTML = dates.map((date) => {
     const isActive = date === selectedDate;
     const isToday = date === today;
@@ -281,17 +284,113 @@ async function openScheduleClients(scheduleId) {
   sheet.classList.add('active');
 
   try {
-    const clients = await apiFetch(`/trainers/me/schedule/${scheduleId}/clients`);
+    const [clients, allNotes] = await Promise.all([
+      apiFetch(`/trainers/me/schedule/${scheduleId}/clients`),
+      apiFetch('/trainers/me/client-notes').catch(() => []),
+    ]);
     const active = clients.filter((client) => client.status === 'active');
-    sheetDetails.innerHTML = active.length
-      ? active
-        .map((client) => `
-          <div>
-            <dt>${escapeHtml(client.client_name)}</dt>
-            <dd>${escapeHtml(client.client_phone || client.client_email || '—')}</dd>
+
+    if (!active.length) {
+      sheetDetails.innerHTML = '<div class="trainer-client-list"><p style="color:var(--muted);text-align:center;padding:24px 0">Ще ніхто не записався</p></div>';
+      return;
+    }
+
+    // Build notes map by client_id
+    const notesMap = {};
+    (allNotes || []).forEach((n) => { notesMap[n.client_id] = { note: n.note || '', exercises: n.exercises || '' }; });
+
+    // Fetch anthropometry for all active clients in parallel
+    const anthropoResults = await Promise.all(
+      active.map((c) => apiFetch(`/anthropometry/client/${c.client_id}`).catch(() => null))
+    );
+    const anthropoMap = {};
+    active.forEach((c, i) => { anthropoMap[c.client_id] = anthropoResults[i]; });
+
+    const ANTHRO_FIELDS = [
+      { key: 'weight', label: 'Вага', unit: 'кг' },
+      { key: 'height', label: 'Зріст', unit: 'см' },
+      { key: 'chest',  label: 'Груди', unit: 'см' },
+      { key: 'waist',  label: 'Талія', unit: 'см' },
+      { key: 'hips',   label: 'Стегна', unit: 'см' },
+      { key: 'bicep',  label: 'Біцепс', unit: 'см' },
+      { key: 'thigh',  label: 'Стегно', unit: 'см' },
+    ];
+
+    function renderAnthroBlock(entries) {
+      if (!entries || entries.length === 0) {
+        return `<p class="trainer-anthro-empty">Антропометрія не заповнена</p>`;
+      }
+      return entries.map((a, idx) => {
+        const chips = ANTHRO_FIELDS
+          .filter((f) => a[f.key] != null)
+          .map((f) => `<span class="trainer-anthro-chip"><b>${a[f.key]}</b> ${f.unit} <span>${f.label}</span></span>`)
+          .join('');
+        const dateStr = a.recorded_at
+          ? new Date(a.recorded_at).toLocaleDateString('uk-UA', { day: 'numeric', month: 'short', year: 'numeric' })
+          : '';
+        return `
+          <div class="trainer-anthro-entry${idx > 0 ? ' trainer-anthro-entry--old' : ''}">
+            ${dateStr ? `<p class="trainer-anthro-date">${idx === 0 ? '🕐 Останній вимір: ' : ''}${dateStr}</p>` : ''}
+            <div class="trainer-anthro-row">
+              ${chips || '<span style="color:var(--muted);font-size:12px">Дані відсутні</span>'}
+            </div>
+            ${a.note ? `<p class="trainer-anthro-note">${escapeHtml(a.note)}</p>` : ''}
           </div>
-        `).join('')
-      : '<div><dt>Ще ніхто не записався</dt><dd></dd></div>';
+        `;
+      }).join('<hr class="trainer-anthro-divider">');
+    }
+
+    sheetDetails.innerHTML = `<div class="trainer-client-list">${
+      active.map((client) => {
+        const initials = escapeHtml(
+          (client.client_name || '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+        );
+        const entry = notesMap[client.client_id] || { note: '', exercises: '' };
+        const { note, exercises } = entry;
+        const hasData = note || exercises;
+        const noteId = `note-${client.client_id}`;
+        const exId = `ex-${client.client_id}`;
+        const areaId = `area-${client.client_id}`;
+        const anthro = anthropoMap[client.client_id];
+        const anthroId = `anthro-${client.client_id}`;
+        return `
+          <div class="trainer-client-card" data-client-id="${client.client_id}">
+            <div class="trainer-client-card-header">
+              <span>${initials}</span>
+              <div>
+                <h3>${escapeHtml(client.client_name)}</h3>
+                <p>${escapeHtml(client.client_phone || client.client_email || '—')}</p>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0">
+                <button class="ghost-btn anthro-toggle-btn" data-area="${anthroId}" style="white-space:nowrap;font-size:12px" aria-label="Антропометрія">📏</button>
+                <button class="ghost-btn note-toggle-btn" data-area="${areaId}" style="white-space:nowrap;font-size:12px">
+                  ${hasData ? '✏️ Картка' : '+ Картка'}
+                </button>
+              </div>
+            </div>
+
+            <!-- Антропометрія (read-only) -->
+            <div class="trainer-note-area" id="${anthroId}">
+              <label class="trainer-note-label">Антропометрія клієнта</label>
+              ${renderAnthroBlock(anthro)}
+            </div>
+
+            <!-- Картка тренера (редагована) -->
+            <div class="trainer-note-area${hasData ? ' open' : ''}" id="${areaId}">
+              <label class="trainer-note-label">Характеристика</label>
+              <textarea id="${noteId}" placeholder="Коротка характеристика клієнта, протипоказання…">${escapeHtml(note)}</textarea>
+              <label class="trainer-note-label">Вправи</label>
+              <textarea id="${exId}" placeholder="Вправи, які можна виконувати…">${escapeHtml(exercises)}</textarea>
+              <div class="trainer-note-actions">
+                <button class="primary-btn save-note-btn" style="font-size:12px;padding:7px 14px"
+                  data-client-id="${client.client_id}"
+                  data-textarea="${noteId}"
+                  data-exercises="${exId}">Зберегти</button>
+              </div>
+            </div>
+          </div>`;
+      }).join('')
+    }</div>`;
   } catch (error) {
     sheetDetails.innerHTML = `<div><dt>Помилка</dt><dd>${escapeHtml(error.message)}</dd></div>`;
   }
@@ -370,7 +469,7 @@ function renderTrainerHome() {
 
 // ─── Делегування кліків (динамічні кнопки) ──────────────────────────────────────
 
-document.addEventListener('click', (event) => {
+document.addEventListener('click', async (event) => {
   const dateButton = event.target.closest('[data-trainer-date]');
   if (dateButton) {
     selectedDate = dateButton.dataset.trainerDate;
@@ -388,6 +487,57 @@ document.addEventListener('click', (event) => {
   const clientsButton = event.target.closest('[data-trainer-clients]');
   if (clientsButton) {
     openScheduleClients(clientsButton.dataset.trainerClients);
+    return;
+  }
+
+  // Розкрити/закрити антропометрію
+  const anthroToggle = event.target.closest('.anthro-toggle-btn');
+  if (anthroToggle) {
+    const area = document.getElementById(anthroToggle.dataset.area);
+    if (area) area.classList.toggle('open');
+    return;
+  }
+
+  // Розкрити/закрити область нотатки
+  const noteToggle = event.target.closest('.note-toggle-btn');
+  if (noteToggle) {
+    const areaId = noteToggle.dataset.area;
+    const area = document.getElementById(areaId);
+    if (area) {
+      area.classList.toggle('open');
+    }
+    return;
+  }
+
+  // Зберегти картку клієнта
+  const saveNote = event.target.closest('.save-note-btn');
+  if (saveNote) {
+    const clientId = saveNote.dataset.clientId;
+    const textareaId = saveNote.dataset.textarea;
+    const exercisesId = saveNote.dataset.exercises;
+    const textarea = document.getElementById(textareaId);
+    const exTextarea = document.getElementById(exercisesId);
+    if (!textarea) return;
+
+    const note = textarea.value;
+    const exercises = exTextarea ? exTextarea.value : '';
+    saveNote.disabled = true;
+    saveNote.textContent = 'Збереження…';
+    try {
+      await apiFetch(`/trainers/me/client-notes/${clientId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ note, exercises }),
+      });
+      saveNote.textContent = 'Збережено ✓';
+      const card = saveNote.closest('[data-client-id]');
+      const toggle = card?.querySelector('.note-toggle-btn');
+      if (toggle) toggle.textContent = (note.trim() || exercises.trim()) ? '✏️ Картка' : '+ Картка';
+    } catch {
+      saveNote.textContent = 'Помилка';
+    } finally {
+      saveNote.disabled = false;
+      setTimeout(() => { saveNote.textContent = 'Зберегти'; }, 2000);
+    }
   }
 });
 
@@ -443,9 +593,31 @@ async function loadTrainerData() {
 // ─── Старт ───────────────────────────────────────────────────────────────────────
 
 initSidebar();
+initTheme();
+initNotifications();
+
+function normalizePhoneInput(value = '') {
+  const digits = String(value).replace(/\D/g, '');
+  let local = digits.startsWith('380') ? digits.slice(3) : digits.startsWith('0') ? digits.slice(1) : digits;
+  return `+380${local.slice(0, 9)}`;
+}
+
+function attachPhoneMasks(root = document) {
+  root.querySelectorAll('[data-phone-input]').forEach((input) => {
+    if (input.dataset.phoneMaskReady) return;
+    input.addEventListener('focus', () => { if (!input.value) input.value = '+380'; });
+    input.addEventListener('input', () => { input.value = normalizePhoneInput(input.value); });
+    input.addEventListener('keydown', (e) => {
+      if ((e.key === 'Backspace' || e.key === 'Delete') && input.value.length <= 4) e.preventDefault();
+    });
+    input.dataset.phoneMaskReady = 'true';
+    if (input.value) input.value = normalizePhoneInput(input.value);
+  });
+}
 
 const currentUser = await requireFreshAuth([ROLE.TRAINER]);
 if (currentUser) {
   hydrateAccount({ role: ROLE.TRAINER });
   loadTrainerData();
+  attachPhoneMasks(document);
 }

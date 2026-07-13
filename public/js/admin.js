@@ -2,6 +2,8 @@ import { apiFetch, clearAuth, formatDate, requireFreshAuth, setAuth } from './ap
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
 import { initSidebar } from './sidebar.js';
+import { initTheme } from './theme.js';
+import { initNotifications } from './notifications.js';
 
 const titles = {
   dashboard: 'Головна',
@@ -406,8 +408,9 @@ function renderScheduleDateStrip() {
 
   const today = todayIso();
   const dates = getScheduleDates();
-  // Grid з N рівних колонок — пігулки завжди заповнюють всю ширину
-  scheduleDateStrip.style.gridTemplateColumns = `repeat(${dates.length}, 1fr)`;
+  // На мобільному — фіксована ширина + скрол; на десктопі — 1fr (розтяжка)
+  const pillW = window.innerWidth < 720 ? '54px' : '1fr';
+  scheduleDateStrip.style.gridTemplateColumns = `repeat(${dates.length}, ${pillW})`;
   scheduleDateStrip.innerHTML = dates.map((date) => {
     const isActive = date === selectedScheduleDate;
     const isToday = date === today;
@@ -437,8 +440,7 @@ function renderScheduleDayList() {
       <div class="sched-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
         <p>На цей день занять немає</p>
-        <button class="primary-btn clients-add-btn" id="open-schedule-modal-empty">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <button class="primary-btn" id="open-schedule-modal-empty">
           Створити заняття
         </button>
       </div>
@@ -2881,9 +2883,8 @@ function renderSchedCalendar() {
       if (schedCalMonth > 11) { schedCalMonth = 0; schedCalYear++; }
       renderSchedCalendar(); return;
     }
-    if (!btn) return;
 
-    // "Застосувати"
+    // "Застосувати" — перевіряємо ДО if (!btn), бо apply не має data-cal-date
     const apply = e.target.closest('[data-cal-apply]');
     if (apply) {
       scheduleRangeStart = schedCalStart;
@@ -2898,6 +2899,7 @@ function renderSchedCalendar() {
       return;
     }
 
+    if (!btn) return;
     const d = btn.dataset.calDate;
     if (!schedCalStart || (schedCalStart && schedCalEnd)) {
       schedCalStart = d; schedCalEnd = ''; schedCalHover = '';
@@ -3611,6 +3613,7 @@ async function changeAdminPassword(form) {
   try {
     await apiFetch('/auth/password', {
       method: 'PUT',
+      skipAuthRedirect: true,
       body: JSON.stringify({
         currentPassword: formData.get('currentPassword'),
         newPassword,
@@ -3665,12 +3668,15 @@ passwordModal?.addEventListener('click', (event) => {
 });
 
 initSidebar();
+initTheme();
+initNotifications();
 
 const currentUser = await requireFreshAuth([ROLE.ADMIN]);
 if (currentUser) {
   hydrateAccount({ role: ROLE.ADMIN });
   loadAdminSettings();
   loadClubSettings();
+  attachPhoneMasks(document); // маска для статичних полів телефону
 }
 if (currentUser && dashboardPage) {
   const greetingName = document.querySelector('#greeting-name');
@@ -3784,6 +3790,10 @@ async function openChatConversation(id) {
   clearInterval(_chatMsgPollTimer);
   renderChatList(); // підсвітити активну
 
+  // Мобільний: показуємо вікно чату, ховаємо список
+  const chatLayout = document.querySelector('.msg-chat-layout');
+  if (chatLayout) chatLayout.classList.add('chat-active');
+
   _renderChatWindowShell(id); // одразу рендеримо форму (більше не чіпаємо її)
   await _loadAndAppendMsgs(id, false); // перший раз — всі повідомлення
 
@@ -3796,7 +3806,12 @@ function _renderChatWindowShell(id) {
   const win = document.getElementById('msg-chat-window');
   if (!win) return;
   win.innerHTML = `
-    <div class="msg-chat-topbar" id="msg-chat-topbar"></div>
+    <div class="msg-chat-win-header">
+      <button class="msg-chat-back-btn" id="msg-chat-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="15" height="15"><polyline points="15 18 9 12 15 6"/></svg>
+        Назад
+      </button>
+    </div>
     <div class="msg-chat-messages" id="msg-chat-messages"></div>
     <form class="msg-chat-reply" id="msg-chat-reply-form">
       <input type="text" id="msg-chat-input" placeholder="Відповідь…" autocomplete="off">
@@ -3807,6 +3822,14 @@ function _renderChatWindowShell(id) {
     </form>`;
 
   updateChatControls();
+
+  // Кнопка "Назад" — повертаємось до списку на мобільному
+  win.querySelector('#msg-chat-back')?.addEventListener('click', () => {
+    const chatLayout = document.querySelector('.msg-chat-layout');
+    if (chatLayout) chatLayout.classList.remove('chat-active');
+    activeChatId = null;
+    clearInterval(_chatMsgPollTimer);
+  });
 
   win.querySelector('#msg-chat-reply-form').addEventListener('submit', async (e) => {
     e.preventDefault();

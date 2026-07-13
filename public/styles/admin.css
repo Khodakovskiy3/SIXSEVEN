@@ -961,6 +961,13 @@
         align-items: center;
         gap: 6px;
     }
+
+    /* Дати: горизонтальний скрол, ховаємо скролбар */
+    .sched-date-strip {
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .sched-date-strip::-webkit-scrollbar { display: none; }
 }
 
 .clients-search-wrap {
@@ -2187,40 +2194,180 @@
     color: var(--muted);
 }
 
-/* ── Дашборд: без скролу сторінки на мобільному ── */
+/* ── Мобільний дашборд ── */
 @media (max-width: 719px) {
-    /* Привітання — менший розмір */
-    .dash-greeting__name { font-size: 22px; }
-    .dash-header-row { flex-direction: column; align-items: flex-start; gap: 8px; }
 
-    /* Hero cards: стек */
-    .dash-hero-cards { grid-template-columns: 1fr; gap: 10px; }
-    .dash-hero-card { min-height: 130px; padding: 14px; }
-    .dhc-value { font-size: 34px; }
-
-    /* Середня секція: стек */
-    .dash-mid-row { grid-template-columns: 1fr; }
-    .dash-today-count { font-size: 28px; }
-
-    /* Метрики — менший padding */
-    .admin-metric { padding: 10px; }
-
-    /* Відступ між метриками та гридом */
-    .admin-dashboard-grid { margin-top: 10px; }
-
-    /* Картки уваги — компактніші, без внутрішнього скролу */
-    .attention-item {
-        padding: 8px 10px;
+    /* Без скролу — фіксована висота екрана */
+    .admin-app--dashboard {
+        height: 100dvh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        min-height: unset;
+    }
+    .admin-app--dashboard [data-screen-panel="dashboard"] {
+        display: flex !important;
+        flex-direction: column;
+        flex: 1;
+        overflow: hidden;
+        min-height: 0;
         gap: 10px;
     }
-    .attention-item__icon {
-        width: 30px;
-        height: 30px;
-        border-radius: 8px;
+
+    /* Привітання */
+    .dash-greeting__name { font-size: 20px; }
+    .dash-greeting { padding-bottom: 0; }
+    .dash-header-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        flex-shrink: 0;
+        padding-bottom: 2px;
     }
-    .attention-item__icon svg { width: 15px; height: 15px; }
+
+    /* Швидкі дії: 4 в один рядок */
+    .dash-quick-actions {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        overflow-x: visible;
+        width: 100%;
+        gap: 6px;
+        flex-shrink: 0;
+    }
+    .dash-qa-btn {
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        padding: 10px 4px;
+        font-size: 10px;
+        font-weight: 600;
+        white-space: nowrap;
+        border-radius: 12px;
+        width: 100%;
+    }
+    .dash-qa-btn svg { width: 18px; height: 18px; }
+
+    /* Hero cards: primary повна ширина, Тренери+Послуги — 2 в ряд */
+    /* Hero cards: primary повна ширина, Тренери+Послуги — 2 в ряд */
+    .dash-hero-cards { grid-template-columns: 1fr 1fr; gap: 8px; flex-shrink: 0; }
+    .dash-hero-card--primary { grid-column: 1 / -1; min-height: 100px; padding: 14px; }
+    .dash-hero-card:not(.dash-hero-card--primary) {
+        min-height: unset;
+        padding: 12px 14px;
+        height: auto;
+    }
+    /* Тренери/Послуги: показуємо dhc-sub (кількість), ховаємо тільки великий footer */
+    .dash-hero-card:not(.dash-hero-card--primary) .dhc-footer { display: none; }
+    .dash-hero-card:not(.dash-hero-card--primary) .dhc-sub {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 10px;
+        color: var(--muted);
+        margin: 0;
+        padding-top: 6px;
+        border-top: 1px solid var(--line);
+    }
+    /* Стрілка "детальніше" */
+    .dash-hero-card:not(.dash-hero-card--primary) .dhc-sub::after {
+        content: '→';
+        color: var(--accent);
+        font-size: 12px;
+    }
+    .dhc-value { font-size: 30px; }
+    .dash-hero-card:not(.dash-hero-card--primary) .dhc-value { font-size: 26px; }
+    .dash-hero-card:not(.dash-hero-card--primary) .dhc-top { margin-bottom: 4px; }
+
+    /* Середня секція: тільки "Потребує уваги", розклад — прихований */
+    .dash-mid-row .dash-schedule-card { display: none !important; }
+    .dash-mid-row {
+        display: block;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .dash-mid-row .panel {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        padding: 12px;
+        height: 100%;
+    }
+    .attention-list {
+        flex: 1;
+        overflow-y: auto;
+        scrollbar-width: none;
+        gap: 8px;
+    }
+    .attention-list::-webkit-scrollbar { display: none; }
+
+    /* Attention компактніший */
+    .attention-item { padding: 10px 12px; gap: 10px; border-radius: 12px; }
+    .attention-item__icon { width: 36px; height: 36px; border-radius: 10px; }
+    .attention-item__icon svg { width: 16px; height: 16px; }
     .attention-item strong { font-size: 13px; }
     .attention-item span { font-size: 11px; }
+
+    .admin-metric { padding: 10px; }
+    .admin-dashboard-grid { margin-top: 10px; }
+
+    /* Toolbar */
+    .admin-toolbar { grid-template-columns: 1fr 1fr; }
+    .admin-toolbar input[type="search"],
+    .admin-toolbar input[type="text"] { grid-column: 1 / -1; }
+    .admin-toolbar button:only-of-type { grid-column: 1 / -1; }
+
+    /* ── Розклад: пошук + календар + "+" — один рядок ── */
+    .admin-app--schedule .clients-control-bar {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: 6px;
+        align-items: center;
+    }
+    .admin-app--schedule .clients-search-wrap { flex: 1; min-width: 0; }
+    .admin-app--schedule .clients-search-wrap input[type="search"] { height: 36px; font-size: 13px; }
+    .admin-app--schedule .sched-range-wrap { flex: 0 0 auto; }
+    .admin-app--schedule .sched-range-btn { height: 36px; padding: 0 10px; }
+    .admin-app--schedule #sched-range-label { display: none; }
+    .admin-app--schedule .clients-control-bar .clients-add-btn {
+        flex: 0 0 auto;
+        height: 36px;
+        width: 36px;
+        padding: 0;
+        justify-content: center;
+    }
+    .admin-app--schedule .clients-control-bar .clients-add-btn span { display: none; }
+
+    /* ── Картки занять: кнопки горизонтально в ряд, стиль як у клієнтів ── */
+    .sched-card {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: nowrap;
+        padding: 10px 12px;
+        gap: 8px;
+    }
+    .sched-card-time { flex-shrink: 0; width: 40px; font-size: 13px; }
+    .sched-card-body { flex: 1; min-width: 0; }
+    .sched-card-title { font-size: 13px; }
+    .sched-card-meta { font-size: 11px; }
+    .sched-capacity-bar { max-width: 70px; }
+    .sched-capacity-label { font-size: 10px; }
+    .sched-card-actions {
+        display: flex;
+        flex-direction: row;
+        gap: 3px;
+        flex-shrink: 0;
+    }
+    .sched-card-actions .icon-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--surface-2);
+    }
+    .sched-card-actions .icon-btn svg { width: 13px; height: 13px; }
 }
 
 @media (min-width: 720px) {
@@ -2622,6 +2769,9 @@
     border-radius: 2px;
     overflow: hidden;
     max-width: 120px;
+}
+[data-theme="light"] .sched-capacity-bar {
+    background: rgba(0,0,0,.10);
 }
 .sched-capacity-fill {
     height: 100%;
@@ -3205,6 +3355,57 @@
     border-color: var(--accent);
 }
 
+/* ── Мобільний чат: один панель за раз ── */
+.msg-chat-win-header {
+    display: none; /* показується лише на мобільному */
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.02);
+}
+.msg-chat-back-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+}
+.msg-chat-back-btn:hover {
+    background: rgba(255,255,255,.06);
+    border-color: rgba(255,255,255,.22);
+}
+
+@media (max-width: 719px) {
+    .msg-chat-layout {
+        grid-template-columns: 1fr;
+    }
+    .msg-chat-window {
+        display: none;
+    }
+    .msg-chat-layout.chat-active .msg-chat-list {
+        display: none;
+    }
+    .msg-chat-layout.chat-active .msg-chat-window {
+        display: flex;
+    }
+    .msg-chat-win-header {
+        display: flex;
+    }
+    /* Список повідомлень займає весь залишок після заголовка і форми */
+    .msg-chat-messages {
+        min-height: 0;
+    }
+}
+
 /* ════════════════════════════════════════
    КНОПКИ: orange outline стиль для адмінки
    ════════════════════════════════════════ */
@@ -3447,4 +3648,322 @@
     height: 1px;
     background: var(--line);
     margin: 6px 0;
+}
+
+/* ══════════════════════════════════════════════════
+   СВІТЛА ТЕМА — перекриває хардкодовані кольори
+══════════════════════════════════════════════════ */
+[data-theme="light"] .admin-shell {
+    background: var(--bg);
+}
+
+/* Прозорий фон картки стає білим (primary-картка зберігає оранжевий градієнт) */
+[data-theme="light"] .dash-hero-card:not(.dash-hero-card--primary) {
+    background: var(--surface);
+}
+
+/* Footer-роздільник у звичайних картках (в темній темі був rgba(white,0.06) — невидимий) */
+[data-theme="light"] .dash-hero-card:not(.dash-hero-card--primary) .dhc-footer {
+    border-top-color: var(--line);
+}
+
+/* Icon-box у звичайних картках */
+[data-theme="light"] .dash-hero-card:not(.dash-hero-card--primary) .dhc-icon-box {
+    background: rgba(232,80,2,0.10);
+}
+
+/* Картки-секції та загальні панелі */
+[data-theme="light"] .admin-section,
+[data-theme="light"] .today-schedule,
+[data-theme="light"] .attention-block {
+    background: var(--surface);
+}
+
+/* Рядки таблиць */
+[data-theme="light"] .table-row {
+    background: var(--surface);
+    border-color: var(--line);
+}
+
+[data-theme="light"] .table-row:hover {
+    background: var(--surface-2);
+}
+
+[data-theme="light"] .admin-app {
+    scrollbar-color: rgba(0,0,0,.12) transparent;
+}
+
+/* Шапка таблиці */
+[data-theme="light"] .table-head {
+    background: var(--surface-2);
+    color: var(--muted);
+}
+
+/* Пошук на дашборді */
+[data-theme="light"] .dash-search-wrap input {
+    background: var(--surface);
+    color: var(--text);
+}
+[data-theme="light"] .dash-search-wrap input:focus {
+    background: var(--surface);
+}
+[data-theme="light"] .dash-search-results {
+    background: var(--surface);
+    box-shadow: 0 8px 32px rgba(0,0,0,.12);
+}
+[data-theme="light"] .dash-sr-item {
+    border-bottom-color: var(--line);
+}
+
+/* cstat — лічильники клієнтів/тренерів */
+[data-theme="light"] .cstat {
+    background: var(--surface);
+}
+
+/* Attention items icon */
+[data-theme="light"] .attention-item__icon {
+    box-shadow: none;
+}
+
+/* ── Картки плану/послуг (manage-card) ── */
+
+/* Видима рамка картки */
+[data-theme="light"] .manage-card {
+    border-color: var(--line);
+    box-shadow: 0 2px 16px rgba(0,0,0,.06);
+}
+[data-theme="light"] .manage-card.featured {
+    border-color: rgba(232,80,2,.35);
+    box-shadow: 0 4px 24px rgba(232,80,2,.12);
+}
+
+/* Темна верхня частина → світла */
+[data-theme="light"] .manage-card__dark,
+[data-theme="light"] .manage-card.featured .manage-card__dark {
+    background: var(--surface) !important;
+}
+
+/* Бейдж типу тарифу */
+[data-theme="light"] .manage-card__type {
+    background: var(--surface-2);
+    border-color: var(--line);
+    color: var(--muted);
+}
+[data-theme="light"] .manage-card.featured .manage-card__type {
+    background: rgba(232,80,2,.10);
+    border-color: rgba(232,80,2,.28);
+    color: var(--accent);
+}
+
+/* Кнопка неактивного тарифу (rgba(white,0.07) = невидима в світлій темі) */
+[data-theme="light"] .manage-card:not(.featured) .manage-card__cta .primary-btn {
+    background: var(--surface-2);
+    color: var(--muted);
+    border-color: var(--line);
+}
+[data-theme="light"] .manage-card:not(.featured) .manage-card__cta .primary-btn:hover {
+    background: rgba(232,80,2,.08);
+    border-color: rgba(232,80,2,.28);
+    color: var(--accent);
+}
+
+/* Нижня частина (features list) */
+[data-theme="light"] .manage-card__light {
+    background: var(--surface-2);
+    border-top-color: var(--line);
+}
+[data-theme="light"] .manage-card.featured .manage-card__light {
+    background: rgba(232,80,2,.06);
+    border-top-color: rgba(232,80,2,.2);
+}
+
+/* Features list — текст та іконки видимі на світлому фоні */
+[data-theme="light"] .manage-card__features li {
+    color: var(--text);
+}
+[data-theme="light"] .manage-card__features li svg {
+    color: var(--muted);
+}
+[data-theme="light"] .manage-card.featured .manage-card__features li {
+    color: var(--text);
+}
+
+/* Футер-кнопки дій (Редагувати / Видалити) */
+[data-theme="light"] .manage-card__footer {
+    border-top-color: var(--line);
+}
+[data-theme="light"] .manage-card__action {
+    background: var(--surface);
+    border-color: var(--line);
+    color: var(--text);
+}
+[data-theme="light"] .manage-card__action:hover {
+    background: rgba(232,80,2,.08);
+    border-color: rgba(232,80,2,.28);
+    color: var(--accent);
+}
+
+/* Попап вибору дат розкладу */
+[data-theme="light"] .sched-range-popup {
+    background: var(--surface);
+    box-shadow: 0 20px 50px rgba(0,0,0,.15);
+}
+
+/* ── Профіль: hero-картка ── */
+[data-theme="light"] .adm-profile-hero {
+    background: linear-gradient(160deg, rgba(232,80,2,.06) 0%, var(--surface) 60%);
+}
+[data-theme="light"] .adm-profile-hero::before {
+    opacity: 0.4;
+}
+
+/* Аватар адміна в профілі */
+[data-theme="light"] .adm-profile-avatar {
+    background: var(--surface-2);
+}
+
+/* ── Профіль: меню налаштувань ── */
+[data-theme="light"] .adm-profile-menu {
+    background: var(--surface);
+}
+[data-theme="light"] .adm-menu-item:hover {
+    background: var(--surface-2);
+}
+[data-theme="light"] .adm-menu-icon {
+    background: var(--surface-2);
+}
+
+/* ── Профіль: stat-плашки ── */
+[data-theme="light"] .adm-pstat {
+    background: var(--surface);
+}
+
+/* Рядки таблиць клієнтів / тренерів */
+[data-theme="light"] .table-row {
+    border-color: var(--line);
+}
+
+/* Статуси відвідувань */
+[data-theme="light"] .visit-status--present { color: #16a34a; }
+[data-theme="light"] .visit-status--absent  { color: #dc2626; }
+[data-theme="light"] .visit-status--late    { color: #d97706; }
+
+/* Смуга прокрутки */
+[data-theme="light"] .admin-app::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,.12);
+}
+
+/* ── Чат з гостями: світла тема ── */
+[data-theme="light"] .msg-chat-list {
+    background: var(--surface);
+    border-right-color: var(--line);
+}
+[data-theme="light"] .msg-chat-item:hover {
+    background: var(--surface-2);
+}
+[data-theme="light"] .msg-chat-item.active {
+    background: rgba(232,80,2,.06);
+}
+[data-theme="light"] .msg-chat-window {
+    background: var(--bg);
+}
+[data-theme="light"] .msg-bubble--guest .msg-bubble-text {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--line);
+}
+[data-theme="light"] .msg-bubble--admin .msg-bubble-text {
+    background: rgba(232,80,2,.13);
+    color: #1a0a00;
+    border-color: rgba(232,80,2,.28);
+}
+[data-theme="light"] .msg-chat-reply {
+    background: var(--surface);
+    border-top-color: var(--line);
+}
+[data-theme="light"] .msg-chat-reply input {
+    background: var(--surface-2);
+    color: var(--text);
+    border-color: var(--line);
+}
+[data-theme="light"] .msg-chat-win-header {
+    background: var(--surface);
+    border-bottom-color: var(--line);
+}
+
+/* ════════════════════════════════════════
+   МОБІЛЬНА АДАПТАЦІЯ: сторінки без таблиць
+   (club, personal, settings, profile, plans)
+   ════════════════════════════════════════ */
+@media (max-width: 719px) {
+
+    /* ── Послуги: фіксуємо висоту щоб flex-chain розподіляв простір ── */
+    .admin-app--services {
+        height: 100dvh;
+        padding-bottom: 56px;
+        box-sizing: border-box;
+    }
+
+    /* ── Форми (Клуб / Особисті дані / Налаштування) ── */
+    .admin-app--club,
+    .admin-app--personal,
+    .admin-app--settings {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Вузька панель займає всю ширину на мобільному */
+    .admin-app--club .narrow-panel,
+    .admin-app--personal .narrow-panel,
+    .admin-app--settings .narrow-panel {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* ── Профіль адміна ── */
+    .admin-app--profile {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Статистика: 3 колонки в один ряд, компактніше */
+    .admin-app--profile .adm-profile-stats {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+    }
+    .admin-app--profile .adm-pstat {
+        padding: 13px 4px;
+    }
+    .admin-app--profile .adm-pstat strong {
+        font-size: 18px;
+    }
+    .admin-app--profile .adm-pstat span {
+        font-size: 9px;
+    }
+
+    /* ── Абонементи (Plans) ── */
+    .admin-app--plans {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Панель абонементів: вертикальний flex для карусельного ряду */
+    .admin-app--plans [data-screen-panel="plans"] .panel.admin-section {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow: hidden;
+    }
+
+    /* Карусель не виходить за межі екрана */
+    .admin-app--plans .plans-carousel-wrap {
+        overflow: hidden;
+        flex-shrink: 0;
+    }
+
+    /* Сітка карток займає повну ширину з горизонтальним скролом */
+    .admin-app--plans #plans-grid {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
 }

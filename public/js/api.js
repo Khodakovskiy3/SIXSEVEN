@@ -112,15 +112,16 @@ export async function requireFreshAuth(expectedRoles = []) {
  * @throws {Error} з повідомленням сервера, якщо статус не 2xx.
  */
 export async function apiFetch(path, options = {}) {
+  const { skipAuthRedirect, ...fetchOptions } = options;
   const { token } = getAuth();
-  const headers = new Headers(options.headers || {});
+  const headers = new Headers(fetchOptions.headers || {});
   headers.set('Content-Type', 'application/json');
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
   const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers,
   });
 
@@ -129,8 +130,10 @@ export async function apiFetch(path, options = {}) {
   //    й відсилаємо користувача на логін;
   //  • токена НЕ було (напр. форма входу) — це невірні дані входу,
   //    тож повертаємо помилку формі, щоб вона показала попередження.
+  //  • skipAuthRedirect — ендпоінт навмисно повертає 401 (напр. неправильний
+  //    поточний пароль): не розлогінюємо, а кидаємо помилку до форми.
   if (response.status === HTTP_UNAUTHORIZED) {
-    if (token) {
+    if (token && !skipAuthRedirect) {
       clearAuth();
       window.location.href = PAGE.LOGIN;
       return null;

@@ -9,6 +9,8 @@ import {
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
 import { initSidebar } from './sidebar.js';
+import { initTheme } from './theme.js';
+import { initNotifications } from './notifications.js';
 
 const currentPath = location.pathname;
 
@@ -620,104 +622,132 @@ async function renderManagerAnalytics() {
   `;
 }
 
+const ROLE_LABEL = { client: 'Клієнт', trainer: 'Тренер', admin: 'Адміністратор', manager: 'Керівник' };
+const ROLE_FILTER_MAP = { all: null, clients: 'client', trainers: 'trainer', admins: 'admin' };
+
+function initials(name) {
+  if (!name) return '??';
+  const parts = name.trim().split(/\s+/);
+  return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+}
+
 async function renderManagerUsers() {
   const panel = document.querySelector('[data-screen-panel="users"]');
-
   if (!panel) return;
 
   const users = await apiFetch('/users');
 
-  panel.innerHTML = `
-    <div class="manager-page-head">
-      <div>
-        <h2>Користувачі системи</h2>
-        <p>Перегляд, пошук, контроль та зміна ролей користувачів.</p>
+  // Update stats
+  const clients = users.filter((u) => u.role === 'client').length;
+  const trainers = users.filter((u) => u.role === 'trainer').length;
+  const statTotal = panel.querySelector('#mu-stat-total');
+  const statClients = panel.querySelector('#mu-stat-clients');
+  const statTrainers = panel.querySelector('#mu-stat-trainers');
+  if (statTotal) statTotal.textContent = users.length;
+  if (statClients) statClients.textContent = clients;
+  if (statTrainers) statTrainers.textContent = trainers;
+
+  // Populate table
+  const tbody = panel.querySelector('#users-table-body');
+  if (!tbody) return;
+
+  if (!users.length) {
+    tbody.innerHTML = '<p class="form-note" style="padding:16px">Користувачів немає.</p>';
+    return;
+  }
+
+  tbody.innerHTML = users.map((user) => {
+    const roleKey = user.role || 'client';
+    const roleLabel = ROLE_LABEL[roleKey] || roleKey;
+    const phone = user.phone || '—';
+    const email = user.email || '—';
+    const searchText = `${user.name || ''} ${email} ${phone} ${roleLabel}`.toLowerCase();
+    const avatarClass = roleKey === 'trainer' ? 'trainer' : roleKey === 'admin' ? 'admin' : roleKey === 'manager' ? 'admin' : 'client';
+    const sub = `${roleLabel}${user.phone ? ' · ' + user.phone : ''}`;
+
+    const actionBtn = roleKey === 'admin'
+      ? `<button class="danger-btn mu-demote-btn" data-user-id="${user.id}">Забрати адміна</button>`
+      : '';
+
+    return `
+      <div class="mu-row" data-user-role="${roleKey}" data-user-search="${esc(searchText)}">
+        <span class="mu-avatar-name">
+          <span class="mu-avatar mu-avatar--${avatarClass}">${esc(initials(user.name))}</span>
+          <span class="mu-name-block">
+            <strong>${esc(user.name || '—')}</strong>
+            <span class="mu-sub">${esc(sub)}</span>
+          </span>
+        </span>
+        <span class="mu-phone">${esc(phone)}</span>
+        <span class="mu-email">${esc(email)}</span>
+        <span class="mu-role">${esc(roleLabel)}</span>
+        <span class="mu-status"><span class="status active">Активний</span></span>
+        <span class="mu-actions">${actionBtn}</span>
       </div>
+    `;
+  }).join('');
 
-      <button class="primary-btn" data-refresh-users>Оновити</button>
-    </div>
-
-    <div class="manager-search">
-      <input
-        type="text"
-        id="managerUserSearch"
-        placeholder="Пошук користувача за ім’ям, email або роллю..."
-      >
-    </div>
-
-    <div class="manager-table manager-users-table">
-      <div class="manager-table-head">
-        <span>Ім’я</span>
-        <span>Email</span>
-        <span>Роль</span>
-        <span>Дія</span>
-      </div>
-
-      ${
-        users.length
-          ? users.map((user) => {
-              const searchText = `${user.name || ''} ${user.email || ''} ${user.role || ''}`.toLowerCase();
-
-              return `
-                <div
-                  class="manager-table-row manager-user-row"
-                  data-user-search="${esc(searchText)}"
-                >
-                  <span>${esc(user.name)}</span>
-                  <span>${esc(user.email)}</span>
-
-                  <span>
-                    <select data-user-role="${user.id}">
-                      <option value="client" ${user.role === 'client' ? 'selected' : ''}>Клієнт</option>
-                      <option value="trainer" ${user.role === 'trainer' ? 'selected' : ''}>Тренер</option>
-                      <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Адміністратор</option>
-                      <option value="manager" ${user.role === 'manager' ? 'selected' : ''}>Керівник</option>
-                    </select>
-                  </span>
-
-                  <span>
-                    <button class="ghost-btn" data-user-details="${user.id}">Деталі</button>
-                    <button class="primary-btn" data-save-role="${user.id}">Зберегти роль</button>
-                  </span>
-                </div>
-              `;
-            }).join('')
-          : '<p class="form-note">Користувачів немає.</p>'
-      }
-    </div>
-
-    <p id="managerSearchEmpty" class="form-note" style="display:none;">
-      Користувача не знайдено.
-    </p>
-  `;
-
-  bindManagerUserSearch();
+  bindManagerUsersPanel(panel);
 }
 
-function bindManagerUserSearch() {
-  const input = document.querySelector('#managerUserSearch');
-  const rows = document.querySelectorAll('.manager-user-row');
-  const empty = document.querySelector('#managerSearchEmpty');
+function bindManagerUsersPanel(panel) {
+  // Search
+  const searchInput = panel.querySelector('#users-search');
+  const filterBtns = panel.querySelectorAll('.cseg-btn[data-user-filter]');
+  const feedback = panel.querySelector('#users-feedback');
 
-  if (!input) return;
+  let activeRoleFilter = null;
+  let searchValue = '';
 
-  input.addEventListener('input', () => {
-    const value = input.value.trim().toLowerCase();
-    let visibleCount = 0;
-
+  function applyFilters() {
+    const rows = panel.querySelectorAll('#users-table-body .mu-row');
+    let visible = 0;
     rows.forEach((row) => {
-      const searchableText = row.dataset.userSearch || '';
-      const isVisible = searchableText.includes(value);
-
-      row.style.display = isVisible ? '' : 'none';
-
-      if (isVisible) visibleCount += 1;
+      const matchesSearch = !searchValue || (row.dataset.userSearch || '').includes(searchValue);
+      const matchesRole = !activeRoleFilter || row.dataset.userRole === activeRoleFilter;
+      const show = matchesSearch && matchesRole;
+      row.style.display = show ? '' : 'none';
+      if (show) visible++;
     });
-
-    if (empty) {
-      empty.style.display = visibleCount === 0 ? 'block' : 'none';
+    if (feedback) {
+      feedback.textContent = visible === 0 ? 'Користувача не знайдено.' : '';
     }
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      searchValue = searchInput.value.trim().toLowerCase();
+      applyFilters();
+    });
+  }
+
+  filterBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeRoleFilter = ROLE_FILTER_MAP[btn.dataset.userFilter] ?? null;
+      applyFilters();
+    });
   });
+
+  // Demote admin → client
+  const tbody = panel.querySelector('#users-table-body');
+  if (tbody) {
+    tbody.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.mu-demote-btn');
+      if (!btn) return;
+      const userId = btn.dataset.userId;
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        await apiFetch(`/users/${userId}`, { method: 'PUT', body: JSON.stringify({ role: 'client' }) });
+        await renderManagerUsers();
+      } catch {
+        btn.disabled = false;
+        btn.textContent = 'Забрати адміна';
+      }
+    });
+  }
 }
 
 const sheet = document.querySelector('#sheet');
@@ -802,7 +832,7 @@ if (paymentCard) {
       openSheet(
         'Деталі користувача',
         `
-          <p><b>Ім’я:</b> ${esc(name)}</p>
+          <p><b>Ім'я:</b> ${esc(name)}</p>
           <p><b>Email:</b> ${esc(email)}</p>
           <p><b>Поточна роль:</b> ${roleText(role)}</p>
           <p><b>ID користувача:</b> ${esc(userId)}</p>
@@ -994,6 +1024,8 @@ function loadManagerSettings() {
 
 async function initManagerArm() {
   initSidebar();
+  initTheme();
+  initNotifications();
   await requireFreshAuth([ROLE.MANAGER]);
   hydrateAccount({ role: ROLE.MANAGER });
 

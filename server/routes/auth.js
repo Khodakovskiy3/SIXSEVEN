@@ -134,7 +134,7 @@ router.get('/me', authRequired, async (req, res) => {
 
 router.get('/profile', authRequired, async (req, res) => {
   const result = await query(
-    `select id, name, email, role, twofa_enabled from users where id = $1`,
+    `select id, name, email, role, phone, twofa_enabled from users where id = $1`,
     [req.user.id]
   );
 
@@ -191,8 +191,15 @@ router.put('/profile', authRequired, async (req, res) => {
     );
   }
 
+  if (req.user.role === ROLE.ADMIN || req.user.role === 'manager') {
+    await query(
+      `update users set phone = $1 where id = $2`,
+      [phone || null, req.user.id]
+    );
+  }
+
   const result = await query(
-    `select id, name, email, role from users where id = $1`,
+    `select id, name, email, role, phone from users where id = $1`,
     [req.user.id]
   );
 

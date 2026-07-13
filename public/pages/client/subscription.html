@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="uk">
 <head>
+    <script>(function(){var t=localStorage.getItem("olimp-theme");if(t==="light")document.documentElement.setAttribute("data-theme","light");})()</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OLIMP - Кабінет клієнта - Абонемент</title>
@@ -51,11 +52,13 @@
                             <h3>Поточний абонемент</h3>
                             <p>Перевіряємо дані...</p>
                         </div>
-                        <h3>Доступні абонементи</h3>
-                        <p class="form-note" id="subscription-feedback" role="status"></p>
+                        <div>
+                            <h3 style="margin:0 0 4px">Доступні тарифи</h3>
+                            <p class="form-note" id="subscription-feedback" role="status" style="margin:0 0 14px"></p>
+                        </div>
                         <div class="plans-grid" id="client-plans-grid">
-                            <article class="plan-card">
-                                <p>Завантаження тарифів...</p>
+                            <article class="manage-card featured">
+                                <div class="manage-card__dark"><p style="color:var(--muted)">Завантаження…</p></div>
                             </article>
                         </div>
                     </div>
