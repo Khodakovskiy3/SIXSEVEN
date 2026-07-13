@@ -14,6 +14,30 @@
     min-width: 0;
 }
 
+/* ── Desktop: обмежуємо висоту admin-app, панель не виходить за межі ── */
+@media (min-width: 900px) {
+    .admin-shell {
+        height: 100dvh;      /* точно 100dvh, не min-height */
+        min-height: unset;   /* скидаємо min-height з app-shell */
+        overflow: hidden;    /* нічого не вилазить за межі вікна */
+    }
+
+    .admin-app {
+        min-height: 0 !important;       /* скидаємо min-height з client.css */
+        max-height: calc(100dvh - 72px); /* 32px зверху + 40px знизу від app-shell */
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-bottom: 24px; /* відступ знизу — заокруглення панелі не обрізається */
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255,255,255,0.08) transparent;
+    }
+
+    /* ── Клієнти: компактний відступ між заголовком і статистикою ── */
+    .admin-app--clients .topbar { margin-bottom: 8px; }
+    .admin-app--clients .client-stats-strip { margin-bottom: 6px; }
+    .admin-app--clients .cstat { padding: 7px 8px; }
+}
+
 .admin-bottom-nav {
     grid-template-columns: repeat(5, 1fr);
 }
@@ -1132,6 +1156,7 @@
     flex-direction: column;
     gap: 0;
     overflow: visible;
+    min-height: 0;
 }
 #clients-table .table-head {
     position: sticky;
@@ -1144,10 +1169,13 @@
     flex-direction: column;
     gap: 6px;
     padding-top: 6px;
-    max-height: calc(100dvh - 370px);
+    padding-bottom: 4px;
+    max-height: calc(100dvh - 345px);
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(232,80,2,0.25) transparent;
+    border-bottom-left-radius: var(--radius);
+    border-bottom-right-radius: var(--radius);
 }
 #clients-table .table-row {
     grid-template-columns: 2fr 1.2fr 1.6fr 1.5fr 1fr 1fr 150px;
@@ -1158,6 +1186,50 @@
     #clients-table .table-row {
         grid-template-columns: 2fr 1.2fr 1.6fr 1.5fr 1fr 1fr 160px;
         min-width: 0;
+    }
+
+    /* Клієнти і тренери: панель кліпає дочірні елементи по border-radius */
+    [data-screen-panel="clients"] .panel.admin-section,
+    [data-screen-panel="trainers"] .panel.admin-section {
+        overflow: hidden;
+    }
+
+    /* ── Desktop клієнти: flex-колонка без зовнішнього скролу ── */
+    .admin-app--clients {
+        overflow-y: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    .admin-app--clients .topbar { flex-shrink: 0; }
+    .admin-app--clients .screen.active[data-screen-panel="clients"] {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .admin-app--clients .client-stats-strip { flex-shrink: 0; }
+    .admin-app--clients .panel.admin-section {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .admin-app--clients .clients-control-bar,
+    .admin-app--clients .admin-feedback { flex-shrink: 0; }
+    .admin-app--clients #clients-table {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        overflow: hidden;
+    }
+    .admin-app--clients #clients-table-body {
+        flex: 1;
+        max-height: unset;
+        min-height: 0;
     }
 }
 
@@ -1183,99 +1255,115 @@
     min-width: 770px;
 }
 
-/* ── Повідомлення: сучасні message-item рядки ───────────────────── */
+/* ── Повідомлення: картки-інбокс ─────────────────────────────────── */
 #messages-feedback:not([data-type="error"]) { display: none; }
 
-.message-table .table-row {
-    grid-template-columns: 1fr 130px 130px 108px 108px 200px;
-    min-width: 760px;
-    border-radius: 12px;
-    padding: 14px 18px 14px 22px;
-    position: relative;
-    overflow: hidden;
+.msg-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.msg-card {
+    display: flex;
     align-items: center;
-    border: 1px solid transparent;
+    gap: 14px;
+    padding: 16px 18px;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
     transition: background .18s, border-color .18s;
 }
-.message-table .table-row:not(.table-head) {
-    border-color: rgba(255,255,255,0.05);
-    background: rgba(255,255,255,0.02);
+.msg-card:hover {
+    background: rgba(255,255,255,0.045);
+    border-color: rgba(255,255,255,0.10);
 }
-.message-table .table-row:not(.table-head):hover {
-    background: rgba(255,255,255,0.04);
-    border-color: rgba(255,255,255,0.09);
+
+.msg-card__ico {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
-/* Кольорова ліва смуга — за замовчуванням нейтральна */
-.message-table .table-row:not(.table-head)::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 8px; bottom: 8px;
-    width: 3px;
-    border-radius: 0 3px 3px 0;
-    background: rgba(255,255,255,0.10);
+.msg-card__ico--sent {
+    background: rgba(57,217,138,0.10);
+    color: #70f0aa;
+    border: 1px solid rgba(57,217,138,0.18);
 }
-/* Тема — перший span */
-.message-table .table-row:not(.table-head) > span:first-child {
+.msg-card__ico--planned {
+    background: rgba(232,80,2,0.10);
+    color: var(--accent);
+    border: 1px solid rgba(232,80,2,0.20);
+}
+
+.msg-card__body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.msg-card__subject {
     font-size: 14px;
     font-weight: 700;
     color: var(--text);
+    margin: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-/* Аудиторія — другий span */
-.message-table .table-row:not(.table-head) > span:nth-child(2) {
-    display: inline-flex;
+.msg-card__meta {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0;
+    display: flex;
     align-items: center;
-    width: fit-content;
-    font-size: 11px;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.msg-card__audience {
     font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 999px;
+    color: rgba(255,255,255,0.55);
     background: rgba(255,255,255,0.07);
     border: 1px solid rgba(255,255,255,0.10);
-    color: rgba(255,255,255,0.60);
-    letter-spacing: 0.02em;
+    border-radius: 999px;
+    padding: 1px 9px;
+    font-size: 11px;
 }
-/* Статус pill */
-.message-table .status {
+.msg-card__dot { color: rgba(255,255,255,0.2); }
+
+.msg-card__side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* Статус badge */
+.msg-card__side .status {
     display: inline-flex;
     align-items: center;
-    width: fit-content;
     padding: 3px 10px;
     border-radius: 999px;
     font-size: 10px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.07em;
-    backdrop-filter: blur(6px);
+    white-space: nowrap;
 }
-.message-table .status.active,
-.message-table .status.sent {
+.msg-card__side .status.active {
     background: rgba(57,217,138,0.12);
     color: #70f0aa;
     border: 1px solid rgba(57,217,138,0.22);
 }
-.message-table .status.planned {
+.msg-card__side .status.planned {
     background: rgba(232,80,2,0.12);
     color: var(--accent);
     border: 1px solid rgba(232,80,2,0.24);
-}
-/* Дати */
-.message-table .table-row:not(.table-head) > span:nth-child(4),
-.message-table .table-row:not(.table-head) > span:nth-child(5) {
-    font-size: 12px;
-    color: var(--muted);
-}
-/* Хедер таблиці */
-.message-table .table-head {
-    background: transparent;
-    border-color: transparent;
-    padding-top: 4px;
-    padding-bottom: 4px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    border-radius: 0;
 }
 
 /* ── Chip, toolbar, search покращення ──────────────────────────── */
@@ -1356,6 +1444,12 @@
     display: flex;
     flex-wrap: wrap;
     gap: 5px;
+}
+
+.msg-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .table-row .ghost-btn,

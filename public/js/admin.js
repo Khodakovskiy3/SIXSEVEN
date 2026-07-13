@@ -3369,20 +3369,45 @@ function renderMessages() {
     return;
   }
 
+  const sentIcon = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  const plannedIcon = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+
   messagesTableBody.innerHTML = visibleMessages.map((item) => {
-    const statusClass = item.status === 'planned' ? 'planned' : 'active';
+    const isSent = item.status === 'sent';
+    const statusClass = isSent ? 'active' : 'planned';
+    const statusLabel = messageStatusLabels[item.status] || item.status;
+    const audienceLabel = messageAudienceLabels[item.audience] || item.audience;
+    const dateInfo = isSent
+      ? `Надіслано ${item.send_date ? formatDate(item.send_date) : '—'} · Створено ${formatDate(item.created_at)}`
+      : `Заплановано на ${item.send_date ? formatDate(item.send_date) : '—'} · Створено ${formatDate(item.created_at)}`;
+
     return `
-      <div class="table-row">
-        <span>${escapeHtml(item.subject)}</span>
-        <span>${messageAudienceLabels[item.audience] || item.audience}</span>
-        <span class="status ${statusClass}">${messageStatusLabels[item.status] || item.status}</span>
-        <span>${formatDate(item.created_at)}</span>
-        <span>${item.send_date ? formatDate(item.send_date) : '—'}</span>
-        <span>
-          <button class="ghost-btn" data-message-view="${item.id}">Деталі</button>
-          <button class="ghost-btn" data-message-edit="${item.id}">Редагувати</button>
-          <button class="danger-btn" data-message-delete="${item.id}">Видалити</button>
-        </span>
+      <div class="msg-card">
+        <div class="msg-card__ico msg-card__ico--${isSent ? 'sent' : 'planned'}">
+          ${isSent ? sentIcon : plannedIcon}
+        </div>
+        <div class="msg-card__body">
+          <p class="msg-card__subject">${escapeHtml(item.subject)}</p>
+          <p class="msg-card__meta">
+            <span class="msg-card__audience">${audienceLabel}</span>
+            <span class="msg-card__dot">·</span>
+            ${dateInfo}
+          </p>
+        </div>
+        <div class="msg-card__side">
+          <mark class="status ${statusClass}">${statusLabel}</mark>
+          <div class="msg-actions">
+            <button class="icon-action-btn" data-message-view="${item.id}" title="Деталі">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            <button class="icon-action-btn" data-message-edit="${item.id}" title="Редагувати">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+            </button>
+            <button class="icon-action-btn icon-action-btn--danger" data-message-delete="${item.id}" title="Видалити">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
     `;
   }).join('');

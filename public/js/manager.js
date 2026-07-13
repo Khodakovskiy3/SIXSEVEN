@@ -50,7 +50,7 @@ function roleText(role) {
     client: 'Клієнт',
     trainer: 'Тренер',
     admin: 'Адміністратор',
-    manager: 'Менеджер',
+    manager: 'Керівник',
   };
 
   return roles[role] || role;
@@ -671,7 +671,7 @@ async function renderManagerUsers() {
                       <option value="client" ${user.role === 'client' ? 'selected' : ''}>Клієнт</option>
                       <option value="trainer" ${user.role === 'trainer' ? 'selected' : ''}>Тренер</option>
                       <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Адміністратор</option>
-                      <option value="manager" ${user.role === 'manager' ? 'selected' : ''}>Менеджер</option>
+                      <option value="manager" ${user.role === 'manager' ? 'selected' : ''}>Керівник</option>
                     </select>
                   </span>
 

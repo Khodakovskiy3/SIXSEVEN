@@ -1307,7 +1307,7 @@ p {
 }
 
 .schedule-board strong,
-.schedule-board a {
+.schedule-board a:not(.sch-card__btn) {
     color: var(--accent);
     font-weight: 900;
 }
@@ -1319,6 +1319,170 @@ p {
 
 .schedule-spots.full {
     color: var(--muted);
+}
+
+/* ── Новий розклад ── */
+#schedule-board {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+.sch-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 60px 20px;
+    color: var(--muted);
+}
+.sch-empty p { font-size: 16px; font-weight: 600; color: var(--text); margin: 0; }
+.sch-empty span { font-size: 13px; }
+
+.sch-day__label {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+}
+
+.sch-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sch-card {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    align-items: center;
+    gap: 18px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    transition: background 0.18s, border-color 0.18s;
+}
+.sch-card:hover {
+    background: var(--surface-2);
+}
+.sch-card--full {
+    border-left-color: var(--line);
+    opacity: 0.75;
+}
+
+.sch-card__time {
+    font-size: 20px;
+    font-weight: 900;
+    color: var(--accent);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    text-align: center;
+}
+.sch-card--full .sch-card__time {
+    color: var(--muted);
+}
+
+.sch-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+.sch-card__name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sch-card__trainer {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0;
+}
+.sch-card__cap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.sch-bar {
+    flex: 1;
+    height: 4px;
+    border-radius: 99px;
+    background: var(--line);
+    overflow: hidden;
+    min-width: 80px;
+    max-width: 160px;
+}
+.sch-bar__fill {
+    height: 100%;
+    border-radius: 99px;
+    background: var(--accent);
+    transition: width 0.4s ease;
+}
+.sch-bar__fill--full {
+    background: var(--muted);
+}
+
+.sch-spots {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+}
+.sch-spots--full {
+    color: var(--muted);
+}
+
+.sch-card__btn {
+    padding: 10px 20px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    border-radius: 8px;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: opacity 0.18s;
+    flex-shrink: 0;
+    line-height: 1;
+}
+.sch-card__btn:hover { opacity: 0.85; }
+.sch-card__btn--full {
+    background: var(--surface-2);
+    color: var(--muted);
+    border: 1px solid var(--line);
+}
+.sch-card__btn--full:hover { opacity: 0.7; }
+
+@media (max-width: 600px) {
+    .sch-card {
+        grid-template-columns: 50px 1fr;
+        grid-template-rows: auto auto;
+        gap: 10px 12px;
+        padding: 12px 14px;
+    }
+    .sch-card__btn {
+        grid-column: 2;
+        align-self: start;
+        padding: 7px 14px;
+        font-size: 11px;
+    }
+    .sch-card__time {
+        font-size: 16px;
+        grid-row: span 2;
+        align-self: center;
+    }
 }
 
 .contact-grid {
@@ -1430,11 +1594,13 @@ body:has(.about-shell) .page-shell {
 .about-contacts {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    padding: 22px;
+    gap: 14px;
+    padding: 18px;
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 16px;
     background: rgba(255,255,255,0.025);
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .about-contacts .primary-btn {
@@ -1447,7 +1613,7 @@ body:has(.about-shell) .page-shell {
 .about-contact-list {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 6px;
     margin: 0;
     padding: 0;
 }
@@ -1455,8 +1621,8 @@ body:has(.about-shell) .page-shell {
 .about-contact-list > div {
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    padding: 8px 10px;
+    gap: 2px;
+    padding: 4px 10px;
     margin: 0 -10px;
     border-radius: 8px;
     border-left: 2px solid transparent;

@@ -69,6 +69,16 @@
     display: grid;
 }
 
+.trainer-schedule .sched-day-list {
+    display: none;
+}
+
+.trainer-schedule .sched-day-list.active {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
 .training-filters {
     display: none;
 }

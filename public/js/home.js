@@ -447,32 +447,76 @@ function initPlansCarousel() {
 
 function renderSchedule(schedules) {
   const board = document.querySelector('#schedule-board');
-  if (!board) {
+  if (!board) return;
+
+  if (!schedules.length) {
+    board.innerHTML = `
+      <div class="sch-empty">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <p>Найближчих занять немає</p>
+        <span>Загляньте пізніше</span>
+      </div>`;
     return;
   }
 
-  if (schedules.length === 0) {
-    board.innerHTML = '<article><div><h2>Найближчих занять немає</h2><p>Загляньте пізніше.</p></div></article>';
-    return;
-  }
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const tomorrowStr = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
-  board.innerHTML = schedules.map((item) => {
-    const available = Math.max(Number(item.max_clients || 0) - Number(item.booked || 0), 0);
-    const spotsLabel = available > 0
-      ? `${available} ${pluralizeUk(available, ['вільне місце', 'вільні місця', 'вільних місць'])}`
-      : 'Місць немає';
-    const spotsClass = available > 0 ? 'schedule-spots' : 'schedule-spots full';
+  // group by date
+  const groups = {};
+  schedules.forEach((item) => {
+    const d = String(item.date).slice(0, 10);
+    if (!groups[d]) groups[d] = [];
+    groups[d].push(item);
+  });
+
+  board.innerHTML = Object.entries(groups).map(([date, items]) => {
+    const d = new Date(date + 'T00:00:00');
+    let dayLabel;
+    if (date === todayStr) {
+      dayLabel = `Сьогодні — ${d.toLocaleDateString('uk-UA', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+    } else if (date === tomorrowStr) {
+      dayLabel = `Завтра — ${d.toLocaleDateString('uk-UA', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+    } else {
+      dayLabel = d.toLocaleDateString('uk-UA', { weekday: 'long', day: 'numeric', month: 'long' });
+    }
+
+    const cards = items.map((item) => {
+      const max     = Number(item.max_clients || 0);
+      const booked  = Number(item.booked || 0);
+      const avail   = Math.max(max - booked, 0);
+      const isFull  = avail === 0 && max > 0;
+      const pct     = max > 0 ? booked / max : 0;
+
+      const spotsText = isFull
+        ? 'Місць немає'
+        : `${avail} ${pluralizeUk(avail, ['вільне місце', 'вільні місця', 'вільних місць'])}`;
+      const fillPct = max > 0 ? Math.round((booked / max) * 100) : 0;
+
+      return `
+        <article class="sch-card${isFull ? ' sch-card--full' : ''}">
+          <div class="sch-card__time">${formatTime(item.time)}</div>
+          <div class="sch-card__body">
+            <p class="sch-card__name">${escapeHtml(item.workout_name)}</p>
+            <p class="sch-card__trainer">${escapeHtml(item.trainer_name || 'Тренер не призначений')}</p>
+            <div class="sch-card__cap">
+              <div class="sch-bar"><div class="sch-bar__fill${isFull ? ' sch-bar__fill--full' : ''}" style="width:${fillPct}%"></div></div>
+              <span class="sch-spots${isFull ? ' sch-spots--full' : ''}">${spotsText}</span>
+            </div>
+          </div>
+          <a class="sch-card__btn${isFull ? ' sch-card__btn--full' : ''}" href="../auth/register.html">
+            ${isFull ? 'Лист очікування' : 'Записатись →'}
+          </a>
+        </article>`;
+    }).join('');
+
     return `
-      <article>
-        <strong>${formatWeekday(item.date)}, ${formatDayMonth(item.date)}<br>${formatTime(item.time)}</strong>
-        <div>
-          <h2>${escapeHtml(item.workout_name)}</h2>
-          <p>Тренер ${escapeHtml(item.trainer_name || 'не призначений')}</p>
-          <p class="${spotsClass}">${spotsLabel}</p>
-        </div>
-        <a href="../auth/register.html">Запис</a>
-      </article>
-    `;
+      <div class="sch-day">
+        <h3 class="sch-day__label">${dayLabel}</h3>
+        <div class="sch-list">${cards}</div>
+      </div>`;
   }).join('');
 }
 
@@ -498,6 +542,19 @@ function renderContacts(club) {
  * Підвантажує дані лише для тих блоків, які присутні на поточній сторінці.
  */
 async function loadHomeData() {
+  // Повна сторінка розкладу — окремий ендпоінт без ліміту 10
+  const isSchedulePage = document.querySelector('#schedule-board') &&
+                         !document.querySelector('#services-grid, #plans-grid');
+  if (isSchedulePage) {
+    try {
+      const schedules = await fetchJson('/public/schedules');
+      renderSchedule(schedules);
+    } catch (err) {
+      console.error('[schedules]', err);
+    }
+    return;
+  }
+
   if (document.querySelector('#services-grid, #plans-grid, #schedule-board')) {
     try {
       const data = await fetchJson('/public/home-data');

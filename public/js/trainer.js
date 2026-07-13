@@ -14,7 +14,7 @@ import { PAGE, ROLE } from './constants.js';
 import { initSidebar } from './sidebar.js';
 
 // Кількість днів у стрічці розкладу (тиждень наперед від сьогодні).
-const WEEK_LENGTH = 7;
+const WEEK_LENGTH = 14;
 
 const titles = {
   home: 'Головна',
@@ -163,15 +163,17 @@ function renderDateStrip() {
   }
 
   const today = todayIso();
-  strip.innerHTML = getWeekDates().map((date) => {
+  const dates = getWeekDates();
+  strip.style.gridTemplateColumns = `repeat(${dates.length}, 1fr)`;
+  strip.innerHTML = dates.map((date) => {
     const isActive = date === selectedDate;
+    const isToday = date === today;
     const dayCount = schedules.filter((item) => formatDate(item.date) === date && isMine(item)).length;
-    const badge = date === today ? 'Сьогодні' : `${dayCount} занять`;
     return `
-      <button class="date-pill ${isActive ? 'active' : ''}" data-trainer-date="${date}">
-        <strong>${formatPillDate(date)}</strong>
-        <span>${formatWeekday(date)}</span>
-        <small>${badge}</small>
+      <button class="sched-date-pill${isActive ? ' active' : ''}${isToday ? ' today' : ''}" data-trainer-date="${date}">
+        <span class="sdp-weekday">${formatWeekday(date)}</span>
+        <strong class="sdp-day">${formatPillDate(date)}</strong>
+        <span class="sdp-count">${isToday ? 'Сьогодні' : `${dayCount} зан.`}</span>
       </button>
     `;
   }).join('');
@@ -193,25 +195,31 @@ function getDaySchedules(mode) {
 function buildScheduleCard(item, mode) {
   const max = Number(item.max_clients || 0);
   const booked = Number(item.booked || 0);
-  const secondLine = mode === 'mine'
-    ? `Записано ${booked}/${max}`
-    : `Тренер ${escapeHtml(item.trainer_name || 'не призначений')}`;
-  const clientsButton = mode === 'mine'
-    ? `<button class="primary-btn" data-trainer-clients="${item.id}">Клієнти</button>`
-    : '';
+  const avail = availableSpots(item);
+  const fillPct = max > 0 ? Math.round((booked / max) * 100) : 0;
+  const isFull = avail === 0 && max > 0;
+
+  const meta = mode === 'mine'
+    ? `<span>Записано ${booked}/${max}</span>`
+    : `<span>${escapeHtml(item.trainer_name || 'Тренер не призначений')}</span>`;
+
+  const actions = (mode === 'mine' || isMine(item))
+    ? `<button class="ghost-btn" data-trainer-details="${item.id}">Деталі</button>
+       <button class="primary-btn" data-trainer-clients="${item.id}">Клієнти</button>`
+    : `<button class="ghost-btn" data-trainer-details="${item.id}">Деталі</button>`;
 
   return `
-    <div class="class-card">
-      <div class="class-time">${formatTime(item.time)}</div>
-      <div class="class-info">
-        <h3>${escapeHtml(item.workout_name || '—')}</h3>
-        <p>${secondLine}</p>
-        <p>Вільно ${availableSpots(item)} місць</p>
+    <div class="sched-card${isFull ? ' sched-card--full' : ''}">
+      <div class="sched-card-time"><span>${formatTime(item.time)}</span></div>
+      <div class="sched-card-body">
+        <div class="sched-card-title">${escapeHtml(item.workout_name || '—')}</div>
+        <div class="sched-card-meta">${meta}</div>
+        <div class="sched-capacity">
+          <div class="sched-capacity-bar"><div class="sched-capacity-fill${isFull ? ' full' : ''}" style="width:${fillPct}%"></div></div>
+          <span class="sched-capacity-label${isFull ? ' full' : ''}">${isFull ? 'місць немає' : `вільно ${avail}`}</span>
+        </div>
       </div>
-      <div class="class-actions">
-        <button class="ghost-btn" data-trainer-details="${item.id}">Деталі</button>
-        ${clientsButton}
-      </div>
+      <div class="sched-card-actions">${actions}</div>
     </div>
   `;
 }
@@ -224,14 +232,14 @@ function renderScheduleLists() {
     const mine = getDaySchedules('mine');
     mineList.innerHTML = mine.length
       ? mine.map((item) => buildScheduleCard(item, 'mine')).join('')
-      : '<div class="class-card"><div class="class-info"><h3>Цього дня у вас немає тренувань</h3></div></div>';
+      : '<div class="sched-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="40" height="40" opacity=".35"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><p>Цього дня у вас немає тренувань</p></div>';
   }
 
   if (allList) {
     const all = getDaySchedules('all');
     allList.innerHTML = all.length
       ? all.map((item) => buildScheduleCard(item, 'all')).join('')
-      : '<div class="class-card"><div class="class-info"><h3>Цього дня занять немає</h3></div></div>';
+      : '<div class="sched-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="40" height="40" opacity=".35"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><p>Цього дня занять немає</p></div>';
   }
 }
 

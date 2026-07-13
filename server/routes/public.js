@@ -72,4 +72,31 @@ router.get('/home-data', async (req, res) => {
   });
 });
 
+router.get('/schedules', async (req, res) => {
+  try {
+    const result = await query(`
+      select s.id, s.date, s.time,
+             w.name as workout_name,
+             u.name as trainer_name,
+             w.max_clients,
+             coalesce(b.cnt, 0) as booked
+      from schedules s
+      join workouts w on w.id = s.workout_id
+      left join trainers t on t.id = s.trainer_id
+      left join users u on u.id = t.user_id
+      left join (
+        select schedule_id, count(*) as cnt
+        from bookings where status = 'active' group by schedule_id
+      ) b on b.schedule_id = s.id
+      where s.date >= current_date and w.status = 'active'
+      order by s.date, s.time
+      limit 80
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json([]);
+  }
+});
+
 export default router;

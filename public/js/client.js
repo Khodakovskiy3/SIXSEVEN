@@ -111,14 +111,12 @@ function describeDay(value) {
  * @returns {string[]} дати у форматі 'YYYY-MM-DD'.
  */
 function getScheduleDates() {
-  const today = new Date().toISOString().slice(0, 10);
-  const dates = new Set(
-    schedules
-      .map((item) => formatDate(item.date))
-      .filter((date) => date >= today)
-  );
-  dates.add(today);
-  return [...dates].sort();
+  const today = new Date();
+  return Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    return d.toISOString().slice(0, 10);
+  });
 }
 
 /**
@@ -237,15 +235,17 @@ function renderDateStrip() {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  strip.innerHTML = getScheduleDates().map((date) => {
+  const dates = getScheduleDates();
+  strip.style.gridTemplateColumns = `repeat(${dates.length}, 1fr)`;
+  strip.innerHTML = dates.map((date) => {
     const isActive = date === selectedScheduleDate;
+    const isToday = date === today;
     const dayCount = schedules.filter((item) => formatDate(item.date) === date).length;
-    const badge = date === today ? 'Сьогодні' : `${dayCount} зан.`;
     return `
-      <button class="date-pill ${isActive ? 'active' : ''}" data-schedule-date="${date}">
-        <strong>${formatShortDate(date)}</strong>
-        <span>${getDayLabel(date)}</span>
-        <small>${badge}</small>
+      <button class="sched-date-pill${isActive ? ' active' : ''}${isToday ? ' today' : ''}" data-schedule-date="${date}">
+        <span class="sdp-weekday">${getDayLabel(date)}</span>
+        <strong class="sdp-day">${formatShortDate(date)}</strong>
+        <span class="sdp-count">${isToday ? 'Сьогодні' : `${dayCount} зан.`}</span>
       </button>
     `;
   }).join('');
@@ -286,10 +286,10 @@ function renderScheduleList() {
 
   if (visibleSchedules.length === 0) {
     list.innerHTML = `
-      <article class="record-card">
-        <h3>Занять не знайдено</h3>
-        <p>Оберіть іншу дату або фільтр.</p>
-      </article>
+      <div class="sched-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+        <p>Занять не знайдено. Оберіть іншу дату або фільтр.</p>
+      </div>
     `;
     return;
   }
@@ -297,20 +297,27 @@ function renderScheduleList() {
   list.innerHTML = visibleSchedules.map((item) => {
     const booked = isAlreadyBooked(item.id);
     const available = Number(item.available || 0);
-    const disabled = available <= 0 || booked;
-    const actionText = booked ? 'Записано' : (available > 0 ? 'Записатися' : 'Недоступно');
+    const maxClients = Number(item.max_clients || 0);
+    const bookedCount = maxClients - available;
+    const fillPct = maxClients > 0 ? Math.round((bookedCount / maxClients) * 100) : 0;
+    const isFull = available <= 0 && maxClients > 0;
+    const disabled = isFull && !booked;
+    const actionText = booked ? 'Записано ✓' : (available > 0 ? 'Записатися' : 'Лист очікування');
 
     return `
-      <div class="class-card ${disabled && !booked ? 'disabled' : ''}">
-        <div class="class-time">${formatTime(item.time)}</div>
-        <div class="class-info">
-          <h3>${escapeHtml(item.workout_name)}</h3>
-          <p>Тренер ${escapeHtml(item.trainer_name || 'не призначений')}</p>
-          <p>${available > 0 ? `${available} місць` : 'місць немає'}</p>
+      <div class="sched-card${isFull && !booked ? ' sched-card--full' : ''}">
+        <div class="sched-card-time"><span>${formatTime(item.time)}</span></div>
+        <div class="sched-card-body">
+          <div class="sched-card-title">${escapeHtml(item.workout_name)}</div>
+          <div class="sched-card-meta"><span>${escapeHtml(item.trainer_name || 'Тренер не призначений')}</span></div>
+          <div class="sched-capacity">
+            <div class="sched-capacity-bar"><div class="sched-capacity-fill${isFull ? ' full' : ''}" style="width:${fillPct}%"></div></div>
+            <span class="sched-capacity-label${isFull ? ' full' : ''}">${available > 0 ? `вільно ${available}` : 'місць немає'}</span>
+          </div>
         </div>
-        <div class="class-actions">
+        <div class="sched-card-actions">
           <button class="ghost-btn" data-schedule-details="${item.id}">Опис</button>
-          <button class="primary-btn" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${actionText}</button>
+          <button class="${booked ? 'ghost-btn' : 'primary-btn'}" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${actionText}</button>
         </div>
       </div>
     `;
@@ -335,7 +342,7 @@ async function loadSchedulePage() {
     renderDateStrip();
     renderScheduleFilters();
     renderScheduleList();
-    setScheduleFeedback(`Занять у розкладі: ${schedules.length}`, 'success');
+    setScheduleFeedback('');
   } catch (error) {
     setScheduleFeedback(`Не вдалося завантажити розклад: ${error.message}`, 'error');
   }

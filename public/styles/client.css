@@ -553,8 +553,9 @@ p {
 }
 
 .schedule-panel {
-    display: grid;
-    gap: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .class-card,
@@ -1843,4 +1844,157 @@ dd {
     .modal {
         margin: 0;
     }
+}
+
+/* ── Розклад: нові картки (стиль адміна) ────────────────────────────────── */
+
+.sched-date-strip {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+    flex-shrink: 0;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.sched-date-strip::-webkit-scrollbar { display: none; }
+
+.sched-date-pill {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 7px 4px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    text-align: center;
+}
+.sched-date-pill:hover { border-color: rgba(232,80,2,.4); background: rgba(232,80,2,.04); }
+.sched-date-pill.active {
+    border-color: var(--accent);
+    background: rgba(232,80,2,.12);
+}
+.sched-date-pill.today .sdp-count { color: var(--accent); font-weight: 700; }
+.sdp-weekday { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.sdp-day { font-size: 17px; font-weight: 800; line-height: 1.15; }
+.sdp-count { font-size: 9px; color: var(--muted); }
+.sched-date-pill.active .sdp-weekday,
+.sched-date-pill.active .sdp-count { color: var(--accent); }
+.sched-date-pill.active .sdp-day { color: var(--accent); }
+
+.sched-day-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 80px;
+}
+
+.sched-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--muted);
+    padding: 48px 20px;
+    text-align: center;
+}
+.sched-empty svg { width: 40px; height: 40px; opacity: .35; }
+.sched-empty p { font-size: 14px; margin: 0; }
+
+.sched-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 16px;
+    transition: border-color .15s;
+}
+.sched-card:hover { border-color: rgba(232,80,2,.3); }
+.sched-card--full { opacity: .75; }
+
+.sched-card-time {
+    flex-shrink: 0;
+    width: 52px;
+    text-align: center;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1.1;
+}
+
+.sched-card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.sched-card-title {
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sched-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--muted);
+}
+.sched-capacity {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 2px;
+}
+.sched-capacity-bar {
+    flex: 1;
+    height: 4px;
+    background: rgba(255,255,255,.1);
+    border-radius: 2px;
+    overflow: hidden;
+    max-width: 120px;
+}
+.sched-capacity-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width .3s;
+}
+.sched-capacity-fill.full { background: #ff5050; }
+.sched-capacity-label { font-size: 11px; color: var(--muted); }
+.sched-capacity-label.full { color: #ff5050; }
+
+.sched-card-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.sched-card-actions .ghost-btn,
+.sched-card-actions .primary-btn {
+    padding: 8px 14px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+@media (min-width: 720px) {
+    .sched-date-strip { grid-template-columns: repeat(14, 1fr); }
+    .sched-date-pill { padding: 8px 6px; }
+    .sdp-day { font-size: 20px; }
+    .sched-card-time { width: 64px; font-size: 17px; }
+    .sched-card { padding: 14px 20px; }
+    .sched-capacity-bar { max-width: 160px; }
+    .sched-card-actions { flex-direction: row; }
 }
