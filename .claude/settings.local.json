@@ -16,7 +16,21 @@
       "Bash(grep -E '\\\\.\\(html|css|js|png|jpg|jpeg|webp|svg|gif\\)$')",
       "Bash(graphify query *)",
       "Skill(claude-api)",
-      "Skill(claude-api:*)"
+      "Skill(claude-api:*)",
+      "Bash(curl -s --max-time 2 http://localhost:11434/api/tags)",
+      "Bash(pg_isready -h localhost -p 5432)",
+      "Bash(curl -s --max-time 2 http://localhost:3000/api/health)",
+      "Bash(psql -h localhost -U postgres -d sports_club_db -tc \"select id, email, role from users limit 5\")",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "Bash(npm install *)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}\\\\n' -X POST http://localhost:3000/api/ai/assistant -H 'Content-Type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"привіт\"}]}')",
+      "Bash(curl -s -w ' [%{http_code}]\\\\n' -X POST http://localhost:3000/api/ai/assistant -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json' -d '{\"messages\":\"не масив\"}')",
+      "Bash(curl -s -w ' [%{http_code}]\\\\n' -X POST http://localhost:3000/api/ai/assistant -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"Склади мені план тренувань на тиждень\"}]}')",
+      "Bash(curl -s -w ' [%{http_code}]\\\\n' -X POST http://localhost:3000/api/ai/assistant -H 'Authorization: Bearer __CMDSUB_OUTPUT__' -H 'Content-Type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"ще раз\"}]}')",
+      "Bash(pkill -f \"node server/index.js\")",
+      "Bash(pkill -f \"ollama-stub.js\")",
+      "Bash(git add *)",
+      "Bash(git commit -m 'feat\\(ai\\): додати АІ-асистента клієнта на базі локальної LLM \\(Ollama\\) *)"
     ]
   }
 }
