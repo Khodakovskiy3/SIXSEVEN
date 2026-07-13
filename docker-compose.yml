@@ -27,6 +27,9 @@ services:
       # Усередині compose-мережі БД доступна за іменем сервісу,
       # тому PGHOST з .env (localhost) перевизначається.
       PGHOST: db
+      # Ollama працює нативно на хості (Docker на macOS не має доступу
+      # до GPU/Metal), тому з контейнера звертаємось через host-шлюз.
+      OLLAMA_URL: http://host.docker.internal:11434
     depends_on:
       db:
         condition: service_healthy

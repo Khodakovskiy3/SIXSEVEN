@@ -95,6 +95,35 @@
     padding: 0;
 }
 
+/* Вкладки «Адміністратор / АІ-асистент» (лише для авторизованих). */
+.chat-widget-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--line, rgba(255, 255, 255, 0.14));
+}
+
+.chat-widget-tab {
+    flex: 1;
+    padding: 10px 8px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--muted, #b3b3bd);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.chat-widget-tab:hover {
+    color: var(--text, #f6f6f7);
+}
+
+.chat-widget-tab.active {
+    color: var(--accent, #ff6424);
+    border-bottom-color: var(--accent, #ff6424);
+}
+
 .chat-widget-body {
     flex: 1;
     overflow-y: auto;
@@ -102,6 +131,12 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+/* display: flex перебиває стандартну поведінку hidden, тому явно ховаємо
+   неактивну вкладку (адміністратор ↔ асистент). */
+.chat-widget-body[hidden] {
+    display: none;
 }
 
 .chat-widget-empty {
@@ -134,6 +169,18 @@
     background: var(--surface-2, rgba(32, 32, 36, 0.92));
     border: 1px solid var(--line, rgba(255, 255, 255, 0.14));
     border-bottom-left-radius: 4px;
+}
+
+/* Індикатор генерації відповіді АІ-асистента. */
+.chat-msg-typing {
+    color: var(--muted, #b3b3bd);
+    font-style: italic;
+    animation: chat-typing-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes chat-typing-pulse {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
 }
 
 /* Службові повідомлення (адміністратор приєднався тощо). */
