@@ -13,7 +13,10 @@
       "Bash(curl -s http://localhost:3000/api/public/home-data)",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('plans:', len\\(d.get\\('plans',[]\\)\\)\\); [print\\(' -',p['name'], p['price']\\) for p in d.get\\('plans',[]\\)]\")",
       "Bash(grep -E '\\\\.\\(tsx|jsx|ts|js\\)$')",
-      "Bash(grep -E '\\\\.\\(html|css|js|png|jpg|jpeg|webp|svg|gif\\)$')"
+      "Bash(grep -E '\\\\.\\(html|css|js|png|jpg|jpeg|webp|svg|gif\\)$')",
+      "Bash(graphify query *)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)"
     ]
   }
 }
