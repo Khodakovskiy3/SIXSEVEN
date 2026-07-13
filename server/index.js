@@ -29,6 +29,7 @@ import chatRoutes from './routes/chat.js';
 import uploadRoutes from './routes/upload.js';
 import anthropometryRoutes from './routes/anthropometry.js';
 import notificationsRoutes from './routes/notifications.js';
+import aiRoutes from './routes/ai.js';
 
 import { DEFAULT_HTTP_PORT, HTTP_SERVER_ERROR } from './utils/constants.js';
 import { runMigrations } from './migrate.js';
@@ -93,6 +94,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/anthropometry', anthropometryRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/ai', aiRoutes);
 
 // ─── Глобальна обробка помилок ────────────────────────────────────────────────
 // Будь-яка помилка, передана через next(err), повертається клієнту як 500,
