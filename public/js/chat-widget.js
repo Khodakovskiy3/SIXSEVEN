@@ -200,7 +200,9 @@
 
   function removeAiTyping() {
     const typing = aiBodyEl.querySelector('[data-typing]');
-    if (typing) typing.remove();
+    if (typing) {
+      typing.remove();
+    }
   }
 
   /**
@@ -254,7 +256,9 @@
    * @param {string} next Цільовий режим: ADMIN_MODE або AI_MODE.
    */
   function switchMode(next) {
-    if (mode === next) return;
+    if (mode === next) {
+      return;
+    }
     mode = next;
     clearError();
 
@@ -276,7 +280,9 @@
   if (tabsEl) {
     tabsEl.addEventListener('click', (event) => {
       const tab = event.target.closest('[data-tab]');
-      if (tab) switchMode(tab.dataset.tab);
+      if (tab) {
+        switchMode(tab.dataset.tab);
+      }
     });
   }
 
@@ -353,7 +359,9 @@
 
     // Вкладка асистента має власний цикл надсилання (без polling).
     if (mode === AI_MODE) {
-      if (isAiPending) return;
+      if (isAiPending) {
+        return;
+      }
       inputEl.value = '';
       await sendAiMessage(body);
       return;
