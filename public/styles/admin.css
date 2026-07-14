@@ -4030,3 +4030,43 @@
     height: 15px;
     flex-shrink: 0;
 }
+
+/* ════════════════════════════════════════
+   МОБІЛЬНІ ДОПРАЦЮВАННЯ (≤719px)
+   ════════════════════════════════════════ */
+@media (max-width: 719px) {
+    /* Картки клієнтів/тренерів: кнопки дій переносяться на другий
+       рядок — інакше ім'я і телефон обрізалися до кількох символів. */
+    #clients-table .client-row,
+    #trainers-table .trainer-row {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+
+    #clients-table .cc-avatar-name,
+    #trainers-table .cc-avatar-name {
+        flex: 1 1 55%;
+    }
+
+    #clients-table .cc-status,
+    #trainers-table .cc-status {
+        margin-left: auto;
+    }
+
+    #clients-table .cc-actions,
+    #trainers-table .cc-actions {
+        flex: 1 1 100%;
+        justify-content: flex-end;
+    }
+
+    /* Абонементи: стрілки каруселі ховаємо (гортання свайпом),
+       щоб картка тарифу вміщувалась на екрані цілком. */
+    .plans-nav-btn {
+        display: none;
+    }
+
+    .manage-card {
+        width: auto;
+        flex: 0 0 min(280px, calc(100vw - 64px));
+    }
+}

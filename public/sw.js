@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sports-club-v4';
+const CACHE_NAME = 'sports-club-v5';
 const CORE_ASSETS = [
   '/',
   '/index.html',
