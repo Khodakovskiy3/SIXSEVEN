@@ -2498,3 +2498,187 @@ body:has(.about-shell) .page-shell {
     }
 
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — повна адаптація гостьових сторінок
+   Breakpoint: ≤ 860px
+═══════════════════════════════════════════════════════════════ */
+@media (max-width: 860px) {
+
+    /* ── Виправлення: content-shell мав height:100svh + overflow:hidden
+       з базових стилів, що обрізало контент на мобільному.
+       Не чіпаємо plans-page — вона має власний overflow:hidden карусель. ── */
+    body:not(.plans-page) .content-shell {
+        height: auto;
+        min-height: 0;
+        overflow: visible;
+    }
+
+    /* ── Сторінка "Розклад": зменшуємо відступи між днями ── */
+    #schedule-board {
+        gap: 20px;
+        padding-bottom: 32px;
+    }
+
+    .sch-day__label {
+        font-size: 10px;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+    }
+
+    .sch-list {
+        gap: 6px;
+    }
+
+    /* ── Карусель послуг/абонементів: тягнемо вниз ── */
+    .svc-carousel {
+        gap: 12px;
+    }
+
+    .svc-nav {
+        padding-bottom: 8px;
+    }
+
+    /* ── Сторінка "Про нас": дозволяємо прокрутку замість overflow:hidden ── */
+    body:has(.about-shell) {
+        height: auto !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+    }
+
+    body:has(.about-shell) .page-shell {
+        height: auto !important;
+        min-height: 100dvh;
+        overflow: visible !important;
+        padding-bottom: 48px !important;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .about-shell {
+        flex: none !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        gap: 16px;
+    }
+
+    /* Показуємо карту (раніше прихована на мобільному) */
+    .about-map {
+        display: block !important;
+        margin-top: 4px;
+    }
+
+    .about-map__wrap {
+        height: 220px;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .about-map__wrap iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+        display: block;
+    }
+
+    .about-contacts {
+        flex: none !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+    }
+
+    /* Показуємо всі правила відвідування */
+    .about-rules {
+        flex: none !important;
+        overflow: visible !important;
+    }
+
+    .about-rules li:nth-child(n+6) {
+        display: list-item !important;
+    }
+
+    /* Числа: 2×2 на дуже маленьких екранах */
+    .about-nums {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+}
+
+/* ── Дуже малі екрани (< 420px) ── */
+@media (max-width: 420px) {
+
+    /* Кнопки головної — повна ширина стовпцем */
+    .hero-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .primary-btn,
+    .outline-btn {
+        width: 100%;
+    }
+
+    /* Тайтл менший */
+    h1 {
+        font-size: clamp(13px, 4.2vw, 18px);
+    }
+
+    /* Картки абонементів: компактніше */
+    .plan-card {
+        padding: 12px 10px 14px;
+        gap: 6px;
+    }
+
+    .plan-card__title {
+        font-size: 13px;
+    }
+
+    .plan-card__amount {
+        font-size: 22px;
+    }
+
+    /* Картки послуг */
+    .svc-card {
+        min-height: 140px;
+    }
+
+    .svc-card__body {
+        padding: 12px 10px 10px;
+        gap: 5px;
+    }
+
+    .svc-card__title {
+        font-size: 13px;
+    }
+
+    /* Розклад на дуже малому екрані */
+    .sch-card {
+        grid-template-columns: 44px 1fr;
+        padding: 10px 12px;
+        gap: 10px 10px;
+    }
+
+    .sch-card__time {
+        font-size: 14px;
+    }
+
+    .sch-card__name {
+        font-size: 13px;
+    }
+
+    .sch-card__btn {
+        grid-column: 2;
+        padding: 6px 12px;
+        font-size: 11px;
+    }
+
+    /* Про нас: стрічка цифр — 2 колонки */
+    .about-nums {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    /* Контакти: ширший опис */
+    .about-contact-list dd {
+        font-size: 13px;
+    }
+}

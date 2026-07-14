@@ -2374,10 +2374,38 @@ document.querySelectorAll('[data-screen], [data-screen-link]').forEach((button) 
   });
 });
 
+/**
+ * Діалог підтвердження виходу з кабінету.
+ * @returns {Promise<boolean>}
+ */
+function showLogoutConfirm() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'custom-confirm-overlay';
+    overlay.innerHTML = `
+      <div class="custom-confirm-box">
+        <p class="custom-confirm-msg">Вийти з кабінету?</p>
+        <div class="custom-confirm-actions">
+          <button class="ghost-btn custom-confirm-cancel">Скасувати</button>
+          <button class="primary-btn custom-confirm-ok">Вийти</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const cleanup = (result) => { overlay.remove(); resolve(result); };
+    overlay.querySelector('.custom-confirm-ok').addEventListener('click', () => cleanup(true));
+    overlay.querySelector('.custom-confirm-cancel').addEventListener('click', () => cleanup(false));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); });
+  });
+}
+
 document.querySelectorAll('.logout, .logout-row').forEach((button) => {
   button.addEventListener('click', () => {
-    clearAuth();
-    window.location.href = PAGE.HOME;
+    showLogoutConfirm().then((confirmed) => {
+      if (!confirmed) return;
+      clearAuth();
+      window.location.href = PAGE.HOME;
+    });
   });
 });
 
