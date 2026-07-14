@@ -18,6 +18,7 @@ import { Router } from 'express';
 
 import { query } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
+import { notifyUsers } from '../utils/notify.js';
 import {
   BOOKING_STATUS,
   HTTP_BAD_REQUEST,
@@ -169,6 +170,42 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
   return res.status(HTTP_CREATED).json(result.rows[0]);
 });
 
+/**
+ * Повертає назву заняття та user_id клієнтів з активними бронюваннями —
+ * саме їх треба сповіщати про зміни в розкладі.
+ *
+ * @param {string|number} scheduleId Ідентифікатор запису розкладу.
+ * @returns {Promise<{workoutName: string, userIds: number[]}>}
+ */
+async function getBookedAudience(scheduleId) {
+  const result = await query(
+    `select u.id as user_id, w.name as workout_name
+     from bookings b
+     join clients c on c.id = b.client_id
+     join users u on u.id = c.user_id
+     join schedules s on s.id = b.schedule_id
+     join workouts w on w.id = s.workout_id
+     where b.schedule_id = $1 and b.status = 'active'`,
+    [scheduleId]
+  );
+
+  return {
+    workoutName: result.rows[0]?.workout_name || 'Тренування',
+    userIds: result.rows.map((row) => row.user_id),
+  };
+}
+
+/**
+ * Форматує дату й час заняття для тексту сповіщення.
+ *
+ * @param {string|Date} date Дата заняття.
+ * @param {string} time Час у форматі HH:MM:SS.
+ * @returns {string} Наприклад, «14.07.2026 о 18:00».
+ */
+function formatSlot(date, time) {
+  return `${new Date(date).toLocaleDateString('uk-UA')} о ${String(time).slice(0, 5)}`;
+}
+
 router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
   const {
@@ -195,6 +232,10 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
     return res.status(HTTP_CONFLICT).json({ error: 'Trainer is already booked at this time' });
   }
 
+  // Аудиторію збираємо ДО оновлення, а порівнюємо дату/час ПІСЛЯ —
+  // сповіщаємо лише тоді, коли заняття реально перенесено.
+  const audience = await getBookedAudience(id);
+
   const result = await query(
     `update schedules
      set workout_id = coalesce($1, workout_id),
@@ -209,12 +250,41 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   if (result.rows.length === 0) {
     return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
   }
-  return res.json(result.rows[0]);
+
+  const updated = result.rows[0];
+  const wasSlotChanged = formatSlot(existing.date, existing.time)
+    !== formatSlot(updated.date, updated.time);
+  if (wasSlotChanged && audience.userIds.length > 0) {
+    await notifyUsers(
+      audience.userIds,
+      `Заняття «${audience.workoutName}» перенесено`,
+      `Було: ${formatSlot(existing.date, existing.time)}.\n`
+        + `Нові дата і час: ${formatSlot(updated.date, updated.time)}.`
+    );
+  }
+
+  return res.json(updated);
 });
 
 router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
+
+  // Дані для сповіщення треба зібрати до видалення: каскад знищить
+  // і бронювання, і сам запис розкладу.
+  const existing = await getScheduleById(id);
+  const audience = await getBookedAudience(id);
+
   await query('delete from schedules where id = $1', [id]);
+
+  if (existing && audience.userIds.length > 0) {
+    await notifyUsers(
+      audience.userIds,
+      `Заняття «${audience.workoutName}» скасовано`,
+      `Заняття ${formatSlot(existing.date, existing.time)} не відбудеться. `
+        + 'Перепрошуємо за незручності.'
+    );
+  }
+
   return res.json({ ok: true });
 });
 

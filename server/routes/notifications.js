@@ -34,6 +34,8 @@ router.get('/', async (req, res) => {
   const { id: userId, role } = req.user;
   const audiences = audiencesForRole(role);
 
+  // Крім широких аудиторій користувач бачить адресні повідомлення
+  // (audience='custom'), де він перелічений у message_recipients.
   const result = await query(
     `select
        m.id,
@@ -47,7 +49,13 @@ router.get('/', async (req, res) => {
        ) as is_read
      from messages m
      where m.status = 'sent'
-       and m.audience = any($2::text[])
+       and (
+         m.audience = any($2::text[])
+         or exists(
+           select 1 from message_recipients mr
+           where mr.message_id = m.id and mr.user_id = $1
+         )
+       )
      order by m.created_at desc
      limit 30`,
     [userId, audiences]
@@ -94,7 +102,13 @@ router.post('/read-all', async (req, res) => {
      select m.id, $1
      from messages m
      where m.status = 'sent'
-       and m.audience = any($2::text[])
+       and (
+         m.audience = any($2::text[])
+         or exists (
+           select 1 from message_recipients mr
+           where mr.message_id = m.id and mr.user_id = $1
+         )
+       )
        and not exists (
          select 1 from notification_reads nr
          where nr.message_id = m.id and nr.user_id = $1

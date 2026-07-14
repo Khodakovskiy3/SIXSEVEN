@@ -127,6 +127,7 @@ const messageAudienceLabels = {
   clients: 'Клієнтам',
   trainers: 'Тренерам',
   all: 'Усім',
+  custom: 'Вибраним',
 };
 
 const messageStatusLabels = {
@@ -2524,6 +2525,7 @@ document.addEventListener('click', async (event) => {
   const addMessageButton = event.target.closest('#open-message-modal');
   if (addMessageButton) {
     openModal('Створити повідомлення', renderMessageForm());
+    bindRecipientPicker();
     return;
   }
 
@@ -2538,6 +2540,7 @@ document.addEventListener('click', async (event) => {
     const message = messages.find((item) => String(item.id) === messageEditButton.dataset.messageEdit);
     if (message) {
       openModal('Редагувати повідомлення', renderMessageForm(message));
+      bindRecipientPicker(message);
     }
     return;
   }
@@ -3527,11 +3530,13 @@ function renderMessageForm(message = null) {
       </label>
       <label>Кому
         <select name="audience">
+          <option value="all" ${audience === 'all' ? 'selected' : ''}>Усім</option>
           <option value="clients" ${audience === 'clients' ? 'selected' : ''}>Клієнтам</option>
           <option value="trainers" ${audience === 'trainers' ? 'selected' : ''}>Тренерам</option>
-          <option value="all" ${audience === 'all' ? 'selected' : ''}>Усім</option>
+          ${audience === 'custom' ? '<option value="custom" selected>Вибраним</option>' : ''}
         </select>
       </label>
+      <div id="recipients-box" hidden></div>
       <label>Статус
         <select name="status">
           <option value="sent" ${status === 'sent' ? 'selected' : ''}>Надіслано</option>
@@ -3549,6 +3554,101 @@ function renderMessageForm(message = null) {
   `;
 }
 
+// Кеш списків отримувачів, щоб не смикати API при кожному
+// перемиканні аудиторії у формі повідомлення.
+const recipientListCache = { clients: null, trainers: null };
+
+/**
+ * Повертає перелік можливих отримувачів обраної групи: user_id + ім'я.
+ *
+ * @param {'clients'|'trainers'} group Група отримувачів.
+ * @returns {Promise<Array<{userId: number, name: string}>>}
+ */
+async function loadRecipientOptions(group) {
+  if (recipientListCache[group]) {
+    return recipientListCache[group];
+  }
+  const rows = await apiFetch(group === 'clients' ? '/clients' : '/trainers');
+  const options = rows
+    .filter((row) => row.user_id)
+    .map((row) => ({ userId: row.user_id, name: row.name }));
+  recipientListCache[group] = options;
+  return options;
+}
+
+/**
+ * Рендерить список чекбоксів отримувачів.
+ *
+ * @param {Array<{userId: number, name: string}>} options Кандидати.
+ * @param {number[]} checkedIds Попередньо обрані user_id.
+ * @returns {string} HTML списку.
+ */
+function renderRecipientCheckboxes(options, checkedIds = []) {
+  if (options.length === 0) {
+    return '<div class="recipients-hint">У цій групі поки нікого немає.</div>';
+  }
+  const items = options.map((option) => `
+    <label class="recipient-item">
+      <input type="checkbox" name="recipient" value="${option.userId}"
+        ${checkedIds.includes(option.userId) ? 'checked' : ''}>
+      <span>${escapeHtml(option.name)}</span>
+    </label>`).join('');
+  return `
+    <div class="recipients-hint">
+      Кому саме. Нікого не обрано — повідомлення отримає вся група.
+    </div>
+    <div class="recipient-list">${items}</div>`;
+}
+
+/**
+ * Оживляє вибір конкретних отримувачів у формі повідомлення:
+ * при аудиторії «Клієнтам»/«Тренерам» показує список людей із чекбоксами.
+ * Викликати одразу після openModal з формою повідомлення.
+ *
+ * @param {object|null} message Повідомлення при редагуванні (з recipients).
+ * @returns {void}
+ */
+function bindRecipientPicker(message = null) {
+  const select = document.querySelector('#message-form select[name="audience"]');
+  const box = document.querySelector('#recipients-box');
+  if (!select || !box) {
+    return;
+  }
+
+  const checkedIds = (message?.recipients || []).map((recipient) => recipient.id);
+
+  async function update() {
+    const group = select.value;
+
+    if (group === 'custom') {
+      // Редагування адресного повідомлення: показуємо його отримувачів.
+      const options = (message?.recipients || [])
+        .map((recipient) => ({ userId: recipient.id, name: recipient.name }));
+      box.hidden = false;
+      box.innerHTML = renderRecipientCheckboxes(options, checkedIds);
+      return;
+    }
+
+    if (group !== 'clients' && group !== 'trainers') {
+      box.hidden = true;
+      box.innerHTML = '';
+      return;
+    }
+
+    box.hidden = false;
+    box.innerHTML = '<div class="recipients-hint">Завантаження списку…</div>';
+    try {
+      const options = await loadRecipientOptions(group);
+      box.innerHTML = renderRecipientCheckboxes(options, checkedIds);
+    } catch (error) {
+      box.innerHTML = `<div class="recipients-hint">Не вдалося завантажити список: ${escapeHtml(error.message)}</div>`;
+    }
+  }
+
+  select.addEventListener('change', update);
+  update();
+}
+
 /**
  * Створює або оновлює оголошення залежно від наявності id у формі.
  *
@@ -3557,12 +3657,19 @@ function renderMessageForm(message = null) {
 async function saveMessage(form) {
   const formData = new FormData(form);
   const messageId = form.dataset.messageId;
+  const audienceValue = formData.get('audience');
+  const recipientIds = [...form.querySelectorAll('input[name="recipient"]:checked')]
+    .map((input) => Number(input.value));
+
   const payload = {
     subject: formData.get('subject')?.trim(),
     body: formData.get('body')?.trim(),
-    audience: formData.get('audience'),
+    // 'custom' — службове значення: сервер визначає його сам за наявністю
+    // recipient_ids, тому з форми аудиторію в цьому разі не передаємо.
+    audience: audienceValue === 'custom' ? undefined : audienceValue,
     status: formData.get('status'),
     send_date: formData.get('send_date') || null,
+    recipient_ids: recipientIds,
   };
 
   if (!payload.subject) {

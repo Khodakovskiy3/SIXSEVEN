@@ -42,7 +42,7 @@ function isValidPhone(phone) {
 
 router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const result = await query(
-    `select c.id, u.name, u.email, c.phone,
+    `select c.id, u.id as user_id, u.name, u.email, c.phone,
             s.id as subscription_id,
             s.plan_id as subscription_plan_id,
             s.type as subscription_type,
@@ -225,7 +225,7 @@ router.get('/:id', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const { id } = req.params;
 
   const clientResult = await query(
-    `select c.id, u.name, u.email, c.phone,
+    `select c.id, u.id as user_id, u.name, u.email, c.phone,
             s.id as subscription_id,
             s.plan_id as subscription_plan_id,
             s.type as subscription_type,

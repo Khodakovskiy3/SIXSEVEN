@@ -13,6 +13,7 @@ import { Router } from 'express';
 import { query, withClient } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import { getClientIdByUserId } from '../utils/identity.js';
+import { notifyUsers } from '../utils/notify.js';
 import {
   HTTP_BAD_REQUEST,
   HTTP_CONFLICT,
@@ -258,6 +259,31 @@ router.patch('/plans/:id/status', requireRole(ROLE.ADMIN), async (req, res) => {
   return res.json(result.rows[0]);
 });
 
+/**
+ * Сповіщає клієнта про наданий йому абонемент (у дзвіночок, зі звуком).
+ *
+ * @param {number} clientId Ідентифікатор клієнта (clients.id).
+ * @param {string} planName Назва тарифу або тип абонемента.
+ * @param {string|Date} endDate Дата завершення дії.
+ * @returns {Promise<void>}
+ */
+async function notifyClientAboutSubscription(clientId, planName, endDate) {
+  const user = await query(
+    `select u.id from clients c join users u on u.id = c.user_id where c.id = $1`,
+    [clientId]
+  );
+  if (user.rows.length === 0) {
+    return;
+  }
+
+  const until = new Date(endDate).toLocaleDateString('uk-UA');
+  await notifyUsers(
+    [user.rows[0].id],
+    `Вам надано абонемент «${planName}»`,
+    `Абонемент діє до ${until}. Гарних тренувань!`
+  );
+}
+
 router.post('/assign', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const {
     client_id: clientId,
@@ -321,6 +347,12 @@ router.post('/assign', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) =
   if (!assigned) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Plan is not available' });
   }
+
+  await notifyClientAboutSubscription(
+    clientId,
+    assigned.subscription.type,
+    assigned.subscription.end_date
+  );
 
   return res.status(HTTP_CREATED).json(assigned);
 });
@@ -431,6 +463,8 @@ router.post('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
      returning id, client_id, plan_id, type, start_date, end_date, status`,
     [clientId, planId || null, type, startDate, endDate, status || SUBSCRIPTION_STATUS.ACTIVE]
   );
+
+  await notifyClientAboutSubscription(clientId, type, endDate);
 
   return res.status(HTTP_CREATED).json(result.rows[0]);
 });

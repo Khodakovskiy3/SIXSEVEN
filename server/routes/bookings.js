@@ -13,6 +13,7 @@ import { Router } from 'express';
 import { query, withClient } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import { getClientIdByUserId } from '../utils/identity.js';
+import { notifyUsers } from '../utils/notify.js';
 import {
   BOOKING_STATUS,
   HTTP_BAD_REQUEST,
@@ -103,6 +104,37 @@ router.get(
   }
 );
 
+/**
+ * Сповіщає тренера про новий запис клієнта на його заняття.
+ * Якщо заняття без тренера — сповіщати нікого, тихо виходимо.
+ *
+ * @param {string|number} scheduleId Ідентифікатор запису розкладу.
+ * @param {string} clientName Ім'я клієнта, який записався.
+ * @returns {Promise<void>}
+ */
+async function notifyTrainerAboutBooking(scheduleId, clientName) {
+  const result = await query(
+    `select u.id as user_id, w.name as workout_name, s.date, s.time
+     from schedules s
+     join workouts w on w.id = s.workout_id
+     join trainers t on t.id = s.trainer_id
+     join users u on u.id = t.user_id
+     where s.id = $1`,
+    [scheduleId]
+  );
+  if (result.rows.length === 0) {
+    return;
+  }
+
+  const { user_id: trainerUserId, workout_name: workoutName, date, time } = result.rows[0];
+  const slot = `${new Date(date).toLocaleDateString('uk-UA')} о ${String(time).slice(0, 5)}`;
+  await notifyUsers(
+    [trainerUserId],
+    `Новий запис на «${workoutName}»`,
+    `${clientName} записався(-лась) на ваше заняття ${slot}.`
+  );
+}
+
 router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
   const { schedule_id: scheduleId } = req.body || {};
   if (!scheduleId) {
@@ -176,6 +208,8 @@ router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
     if (bookingResult.error) {
       return res.status(HTTP_CONFLICT).json({ error: bookingResult.error });
     }
+
+    await notifyTrainerAboutBooking(scheduleId, req.user.name);
 
     return res.status(HTTP_CREATED).json(bookingResult.booking);
   } catch (error) {
