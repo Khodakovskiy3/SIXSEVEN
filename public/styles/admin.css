@@ -3967,3 +3967,17 @@
         -webkit-overflow-scrolling: touch;
     }
 }
+
+/* ════════════════════════════════════════
+   ВІКНО ПІДТВЕРДЖЕННЯ: компактний розмір
+   ════════════════════════════════════════ */
+/* Коротке питання не потребує повної ширини форми — прибираємо
+   порожнє місце і притискаємо кнопки праворуч. */
+.admin-modal.modal--confirm {
+    width: min(400px, calc(100vw - 32px));
+}
+
+.admin-modal.modal--confirm .modal-actions {
+    justify-content: flex-end;
+    margin-top: 4px;
+}

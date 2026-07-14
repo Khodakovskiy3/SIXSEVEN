@@ -179,10 +179,26 @@ function escapeHtml(value = '') {
     .replaceAll("'", '&#039;');
 }
 
+/** Через скільки мс ховати повідомлення про успішну дію (помилки лишаються). */
+const FEEDBACK_HIDE_MS = 5000;
+let feedbackHideTimer = null;
+
 function setFeedback(message, type = 'info') {
-  if (!clientsFeedback) return;
+  if (!clientsFeedback) {
+    return;
+  }
   clientsFeedback.textContent = message;
   clientsFeedback.dataset.type = type;
+
+  // Повідомлення про успіх не повинно «висіти» вічно і мандрувати між
+  // екранами — прибираємо його автоматично; помилки чекають реакції.
+  clearTimeout(feedbackHideTimer);
+  if (type === 'success') {
+    feedbackHideTimer = setTimeout(() => {
+      clientsFeedback.textContent = '';
+      delete clientsFeedback.dataset.type;
+    }, FEEDBACK_HIDE_MS);
+  }
 }
 
 function setTrainerFeedback(message, type = 'info') {
@@ -1090,6 +1106,50 @@ function openModal(title, html) {
 
 function closeModal() {
   modal.classList.remove('active');
+  // Скидаємо компактний режим вікна підтвердження, щоб наступна форма
+  // відкрилася зі стандартною шириною.
+  modal.querySelector('.modal')?.classList.remove('modal--confirm');
+}
+
+/**
+ * Показує компактне модальне вікно підтвердження у стилі системи —
+ * заміна window.confirm, який ламає єдиний вигляд інтерфейсу.
+ *
+ * @param {object} options Параметри вікна.
+ * @param {string} options.title Заголовок вікна.
+ * @param {string} options.message Основний текст (дані попередньо екранувати).
+ * @param {string} [options.note] Пояснювальний рядок під текстом.
+ * @param {string} [options.confirmLabel] Напис на кнопці підтвердження.
+ * @param {boolean} [options.isDanger] Червона кнопка для незворотних дій.
+ * @param {string} [options.warningHtml] Додатковий блок-попередження над текстом.
+ * @returns {Promise<boolean>} true, якщо користувач підтвердив дію.
+ */
+function openConfirmModal({
+  title,
+  message,
+  note = 'Цю дію не можна скасувати.',
+  confirmLabel = 'Видалити',
+  isDanger = true,
+  warningHtml = '',
+}) {
+  return new Promise((resolve) => {
+    openModal(title, `
+      ${warningHtml}
+      <p style="margin:0;line-height:1.5">${message}${note ? `<br><span style="font-size:13px;opacity:.6">${note}</span>` : ''}</p>
+      <div class="modal-actions">
+        <button type="button" class="ghost-btn" id="confirm-cancel-btn">Скасувати</button>
+        <button type="button" class="${isDanger ? 'danger-btn' : 'primary-btn'}" id="confirm-accept-btn">${confirmLabel}</button>
+      </div>
+    `);
+    modal.querySelector('.modal')?.classList.add('modal--confirm');
+
+    const finish = (isConfirmed) => {
+      closeModal();
+      resolve(isConfirmed);
+    };
+    document.querySelector('#confirm-accept-btn').addEventListener('click', () => finish(true));
+    document.querySelector('#confirm-cancel-btn').addEventListener('click', () => finish(false));
+  });
 }
 
 function renderClientForm(client = null) {
@@ -1921,23 +1981,22 @@ async function deleteSchedule(scheduleId) {
   const schedule = schedules.find((item) => String(item.id) === String(scheduleId));
   const name = escapeHtml(`${schedule?.workout_name || 'заняття'} · ${formatDate(schedule?.date)} · ${formatTime(schedule?.time)}`);
 
-  openModal('Видалити заняття', `
-    <p style="margin:0 0 20px;line-height:1.5">Видалити <strong>${name}</strong>?<br><span style="font-size:13px;opacity:.6">Усі записи клієнтів на це заняття також буде скасовано.</span></p>
-    <div class="modal-actions">
-      <button type="button" class="ghost-btn modal-close">Скасувати</button>
-      <button type="button" class="primary-btn" id="confirm-delete-sched-btn" style="background:#ef4444;border-color:#ef4444">Видалити</button>
-    </div>
-  `);
-  document.getElementById('confirm-delete-sched-btn').addEventListener('click', async () => {
-    closeModal();
-    try {
-      await apiFetch(`/schedules/${scheduleId}`, { method: 'DELETE' });
-      await loadSchedules();
-      setScheduleFeedback('Заняття видалено', 'success');
-    } catch (error) {
-      setScheduleFeedback(`Не вдалося видалити заняття: ${error.message}`, 'error');
-    }
+  const isConfirmed = await openConfirmModal({
+    title: 'Видалити заняття',
+    message: `Видалити <strong>${name}</strong>?`,
+    note: 'Усі записи клієнтів на це заняття також буде скасовано.',
   });
+  if (!isConfirmed) {
+    return;
+  }
+
+  try {
+    await apiFetch(`/schedules/${scheduleId}`, { method: 'DELETE' });
+    await loadSchedules();
+    setScheduleFeedback('Заняття видалено', 'success');
+  } catch (error) {
+    setScheduleFeedback(`Не вдалося видалити заняття: ${error.message}`, 'error');
+  }
 }
 
 function bindImageUpload() {
@@ -2069,8 +2128,11 @@ async function updateServiceStatus(serviceId, status) {
  */
 async function deleteService(serviceId) {
   const service = services.find((item) => String(item.id) === String(serviceId));
-  const confirmed = window.confirm(`Видалити послугу «${service?.name || ''}»? Цю дію не можна скасувати.`);
-  if (!confirmed) {
+  const isConfirmed = await openConfirmModal({
+    title: 'Видалити послугу',
+    message: `Видалити послугу «<strong>${escapeHtml(service?.name || '')}</strong>»?`,
+  });
+  if (!isConfirmed) {
     return;
   }
 
@@ -2090,8 +2152,11 @@ async function deleteService(serviceId) {
  */
 async function deletePlan(planId) {
   const plan = plans.find((item) => String(item.id) === String(planId));
-  const confirmed = window.confirm(`Видалити тариф «${plan?.name || ''}»? Цю дію не можна скасувати.`);
-  if (!confirmed) {
+  const isConfirmed = await openConfirmModal({
+    title: 'Видалити тариф',
+    message: `Видалити тариф «<strong>${escapeHtml(plan?.name || '')}</strong>»?`,
+  });
+  if (!isConfirmed) {
     return;
   }
 
@@ -2181,8 +2246,16 @@ async function assignPlan(form) {
 }
 
 async function expireSubscription(subscriptionId) {
-  const confirmed = window.confirm('Завершити цей абонемент? Він стане неактивним для клієнта.');
-  if (!confirmed) return;
+  const isConfirmed = await openConfirmModal({
+    title: 'Завершити абонемент',
+    message: 'Завершити цей абонемент?',
+    note: 'Він стане неактивним для клієнта.',
+    confirmLabel: 'Завершити',
+    isDanger: false,
+  });
+  if (!isConfirmed) {
+    return;
+  }
 
   try {
     await apiFetch(`/subscriptions/${subscriptionId}`, {
@@ -2200,23 +2273,23 @@ async function revokeTrainer(trainerId) {
   const trainer = trainers.find((item) => String(item.id) === String(trainerId));
   const name = escapeHtml(trainer?.name || 'тренера');
 
-  openModal('Забрати права тренера', `
-    <p style="margin:0 0 20px;line-height:1.5">Забрати права тренера у <strong>${name}</strong>?<br><span style="font-size:13px;opacity:.6">Після цього він стане звичайним клієнтом.</span></p>
-    <div class="modal-actions">
-      <button type="button" class="ghost-btn modal-close">Скасувати</button>
-      <button type="button" class="primary-btn" id="confirm-revoke-btn" style="background:#ef4444;border-color:#ef4444">Забрати права</button>
-    </div>
-  `);
-  document.getElementById('confirm-revoke-btn').addEventListener('click', async () => {
-    closeModal();
-    try {
-      await apiFetch(`/trainers/${trainerId}`, { method: 'DELETE' });
-      await Promise.all([loadTrainers(), loadClients()]);
-      setTrainerFeedback('Права тренера забрано, користувач став клієнтом', 'success');
-    } catch (error) {
-      setTrainerFeedback(`Не вдалося забрати права тренера: ${error.message}`, 'error');
-    }
+  const isConfirmed = await openConfirmModal({
+    title: 'Забрати права тренера',
+    message: `Забрати права тренера у <strong>${name}</strong>?`,
+    note: 'Після цього він стане звичайним клієнтом.',
+    confirmLabel: 'Забрати права',
   });
+  if (!isConfirmed) {
+    return;
+  }
+
+  try {
+    await apiFetch(`/trainers/${trainerId}`, { method: 'DELETE' });
+    await Promise.all([loadTrainers(), loadClients()]);
+    setTrainerFeedback('Права тренера забрано, користувач став клієнтом', 'success');
+  } catch (error) {
+    setTrainerFeedback(`Не вдалося забрати права тренера: ${error.message}`, 'error');
+  }
 }
 
 async function createVisit(form) {
@@ -2248,28 +2321,33 @@ async function deleteClient(clientId) {
       </div>
     </div>` : '';
 
-  openModal('Видалити клієнта', `
-    ${warningBlock}
-    <p style="margin:0 0 20px;line-height:1.5">Видалити клієнта <strong>${name}</strong>?<br><span style="font-size:13px;opacity:.6">Цю дію не можна скасувати.</span></p>
-    <div class="modal-actions">
-      <button type="button" class="ghost-btn modal-close">Скасувати</button>
-      <button type="button" class="primary-btn" id="confirm-delete-btn" style="background:#ef4444;border-color:#ef4444">Видалити</button>
-    </div>
-  `);
-  document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
-    closeModal();
-    try {
-      await apiFetch(`/clients/${clientId}`, { method: 'DELETE' });
-      await loadClients();
-      setFeedback('Клієнта видалено', 'success');
-    } catch (error) {
-      setFeedback(`Не вдалося видалити клієнта: ${error.message}`, 'error');
-    }
+  const isConfirmed = await openConfirmModal({
+    title: 'Видалити клієнта',
+    message: `Видалити клієнта <strong>${name}</strong>?`,
+    warningHtml: warningBlock,
   });
+  if (!isConfirmed) {
+    return;
+  }
+
+  try {
+    await apiFetch(`/clients/${clientId}`, { method: 'DELETE' });
+    await loadClients();
+    setFeedback('Клієнта видалено', 'success');
+  } catch (error) {
+    setFeedback(`Не вдалося видалити клієнта: ${error.message}`, 'error');
+  }
 }
 
 function setScreen(screen) {
   const nextScreen = titles[screen] ? screen : 'dashboard';
+
+  // Feedback-рядки стосуються екрана, де відбулася дія: при переході
+  // на інший екран застарілі повідомлення прибираємо.
+  document.querySelectorAll('.admin-feedback').forEach((element) => {
+    element.textContent = '';
+    delete element.dataset.type;
+  });
   if (!document.querySelector(`[data-screen-panel="${nextScreen}"]`) && pageRoutes[nextScreen]) {
     window.location.href = pageRoutes[nextScreen];
     return;
@@ -3506,8 +3584,11 @@ async function saveMessage(form) {
 }
 
 async function deleteMessage(messageId) {
-  const confirmed = window.confirm('Видалити повідомлення?');
-  if (!confirmed) {
+  const isConfirmed = await openConfirmModal({
+    title: 'Видалити повідомлення',
+    message: 'Видалити це повідомлення?',
+  });
+  if (!isConfirmed) {
     return;
   }
 
