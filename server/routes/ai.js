@@ -10,9 +10,10 @@
  * маршрут, щоб контролювати доступ, навантаження і контекст.
  *
  * Персоналізація: перед викликом моделі з БД підтягуються дані клієнта
- * (активний абонемент, найближчі заброньовані заняття, відвідування),
- * і додаються у системний промпт. Історія діалогу зберігається на боці
- * клієнта (stateless REST, як і решта API проєкту).
+ * (активний абонемент, найближчі заброньовані заняття, відвідування,
+ * останній антропометричний вимір), і додаються у системний промпт.
+ * Історія діалогу зберігається на боці клієнта (stateless REST, як
+ * і решта API проєкту).
  */
 
 import { Router } from 'express';
@@ -72,8 +73,11 @@ const SYSTEM_PROMPT = `Ти — АІ-асистент спортивного к�
   чи хронічних станах радь звернутися до лікаря.
 - Якщо питання не стосується фітнесу чи клубу — ввічливо поверни розмову
   до тренувань.
-- Якщо нижче наведено дані клієнта (абонемент, бронювання) — враховуй їх
-  у порадах.`;
+- Якщо нижче наведено дані клієнта (абонемент, бронювання, антропометрія) —
+  враховуй їх у порадах: наприклад, орієнтовну калорійність чи навантаження
+  можна прив'язати до ваги й зросту, а зміну обхватів — відзначити як прогрес.
+- Розрахунки на основі ваги/зросту (калорії, ІМТ) давай як орієнтовні,
+  не як медичний припис.`;
 
 // Час останнього запиту кожного користувача для обмеження частоти.
 // In-memory достатньо: один процес, втрата при рестарті некритична.
@@ -128,7 +132,7 @@ async function buildClientContext(user) {
   }
   const clientId = client.rows[0].id;
 
-  const [subscription, bookings, visits] = await Promise.all([
+  const [subscription, bookings, visits, anthropometry] = await Promise.all([
     query(
       `select coalesce(p.name, s.type) as plan_name, s.end_date
        from subscriptions s
@@ -156,6 +160,16 @@ async function buildClientContext(user) {
        where client_id = $1
          and visit_time >= current_date - make_interval(days => $2)`,
       [clientId, CONTEXT_VISITS_DAYS]
+    ),
+    // Останні два виміри — щоб можна було показати не лише поточні
+    // параметри, а й напрямок зміни (набір/втрата ваги, обхвати).
+    query(
+      `select recorded_at, weight, height, chest, waist, hips, bicep, thigh
+       from client_anthropometry
+       where client_id = $1
+       order by recorded_at desc, id desc
+       limit 2`,
+      [clientId]
     ),
   ]);
 
@@ -185,7 +199,61 @@ async function buildClientContext(user) {
     `- Відвідувань за останні ${CONTEXT_VISITS_DAYS} днів: ${visits.rows[0].total}.`
   );
 
+  if (anthropometry.rows.length > 0) {
+    lines.push(...describeAnthropometry(anthropometry.rows[0], anthropometry.rows[1]));
+  }
+
   return lines.join('\n');
+}
+
+/** Українські підписи показників антропометрії у порядку виводу. */
+const ANTHROPOMETRY_LABELS = {
+  weight: 'вага',
+  height: 'зріст',
+  chest: 'груди',
+  waist: 'талія',
+  hips: 'стегна',
+  bicep: 'біцепс',
+  thigh: 'стегно',
+};
+
+/**
+ * Формує рядки контексту з останнього антропометричного виміру.
+ * Якщо є попередній вимір — додає різницю (набір/втрата), щоб
+ * асистент бачив динаміку, а не лише поточний стан.
+ *
+ * @param {object} latest Останній запис client_anthropometry.
+ * @param {object|undefined} previous Попередній запис (може бути відсутній).
+ * @returns {string[]} Рядки для додавання в контекст.
+ */
+function describeAnthropometry(latest, previous) {
+  const date = new Date(latest.recorded_at).toISOString().slice(0, 10);
+  const parts = [];
+
+  for (const [field, label] of Object.entries(ANTHROPOMETRY_LABELS)) {
+    const value = latest[field];
+    if (value === null || value === undefined) {
+      continue;
+    }
+    const unit = field === 'height' ? 'см' : field === 'weight' ? 'кг' : 'см';
+
+    const previousValue = previous?.[field];
+    let delta = '';
+    if (previousValue !== null && previousValue !== undefined) {
+      const diff = Number(value) - Number(previousValue);
+      if (Math.abs(diff) >= 0.1) {
+        delta = ` (${diff > 0 ? '+' : ''}${diff.toFixed(1)} з попереднього виміру)`;
+      }
+    }
+
+    parts.push(`${label} ${value} ${unit}${delta}`);
+  }
+
+  if (parts.length === 0) {
+    return [];
+  }
+
+  return [`- Останній вимір тіла (${date}): ${parts.join(', ')}.`];
 }
 
 /**
