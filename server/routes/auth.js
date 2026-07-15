@@ -22,6 +22,7 @@ import {
   BCRYPT_SALT_ROUNDS,
   HTTP_BAD_REQUEST,
   HTTP_UNAUTHORIZED,
+  HTTP_FORBIDDEN,
   HTTP_CONFLICT,
   HTTP_TOO_MANY_REQUESTS,
   HTTP_SERVER_ERROR,
@@ -31,6 +32,7 @@ import {
   OTP_RESEND_COOLDOWN_SEC,
   OTP_TTL_MIN,
   OTP_MAX_ATTEMPTS,
+  isMandatory2faRole,
 } from '../utils/constants.js';
 
 /**
@@ -415,7 +417,9 @@ router.post('/login', async (req, res) => {
 
   // Якщо увімкнено 2FA — не видаємо токен одразу, а надсилаємо код на email.
   // Вхід завершується другим кроком: POST /api/auth/login/verify.
-  if (user.twofa_enabled) {
+  // Для привілейованих ролей (admin, manager) 2FA примусова: код надсилається
+  // навіть якщо прапорець twofa_enabled ще не встановлено.
+  if (user.twofa_enabled || isMandatory2faRole(user.role)) {
     // Антиспам: якщо код уже надсилали нещодавно — не надсилаємо новий,
     // а просимо скористатися наявним (він ще дійсний).
     const wait = await getResendWaitSeconds(user.id, OTP_PURPOSE.LOGIN);
@@ -456,7 +460,8 @@ router.post('/login/verify', async (req, res) => {
     [email.toLowerCase()]
   );
   const user = result.rows[0];
-  if (!user || !user.twofa_enabled) {
+  // Дозволяємо другий крок як за увімкненою 2FA, так і для ролей із примусовою.
+  if (!user || !(user.twofa_enabled || isMandatory2faRole(user.role))) {
     return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний запит' });
   }
 
@@ -512,6 +517,12 @@ router.post('/2fa/disable', authRequired, async (req, res) => {
   const { password } = req.body || {};
   if (!password) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Вкажіть поточний пароль' });
+  }
+  // Для привілейованих ролей 2FA примусова — вимкнути її не можна.
+  if (isMandatory2faRole(req.user.role)) {
+    return res.status(HTTP_FORBIDDEN).json({
+      error: 'Для вашої ролі двофакторна автентифікація обов’язкова і не може бути вимкнена',
+    });
   }
   const result = await query('select password from users where id = $1', [req.user.id]);
   const isValid = await bcrypt.compare(password, result.rows[0].password);
