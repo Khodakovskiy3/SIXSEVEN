@@ -99,15 +99,19 @@ async function getPendingResendWait(email) {
  * (для створення користувача). Невдалі спроби рахуються.
  */
 async function verifyPendingCode(email, code) {
+  // Прострочення рахуємо в SQL (expires_at < now()), а не через JS:
+  // timestamp без зони при читанні в Node зсувається на зону процесу,
+  // тому на хості (Київ) код помилково вважався простроченим одразу.
   const result = await query(
-    `select id, email, name, password, phone, role, code_hash, expires_at, attempts
+    `select id, email, name, password, phone, role, code_hash, attempts,
+            (expires_at < now()) as is_expired
      from pending_registrations where email = $1`,
     [email]
   );
   const row = result.rows[0];
   if (!row) return { ok: false, reason: 'no_code' };
 
-  if (new Date(row.expires_at) < new Date()) {
+  if (row.is_expired) {
     await query('delete from pending_registrations where id = $1', [row.id]);
     return { ok: false, reason: 'expired' };
   }

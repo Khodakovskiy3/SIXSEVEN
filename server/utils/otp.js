@@ -82,8 +82,12 @@ export async function issueCode(userId, purpose) {
  * @returns {Promise<{ok: boolean, reason?: string}>}
  */
 export async function verifyCode(userId, purpose, code) {
+  // Прострочення рахуємо в SQL (expires_at < now()), а не через JS:
+  // колонка expires_at має тип timestamp без зони, і при читанні в Node
+  // вона інтерпретується у зоні процесу — на хості (Київ) це давало зсув
+  // на кілька годин і код помилково вважався простроченим.
   const result = await query(
-    `select id, code_hash, expires_at, attempts
+    `select id, code_hash, attempts, (expires_at < now()) as is_expired
      from email_codes
      where user_id = $1 and purpose = $2
      order by created_at desc
@@ -94,7 +98,7 @@ export async function verifyCode(userId, purpose, code) {
   const row = result.rows[0];
   if (!row) return { ok: false, reason: 'no_code' };
 
-  if (new Date(row.expires_at) < new Date()) {
+  if (row.is_expired) {
     await query('delete from email_codes where id = $1', [row.id]);
     return { ok: false, reason: 'expired' };
   }
