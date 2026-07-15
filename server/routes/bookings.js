@@ -56,6 +56,7 @@ router.get('/me', requireRole(ROLE.CLIENT), async (req, res) => {
     `select b.id, b.status, b.schedule_id,
             s.date, s.time, w.name as workout_name,
             w.description as workout_description,
+            w.duration_minutes,
             u.name as trainer_name
      from bookings b
      join schedules s on s.id = b.schedule_id

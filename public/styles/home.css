@@ -1466,22 +1466,31 @@ p {
 .sch-card__btn--full:hover { opacity: 0.7; }
 
 @media (max-width: 600px) {
+    /* Зберігаємо 3 колонки, але компактніше — кнопка не займає ширину картки */
     .sch-card {
-        grid-template-columns: 50px 1fr;
-        grid-template-rows: auto auto;
-        gap: 10px 12px;
-        padding: 12px 14px;
+        grid-template-columns: 48px 1fr auto;
+        grid-template-rows: auto;
+        gap: 6px 10px;
+        padding: 10px 12px;
     }
     .sch-card__btn {
-        grid-column: 2;
-        align-self: start;
-        padding: 7px 14px;
-        font-size: 11px;
+        align-self: center;
+        padding: 6px 10px;
+        font-size: 10px;
+        white-space: nowrap;
     }
     .sch-card__time {
         font-size: 16px;
-        grid-row: span 2;
         align-self: center;
+    }
+    /* Зменшуємо мінімум бару, щоб "0/10" не переповнювало рядок */
+    .sch-bar {
+        min-width: 36px;
+        max-width: 80px;
+    }
+    .sch-spots {
+        font-size: 10px;
+        white-space: nowrap;
     }
 }
 
@@ -1932,9 +1941,9 @@ body:has(.about-shell) .page-shell {
         width: 100%;
         height: 100%;
         object-fit: cover;
-        object-position: center top;
-        opacity: 0.4;
-        filter: grayscale(20%);
+        object-position: 68% top;
+        opacity: 0.6;
+        filter: grayscale(10%);
     }
 
     .hero-copy {
@@ -2465,9 +2474,12 @@ body:has(.about-shell) .page-shell {
 }
 
 @media (max-height: 700px) and (max-width: 860px) {
+    /* На мобільному hero-visual img — cover-фон, не позиційований елемент,
+       тому знімаємо обмеження width/max-height з цього блоку */
     .hero-visual img {
-        width: min(180px, 48vw);
-        max-height: 30dvh;
+        width: 100%;
+        height: 100%;
+        max-height: none;
     }
 
     .hero-copy p:not(.eyebrow) {
@@ -2539,64 +2551,73 @@ body:has(.about-shell) .page-shell {
         padding-bottom: 8px;
     }
 
-    /* ── Сторінка "Про нас": дозволяємо прокрутку замість overflow:hidden ── */
+    /* ── Послуги: картки заповнюють екран по вертикалі ── */
+    body:has(.svc-carousel) .page-shell {
+        height: 100dvh;
+        padding-bottom: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    body:has(.svc-carousel) .page-heading {
+        flex-shrink: 0;
+    }
+    body:has(.svc-carousel) .svc-carousel {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    body:has(.svc-carousel) .svc-grid {
+        flex: 1;
+        min-height: 0;
+        grid-template-rows: repeat(2, 1fr);
+    }
+    body:has(.svc-carousel) .svc-card {
+        height: 100%;
+    }
+
+    /* ── Сторінка "Про нас": один екран без скролу, карта прихована ── */
     body:has(.about-shell) {
-        height: auto !important;
-        overflow-x: hidden !important;
-        overflow-y: auto !important;
+        height: 100dvh !important;
+        overflow: hidden !important;
     }
 
     body:has(.about-shell) .page-shell {
-        height: auto !important;
-        min-height: 100dvh;
-        overflow: visible !important;
-        padding-bottom: 48px !important;
+        height: calc(100dvh - 58px) !important;
+        overflow: hidden !important;
+        padding-bottom: 0 !important;
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: clamp(8px, 1.5dvh, 14px);
     }
 
     .about-shell {
-        flex: none !important;
+        flex: 1 !important;
         min-height: 0 !important;
-        overflow: visible !important;
-        gap: 16px;
+        overflow: hidden !important;
+        gap: clamp(6px, 1dvh, 10px);
     }
 
-    /* Показуємо карту (раніше прихована на мобільному) */
+    /* Карта прихована на мобільному */
     .about-map {
-        display: block !important;
-        margin-top: 4px;
-    }
-
-    .about-map__wrap {
-        height: 220px;
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid rgba(255,255,255,0.08);
-    }
-
-    .about-map__wrap iframe {
-        width: 100%;
-        height: 100%;
-        border: none;
-        display: block;
+        display: none !important;
     }
 
     .about-contacts {
-        flex: none !important;
+        flex: 1 !important;
         min-height: 0 !important;
-        overflow: visible !important;
+        overflow: hidden !important;
     }
 
-    /* Показуємо всі правила відвідування */
     .about-rules {
-        flex: none !important;
-        overflow: visible !important;
+        flex: 1 !important;
+        overflow: hidden !important;
     }
 
-    .about-rules li:nth-child(n+6) {
-        display: list-item !important;
+    /* Показуємо лише перші 4 правила */
+    .about-rules li:nth-child(n+5) {
+        display: none !important;
     }
 
     /* Числа: 2×2 на дуже маленьких екранах */
@@ -2653,23 +2674,22 @@ body:has(.about-shell) .page-shell {
 
     /* Розклад на дуже малому екрані */
     .sch-card {
-        grid-template-columns: 44px 1fr;
-        padding: 10px 12px;
-        gap: 10px 10px;
+        grid-template-columns: 40px 1fr auto;
+        padding: 8px 10px;
+        gap: 5px 8px;
     }
 
     .sch-card__time {
-        font-size: 14px;
-    }
-
-    .sch-card__name {
         font-size: 13px;
     }
 
+    .sch-card__name {
+        font-size: 12px;
+    }
+
     .sch-card__btn {
-        grid-column: 2;
-        padding: 6px 12px;
-        font-size: 11px;
+        padding: 5px 8px;
+        font-size: 9px;
     }
 
     /* Про нас: стрічка цифр — 2 колонки */

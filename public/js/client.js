@@ -596,32 +596,35 @@ function renderNextTraining() {
   const nextBooking = upcomingBookings[0];
   if (!nextBooking) {
     container.innerHTML = `
-      <div class="panel-icon">
-        <svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="4" width="16" height="14" rx="2"/>
-          <path d="M2 8h16M7 2v4M13 2v4"/>
+      <div class="next-icon-wrap">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>
         </svg>
       </div>
-      <div class="training-main">
-        <div>
-          <h2>Немає записів</h2>
-          <p>Запишіться на заняття у розкладі.</p>
-        </div>
-        <button class="primary-btn" data-screen-link="schedule">До розкладу</button>
+      <div class="next-info">
+        <h2>Немає записів</h2>
+        <p>Запишіться на заняття у розкладі</p>
       </div>
+      <button class="primary-btn" data-screen-link="schedule">До розкладу</button>
     `;
     return;
   }
 
+  const dayLabel = describeDay(nextBooking.date);
+  const timeLabel = formatTime(nextBooking.time);
+
   container.innerHTML = `
-    <div class="training-main">
-      <div>
-        <h2>${escapeHtml(nextBooking.workout_name)}</h2>
-        <p>${describeDay(nextBooking.date)} · ${formatTime(nextBooking.time)}</p>
-        <p>Тренер ${escapeHtml(nextBooking.trainer_name || 'не призначений')}</p>
-      </div>
-      <button class="primary-btn" data-booking-details="${nextBooking.schedule_id}">Деталі</button>
+    <div class="next-time-badge">
+      <span class="next-day">${escapeHtml(dayLabel)}</span>
+      <span class="next-hour">${escapeHtml(timeLabel)}</span>
     </div>
+    <div class="next-info">
+      <h2>${escapeHtml(nextBooking.workout_name)}</h2>
+      <p>
+        ${nextBooking.duration_minutes ? `<span class="next-dur">${nextBooking.duration_minutes} хв</span> · ` : ''}Тренер: ${escapeHtml(nextBooking.trainer_name || 'не призначений')}
+      </p>
+    </div>
+    <button class="primary-btn" data-booking-details="${nextBooking.schedule_id}">Деталі</button>
   `;
 }
 
@@ -714,7 +717,9 @@ function renderTodaySchedule() {
         <div class="tl-dot"></div>
         <div class="tl-body">
           <strong>${escapeHtml(item.workout_name)}</strong>
-          <span>${escapeHtml(item.trainer_name || 'без тренера')} · ${available > 0 ? `${available} місць` : 'місць немає'}</span>
+          <span>
+            ${item.duration_minutes ? `${item.duration_minutes} хв · ` : ''}${escapeHtml(item.trainer_name || 'без тренера')} · ${available > 0 ? `${available} місць` : 'місць немає'}
+          </span>
         </div>
         ${actionBtn}
       </div>
@@ -728,22 +733,96 @@ function renderTodaySchedule() {
  * Завантажує дані для головної сторінки клієнта (розклад, записи, абонемент)
  * і наповнює всі її блоки. Нічого не робить на інших сторінках.
  */
+/**
+ * Відображає короткий блок антропометрії на головній сторінці.
+ * Показує останній запис та динаміку відносно попереднього.
+ *
+ * @param {object[]} entries — масив вимірів з /anthropometry/me.
+ */
+function renderHomeAnthro(entries) {
+  const container = document.querySelector('#home-anthro-widget');
+  if (!container) return;
+
+  if (!entries.length) {
+    container.innerHTML = `
+      <div class="anthro-home-empty">
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="40" height="40" opacity=".3">
+          <circle cx="24" cy="18" r="8"/><path d="M8 42c0-8.8 7.2-16 16-16s16 7.2 16 16"/>
+          <path d="M24 34v8M20 38h8" stroke-width="2"/>
+        </svg>
+        <p>Ще немає вимірів</p>
+        <button class="anthro-add-btn" data-screen-link="anthropometry">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Додати вимірювання
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  const last = entries[0];
+  const prev = entries[1] || null;
+
+  // Ключові показники для відображення на дашборді
+  const KEY_FIELDS = [
+    { key: 'weight', label: 'Вага',   unit: 'кг' },
+    { key: 'waist',  label: 'Талія',  unit: 'см' },
+    { key: 'chest',  label: 'Груди',  unit: 'см' },
+    { key: 'hips',   label: 'Стегна', unit: 'см' },
+  ];
+
+  const stats = KEY_FIELDS
+    .filter((f) => last[f.key] != null)
+    .map((f) => {
+      const val = parseFloat(last[f.key]);
+      let deltaHtml = '';
+      if (prev && prev[f.key] != null) {
+        const diff = +(val - parseFloat(prev[f.key])).toFixed(1);
+        const sign = diff > 0 ? '+' : '';
+        const cls = diff < 0 ? 'anthro-delta--down' : diff > 0 ? 'anthro-delta--up' : 'anthro-delta--same';
+        if (diff !== 0) deltaHtml = `<span class="anthro-home-delta ${cls}">${sign}${diff}</span>`;
+      }
+      return `
+        <div class="anthro-home-stat">
+          <span class="anthro-home-val">${val}<span class="anthro-home-unit"> ${f.unit}</span></span>
+          <span class="anthro-home-lbl">${f.label}</span>
+          ${deltaHtml}
+        </div>`;
+    });
+
+  if (!stats.length) {
+    container.innerHTML = `<p class="form-note" style="margin:12px 0;text-align:center">Дані у записі відсутні</p>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <p class="anthro-home-date">${fmtAnthroDate(last.recorded_at)}</p>
+    <div class="anthro-home-stats">${stats.join('')}</div>
+    <button class="anthro-add-btn" data-screen-link="anthropometry">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="13" height="13"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Нове вимірювання
+    </button>
+  `;
+}
+
 async function loadHomePage() {
   if (!document.querySelector('#client-today-list')) {
     return;
   }
 
   try {
-    const [loadedSchedules, loadedBookings, subscriptions] = await Promise.all([
+    const [loadedSchedules, loadedBookings, subscriptions, anthroEntries] = await Promise.all([
       apiFetch('/schedules'),
       apiFetch('/bookings/me'),
       apiFetch('/subscriptions/me'),
+      apiFetch('/anthropometry/me').catch(() => []),
     ]);
     schedules = loadedSchedules;
     bookings = loadedBookings;
     renderNextTraining();
     renderHomeSubscription(subscriptions);
     renderTodaySchedule();
+    renderHomeAnthro(anthroEntries);
   } catch (error) {
     const list = document.querySelector('#client-today-list');
     if (list) {

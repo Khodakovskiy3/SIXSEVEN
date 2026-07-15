@@ -490,9 +490,8 @@ function renderSchedule(schedules) {
       const isFull  = avail === 0 && max > 0;
       const pct     = max > 0 ? booked / max : 0;
 
-      const spotsText = isFull
-        ? 'Місць немає'
-        : `${avail} ${pluralizeUk(avail, ['вільне місце', 'вільні місця', 'вільних місць'])}`;
+      // Компактний формат: "зайнято/всього" (напр. "3/10")
+      const spotsText = max > 0 ? `${booked}/${max}` : '—';
       const fillPct = max > 0 ? Math.round((booked / max) * 100) : 0;
 
       return `
