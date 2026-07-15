@@ -5,3 +5,5 @@ node_modules/
 *.zip
 server-run.*
 .claude/settings.local.json
+.claude
+*.docx
