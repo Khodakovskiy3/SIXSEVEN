@@ -3,6 +3,8 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
+      TZ: Europe/Kyiv
+      PGTZ: Europe/Kyiv
       POSTGRES_DB: sports_club_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${PGPASSWORD}

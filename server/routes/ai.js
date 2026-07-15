@@ -59,6 +59,9 @@ const CONTEXT_BOOKINGS_LIMIT = 5;
 /** За скільки останніх днів рахувати відвідування у контексті. */
 const CONTEXT_VISITS_DAYS = 30;
 
+/** Максимум занять розкладу на сьогодні, що передаються у контекст. */
+const CONTEXT_SCHEDULE_LIMIT = 30;
+
 // ─── Системний промпт ─────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `Ти — АІ-асистент спортивного клубу OLIMP.
@@ -73,6 +76,11 @@ const SYSTEM_PROMPT = `Ти — АІ-асистент спортивного к�
   чи хронічних станах радь звернутися до лікаря.
 - Якщо питання не стосується фітнесу чи клубу — ввічливо поверни розмову
   до тренувань.
+- НЕ вигадуй розклад, заняття, тренерів, ціни та інші факти про клуб.
+  Спирайся ВИКЛЮЧНО на дані, наведені нижче. Якщо потрібної інформації
+  там немає — так і скажи та запропонуй переглянути сторінку «Розклад»
+  або звернутися до адміністратора. Не додавай занять, яких немає в списку.
+- Дату «сьогодні» бери лише з наведених даних, не вгадуй її.
 - Якщо нижче наведено дані клієнта (абонемент, бронювання, антропометрія) —
   враховуй їх у порадах: наприклад, орієнтовну калорійність чи навантаження
   можна прив'язати до ваги й зросту, а зміну обхватів — відзначити як прогрес.
@@ -111,6 +119,74 @@ function normalizeHistory(value) {
   }
 
   return history;
+}
+
+/**
+ * Складає повний контекст для системного промпта: поточна дата,
+ * розклад на сьогодні (спільний для всіх ролей) і персональні дані
+ * клієнта. Дату й розклад беремо з БД, щоб модель не вгадувала їх.
+ *
+ * @param {{ id: number, name: string, role: string }} user Користувач із JWT.
+ * @returns {Promise<string>} Багаторядковий контекст.
+ */
+async function buildContext(user) {
+  const [todayLine, scheduleBlock, clientBlock] = await Promise.all([
+    buildTodayLine(),
+    buildTodaySchedule(),
+    buildClientContext(user),
+  ]);
+
+  return [todayLine, scheduleBlock, clientBlock].filter(Boolean).join('\n\n');
+}
+
+/**
+ * Повертає рядок з поточною датою з БД (та сама, що й current_date
+ * у запитах розкладу) — без нього модель вгадує «сьогодні» і помиляється.
+ *
+ * @returns {Promise<string>}
+ */
+async function buildTodayLine() {
+  const result = await query(
+    `select to_char(current_date, 'DD.MM.YYYY') as human,
+            to_char(current_date, 'YYYY-MM-DD') as iso`
+  );
+  const { human, iso } = result.rows[0];
+  return `Сьогодні ${human} (${iso}).`;
+}
+
+/**
+ * Формує розклад занять на сьогодні з БД: час, назва, тренер, вільні
+ * місця. Саме цих даних бракувало моделі, коли вона вигадувала заняття.
+ *
+ * @returns {Promise<string>}
+ */
+async function buildTodaySchedule() {
+  const result = await query(
+    `select sc.time, w.name as workout, u.name as trainer, w.max_clients,
+            (select count(*) from bookings b
+             where b.schedule_id = sc.id and b.status = 'active') as booked
+     from schedules sc
+     join workouts w on w.id = sc.workout_id
+     left join trainers t on t.id = sc.trainer_id
+     left join users u on u.id = t.user_id
+     where sc.date = current_date
+     order by sc.time
+     limit $1`,
+    [CONTEXT_SCHEDULE_LIMIT]
+  );
+
+  if (result.rows.length === 0) {
+    return 'Розклад на сьогодні: занять немає.';
+  }
+
+  const lines = ['Розклад на сьогодні:'];
+  for (const row of result.rows) {
+    const time = String(row.time).slice(0, 5);
+    const free = Math.max(0, Number(row.max_clients) - Number(row.booked));
+    const trainer = row.trainer ? `, тренер ${row.trainer}` : '';
+    lines.push(`- ${time} — ${row.workout}${trainer} (вільно ${free} місць).`);
+  }
+  return lines.join('\n');
 }
 
 /**
@@ -317,8 +393,8 @@ router.post('/assistant', async (req, res, next) => {
   lastRequestAt.set(req.user.id, now);
 
   try {
-    const context = await buildClientContext(req.user);
-    const system = context ? `${SYSTEM_PROMPT}\n\n${context}` : SYSTEM_PROMPT;
+    const context = await buildContext(req.user);
+    const system = `${SYSTEM_PROMPT}\n\n${context}`;
     const reply = await generateReply([
       { role: 'system', content: system },
       ...history,
