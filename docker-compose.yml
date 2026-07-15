@@ -3,11 +3,13 @@ services:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      TZ: Europe/Kyiv
-      PGTZ: Europe/Kyiv
       POSTGRES_DB: sports_club_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${PGPASSWORD}
+    # TZ/PGTZ офіційним образом Postgres для часу в логах НЕ використовуються
+    # (PGTZ — це лише для клієнтських бібліотек libpq). Час логів керується
+    # параметром log_timezone, тому передаємо його явно як аргумент сервера.
+    command: ["postgres", "-c", "log_timezone=Europe/Kyiv"]
     ports:
       # Проброс на хост потрібен, коли сервер (npm run dev) запускається
       # НЕ в Docker, а напряму на машині розробника.
