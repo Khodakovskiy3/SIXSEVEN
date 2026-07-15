@@ -7,3 +7,4 @@ server-run.*
 .claude/settings.local.json
 .claude
 *.docx
+docx
