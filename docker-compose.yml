@@ -6,6 +6,10 @@ services:
       POSTGRES_DB: sports_club_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${PGPASSWORD}
+    ports:
+      # Проброс на хост потрібен, коли сервер (npm run dev) запускається
+      # НЕ в Docker, а напряму на машині розробника.
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # DDL-схема виконується автоматично при першому старті контейнера.
