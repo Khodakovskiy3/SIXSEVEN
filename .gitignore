@@ -6,5 +6,6 @@ node_modules/
 server-run.*
 .claude/settings.local.json
 .claude
+CLAUDE.md
 *.docx
 docx
