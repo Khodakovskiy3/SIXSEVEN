@@ -70,18 +70,98 @@
   let pollTimer = null;
   let isOpen = false;
 
+  // Стан діалогу з адміністратором (дзеркалить CHAT_STATE на сервері).
+  // Писати можна лише в 'active'; решта станів показують блок запиту.
+  const STATE_NONE = 'none';
+  const STATE_PENDING = 'pending';
+  const STATE_ACTIVE = 'active';
+  const STATE_CLOSED = 'closed';
+  let chatState = STATE_NONE;
+
   // ─── Стан АІ-асистента ──────────────────────────────────────────────────────
   const AI_MODE = 'ai';
   const ADMIN_MODE = 'admin';
   // Скільки останніх повідомлень історії надсилати серверу (він має свій ліміт).
   const AI_HISTORY_LIMIT = 20;
+  // Скільки повідомлень тримати у сховищі: більше за ліміт надсилання, щоб
+  // користувач бачив довшу стрічку, ніж отримує модель.
+  const AI_HISTORY_STORAGE_LIMIT = 50;
+  // Ключ на кожного користувача — щоб діалоги різних акаунтів в одному
+  // браузері не змішувалися. Неавторизованим вкладка асистента недоступна.
+  const AI_HISTORY_KEY = isAuthenticated ? `chat_ai_history_${authUser.id}` : '';
+
+  /**
+   * Читає збережену історію асистента зі сховища.
+   * Сторонні чи пошкоджені дані відкидаємо: у localStorage міг потрапити
+   * будь-який JSON, а рендер очікує лише { role, content }.
+   *
+   * @returns {Array<{role: string, content: string}>}
+   */
+  function loadAiHistory() {
+    if (!AI_HISTORY_KEY) {
+      return [];
+    }
+    try {
+      const saved = JSON.parse(localStorage.getItem(AI_HISTORY_KEY) || '[]');
+      if (!Array.isArray(saved)) {
+        return [];
+      }
+      return saved.filter((item) => item
+        && typeof item.content === 'string'
+        && (item.role === 'user' || item.role === 'assistant'));
+    } catch {
+      return [];
+    }
+  }
+
+  /** Зберігає історію асистента, обрізавши її до AI_HISTORY_STORAGE_LIMIT. */
+  function saveAiHistory() {
+    if (!AI_HISTORY_KEY) {
+      return;
+    }
+    try {
+      localStorage.setItem(
+        AI_HISTORY_KEY,
+        JSON.stringify(aiHistory.slice(-AI_HISTORY_STORAGE_LIMIT))
+      );
+    } catch {
+      // Сховище переповнене або вимкнене — діалог просто не переживе перезавантаження.
+    }
+  }
 
   let mode = ADMIN_MODE;
   // Історія діалогу з асистентом у форматі API: { role, content }.
-  const aiHistory = [];
+  // Відновлюється зі сховища, тож переживає перезавантаження сторінки.
+  const aiHistory = loadAiHistory();
   let isAiPending = false;
 
   // ─── Розмітка віджета ───────────────────────────────────────────────────────
+  // Заглушка порожнього діалогу з адміністратором — у константі, бо стрічку
+  // треба скидати після запиту нового діалогу (старий видаляється на сервері).
+  const ADMIN_EMPTY_HTML = `
+    <div class="chat-widget-empty">Опишіть питання — адміністратор відповість тут.</div>
+  `;
+
+  // Заглушка порожнього діалогу асистента — у константі, бо її треба повернути
+  // на місце після очищення історії.
+  const AI_EMPTY_HTML = `
+    <div class="chat-widget-empty">
+      Привіт! Я АІ-асистент клубу OLIMP.
+      Питайте про тренування, техніку вправ чи план занять.
+    </div>
+  `;
+
+  // Контурна іконка у стилі решти іконок інтерфейсу (stroke, 24×24).
+  const TRASH_ICON_SVG = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+      <line x1="10" y1="11" x2="10" y2="17"/>
+      <line x1="14" y1="11" x2="14" y2="17"/>
+    </svg>
+  `;
+
   const button = document.createElement('button');
   button.className = 'chat-widget-btn';
   button.type = 'button';
@@ -100,20 +180,37 @@
       </div>`
     : '';
 
+  // Очищення стосується лише діалогу з асистентом: історія чату з
+  // адміністратором живе на сервері, тож кнопку показуємо на вкладці АІ.
+  const clearHtml = isAuthenticated
+    ? `<button type="button" class="chat-widget-clear" data-ai-clear hidden
+         aria-label="Очистити діалог з асистентом"
+         title="Очистити діалог з асистентом">${TRASH_ICON_SVG}</button>`
+    : '';
+
   panel.innerHTML = `
     <div class="chat-widget-header">
       <span>Чат клубу OLIMP</span>
-      <button type="button" class="chat-widget-close" aria-label="Закрити">×</button>
+      <span class="chat-widget-actions">
+        ${clearHtml}
+        <button type="button" class="chat-widget-close" aria-label="Закрити">×</button>
+      </span>
     </div>
     ${tabsHtml}
-    <div class="chat-widget-body" data-body>
-      <div class="chat-widget-empty">Напишіть нам — адміністратор відповість тут.</div>
+    <div class="chat-widget-body" data-body>${ADMIN_EMPTY_HTML}</div>
+    <div class="chat-widget-body" data-ai-body hidden>${AI_EMPTY_HTML}</div>
+    <div class="chat-widget-gate" data-gate hidden>
+      <p class="chat-widget-gate-text" data-gate-text></p>
+      <button type="button" class="chat-widget-gate-btn" data-request></button>
     </div>
-    <div class="chat-widget-body" data-ai-body hidden>
-      <div class="chat-widget-empty">
-        Привіт! Я АІ-асистент клубу OLIMP.
-        Питайте про тренування, техніку вправ чи план занять.
-      </div>
+    <div class="chat-widget-confirm" data-ai-confirm hidden>
+      <span>Очистити діалог?</span>
+      <button type="button" class="chat-widget-confirm-btn" data-ai-confirm-no>
+        Скасувати
+      </button>
+      <button type="button" class="chat-widget-confirm-btn is-danger" data-ai-confirm-yes>
+        Очистити
+      </button>
     </div>
     <div class="chat-widget-error" data-error></div>
     <form class="chat-widget-form" data-form>
@@ -133,6 +230,11 @@
   const inputEl = panel.querySelector('[data-input]');
   const submitEl = formEl.querySelector('button[type="submit"]');
   const closeEl = panel.querySelector('.chat-widget-close');
+  const aiClearEl = panel.querySelector('[data-ai-clear]');
+  const aiConfirmEl = panel.querySelector('[data-ai-confirm]');
+  const gateEl = panel.querySelector('[data-gate]');
+  const gateTextEl = panel.querySelector('[data-gate-text]');
+  const requestEl = panel.querySelector('[data-request]');
 
   let hasMessages = false;
 
@@ -153,6 +255,81 @@
     bodyEl.appendChild(el);
     bodyEl.scrollTop = bodyEl.scrollHeight;
   }
+
+  /**
+   * Показує або блок запиту, або поле вводу — залежно від стану діалогу.
+   * Вкладку асистента шлюз не стосується: там поле доступне завжди.
+   *
+   * @returns {void}
+   */
+  function renderGate() {
+    const isAi = mode === AI_MODE;
+    const canWrite = isAi || chatState === STATE_ACTIVE;
+
+    formEl.hidden = !canWrite;
+    gateEl.hidden = canWrite;
+    if (canWrite) {
+      return;
+    }
+
+    if (chatState === STATE_PENDING) {
+      gateTextEl.textContent = 'Запит надіслано. Очікуйте підтвердження адміністратора.';
+      requestEl.hidden = true;
+      return;
+    }
+
+    requestEl.hidden = false;
+    if (chatState === STATE_CLOSED) {
+      gateTextEl.textContent = 'Діалог завершено адміністратором.';
+      requestEl.textContent = 'Запросити новий діалог';
+      return;
+    }
+    gateTextEl.textContent = 'Щоб написати адміністратору, надішліть запит на діалог.';
+    requestEl.textContent = 'Запросити діалог';
+  }
+
+  /**
+   * Надсилає запит на діалог. Сервер видаляє попередній діалог цього
+   * користувача разом з листуванням, тож стрічку теж скидаємо.
+   *
+   * @returns {Promise<void>}
+   */
+  async function requestConversation() {
+    clearError();
+    requestEl.disabled = true;
+    try {
+      const url = isAuthenticated
+        ? `${API_BASE}/chat/client/request`
+        : `${API_BASE}/chat/guest/request`;
+      const headers = { 'Content-Type': 'application/json' };
+      if (isAuthenticated) {
+        headers.Authorization = `Bearer ${authToken}`;
+      }
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(isAuthenticated ? {} : { guestToken }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showError(data.error || 'Не вдалося надіслати запит');
+        return;
+      }
+
+      // Старий діалог видалено — починаємо стрічку з чистого аркуша.
+      bodyEl.innerHTML = ADMIN_EMPTY_HTML;
+      hasMessages = false;
+      lastMessageId = 0;
+      chatState = data.state || STATE_PENDING;
+      renderGate();
+    } catch {
+      showError('Немає зв’язку з сервером. Спробуйте ще раз.');
+    } finally {
+      requestEl.disabled = false;
+    }
+  }
+
+  requestEl.addEventListener('click', requestConversation);
 
   function showError(text) {
     errorEl.textContent = text;
@@ -205,6 +382,51 @@
     }
   }
 
+  /** Ховає смужку підтвердження очищення. */
+  function hideAiConfirm() {
+    if (aiConfirmEl) {
+      aiConfirmEl.hidden = true;
+    }
+  }
+
+  /**
+   * Очищує діалог з асистентом: пам'ять, сховище та стрічку на екрані.
+   * Історія чату з адміністратором не зачіпається — вона зберігається на сервері.
+   *
+   * @returns {void}
+   */
+  function clearAiHistory() {
+    aiHistory.length = 0;
+    if (AI_HISTORY_KEY) {
+      localStorage.removeItem(AI_HISTORY_KEY);
+    }
+    aiBodyEl.innerHTML = AI_EMPTY_HTML;
+    hasAiMessages = false;
+    hideAiConfirm();
+    clearError();
+  }
+
+  if (aiClearEl) {
+    aiClearEl.addEventListener('click', () => {
+      // Порожній діалог чистити нема сенсу — не смикаємо зайвим запитом.
+      if (aiHistory.length === 0) {
+        return;
+      }
+      // Історія тепер переживає перезавантаження, тож випадковий клік знищив би
+      // реальні дані. Підтвердження показуємо всередині віджета: системне
+      // window.confirm виглядало б чужорідно.
+      aiConfirmEl.hidden = false;
+    });
+  }
+
+  aiConfirmEl?.querySelector('[data-ai-confirm-no]')
+    ?.addEventListener('click', hideAiConfirm);
+  aiConfirmEl?.querySelector('[data-ai-confirm-yes]')
+    ?.addEventListener('click', clearAiHistory);
+
+  // Відновлюємо збережену стрічку асистента після перезавантаження сторінки.
+  aiHistory.forEach((message) => appendAiMessage(message.role, message.content));
+
   /**
    * Надсилає діалог асистенту та відображає його відповідь.
    * Кнопка блокується на час генерації: локальна модель відповідає
@@ -215,6 +437,7 @@
    */
   async function sendAiMessage(body) {
     aiHistory.push({ role: 'user', content: body });
+    saveAiHistory();
     appendAiMessage('user', body);
     isAiPending = true;
     submitEl.disabled = true;
@@ -234,14 +457,17 @@
       if (!response.ok) {
         // Невдалий запит не лишаємо в історії, щоб повтор надіслав те саме.
         aiHistory.pop();
+        saveAiHistory();
         showError(data.error || 'Асистент недоступний. Спробуйте пізніше.');
         return;
       }
 
       aiHistory.push({ role: 'assistant', content: data.reply });
+      saveAiHistory();
       appendAiMessage('assistant', data.reply);
     } catch {
       aiHistory.pop();
+      saveAiHistory();
       showError('Немає зв’язку з сервером. Спробуйте ще раз.');
     } finally {
       removeAiTyping();
@@ -267,6 +493,13 @@
     aiBodyEl.hidden = !isAi;
     inputEl.placeholder = isAi ? 'Запитайте про тренування…' : 'Ваше повідомлення…';
     submitEl.disabled = isAi && isAiPending;
+    if (aiClearEl) {
+      aiClearEl.hidden = !isAi;
+    }
+    // Незавершене підтвердження не має «переїжджати» на вкладку адміністратора.
+    hideAiConfirm();
+    // Поле вводу на вкладці адміністратора доступне лише в підтвердженому діалозі.
+    renderGate();
 
     tabsEl.querySelectorAll('[data-tab]').forEach((tab) => {
       tab.classList.toggle('active', tab.dataset.tab === mode);
@@ -274,7 +507,9 @@
 
     const activeBody = isAi ? aiBodyEl : bodyEl;
     activeBody.scrollTop = activeBody.scrollHeight;
-    inputEl.focus();
+    if (!formEl.hidden) {
+      inputEl.focus();
+    }
   }
 
   if (tabsEl) {
@@ -302,17 +537,27 @@
     return { url: `${API_BASE}/chat/guest/messages?${params}`, headers: {} };
   }
 
-  /** Підтягує нові повідомлення діалогу (polling). */
+  /**
+   * Підтягує нові повідомлення діалогу та його стан (polling).
+   * Саме звідси віджет дізнається, що адміністратор підтвердив або завершив
+   * діалог, і перемальовує шлюз.
+   */
   async function fetchMessages() {
     try {
       const { url, headers } = buildFetchParams();
       const response = await fetch(url, { headers });
       if (!response.ok) return;
-      const messages = await response.json();
-      messages.forEach((message) => {
+      const data = await response.json();
+
+      const previousState = chatState;
+      chatState = data.state || STATE_NONE;
+      (data.messages || []).forEach((message) => {
         appendMessage(message);
         lastMessageId = Math.max(lastMessageId, message.id);
       });
+      if (chatState !== previousState) {
+        renderGate();
+      }
     } catch {
       // Тимчасова мережева помилка — наступний цикл polling спробує знову.
     }
@@ -335,7 +580,9 @@
     isOpen = true;
     panel.classList.add('open');
     startPolling();
-    inputEl.focus();
+    if (!formEl.hidden) {
+      inputEl.focus();
+    }
   }
 
   function closePanel() {
@@ -385,6 +632,11 @@
       if (!response.ok) {
         showError(data.error || 'Не вдалося надіслати повідомлення');
         inputEl.value = body;
+        // Діалог могли завершити саме під час набору — показуємо актуальний шлюз.
+        if (data.state) {
+          chatState = data.state;
+          renderGate();
+        }
         return;
       }
       // Одразу показуємо власне повідомлення, не чекаючи циклу polling.
@@ -403,4 +655,8 @@
       formEl.requestSubmit();
     }
   });
+
+  // До першого циклу polling стан невідомий, тож ховаємо поле одразу:
+  // інакше користувач на мить побачив би форму, у яку не має права писати.
+  renderGate();
 })();

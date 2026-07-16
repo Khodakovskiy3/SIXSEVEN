@@ -4040,6 +4040,7 @@ function _renderChatWindowShell(id) {
         Назад
       </button>
     </div>
+    <div class="msg-chat-topbar" id="msg-chat-topbar"></div>
     <div class="msg-chat-messages" id="msg-chat-messages"></div>
     <form class="msg-chat-reply" id="msg-chat-reply-form">
       <input type="text" id="msg-chat-input" placeholder="Відповідь…" autocomplete="off">

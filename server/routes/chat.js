@@ -30,7 +30,7 @@
 
 import { Router } from 'express';
 
-import { query } from '../db.js';
+import { query, withClient } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import {
   HTTP_BAD_REQUEST,
@@ -101,7 +101,106 @@ function parseAfter(value) {
   return Number.isFinite(num) && num > 0 ? num : 0;
 }
 
+/**
+ * Стан діалогу з погляду відвідувача. Окремої колонки в БД не потрібно:
+ * стан однозначно виводиться з assigned_admin_id та closed_at.
+ */
+const CHAT_STATE = Object.freeze({
+  NONE: 'none',       // діалогу немає — можна надіслати запит
+  PENDING: 'pending', // запит надіслано, очікує підтвердження адміністратора
+  ACTIVE: 'active',   // адміністратор підтвердив — можна листуватися
+  CLOSED: 'closed',   // адміністратор завершив — можна запросити новий
+});
+
+/**
+ * Повертає діалог за токеном.
+ *
+ * @param {string} token Токен гостя або client-<userId>.
+ * @returns {Promise<{id: number, assigned_admin_id: number|null, closed_at: Date|null}|null>}
+ */
+async function findConversation(token) {
+  const result = await query(
+    `select id, assigned_admin_id, closed_at
+     from chat_conversations
+     where guest_token = $1`,
+    [token]
+  );
+  return result.rows[0] || null;
+}
+
+/**
+ * Зводить рядок діалогу до стану, зрозумілого віджету.
+ *
+ * @param {{assigned_admin_id: number|null, closed_at: Date|null}|null} conversation
+ * @returns {string} Одне зі значень CHAT_STATE.
+ */
+function toChatState(conversation) {
+  if (!conversation) {
+    return CHAT_STATE.NONE;
+  }
+  if (conversation.closed_at !== null) {
+    return CHAT_STATE.CLOSED;
+  }
+  if (conversation.assigned_admin_id === null) {
+    return CHAT_STATE.PENDING;
+  }
+  return CHAT_STATE.ACTIVE;
+}
+
+/**
+ * Пояснює, чому писати зараз не можна.
+ *
+ * @param {string} state Поточний стан діалогу.
+ * @returns {string}
+ */
+function describeGate(state) {
+  if (state === CHAT_STATE.PENDING) {
+    return 'Запит очікує підтвердження адміністратора';
+  }
+  if (state === CHAT_STATE.CLOSED) {
+    return 'Діалог завершено. Надішліть новий запит.';
+  }
+  return 'Спершу надішліть запит на діалог';
+}
+
+/**
+ * Створює новий запит на діалог, видаляючи попередній діалог цього токена
+ * разом із повідомленнями (ON DELETE CASCADE) — так користувач починає
+ * листування «з чистого аркуша».
+ *
+ * Видалення і вставка в одній транзакції: guest_token унікальний, тож без неї
+ * паралельний запит міг би впасти на конфлікті унікальності.
+ *
+ * @param {string} token Токен гостя або client-<userId>.
+ * @param {string|null} [guestName] Ім'я для списку адміністратора.
+ * @returns {Promise<number>} Ідентифікатор створеного діалогу.
+ */
+async function createConversationRequest(token, guestName = null) {
+  return withClient(async (client) => {
+    await client.query('begin');
+    await client.query('delete from chat_conversations where guest_token = $1', [token]);
+    const created = await client.query(
+      `insert into chat_conversations (guest_token, guest_name)
+       values ($1, $2)
+       returning id`,
+      [token, guestName]
+    );
+    await client.query('commit');
+    return created.rows[0].id;
+  });
+}
+
 // ─── Гостьова частина ─────────────────────────────────────────────────────────
+
+router.post('/guest/request', async (req, res) => {
+  const token = normalizeToken(req.body?.guestToken);
+  if (!token) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing guest token' });
+  }
+
+  await createConversationRequest(token);
+  return res.status(HTTP_CREATED).json({ state: CHAT_STATE.PENDING });
+});
 
 router.post('/guest/messages', async (req, res) => {
   const token = normalizeToken(req.body?.guestToken);
@@ -114,22 +213,23 @@ router.post('/guest/messages', async (req, res) => {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Повідомлення не може бути порожнім' });
   }
 
-  // Знаходимо або створюємо діалог за токеном (idempotent через unique-обмеження).
-  const conversation = await query(
-    `insert into chat_conversations (guest_token)
-     values ($1)
-     on conflict (guest_token) do update set updated_at = now()
-     returning id`,
-    [token]
-  );
-  const conversationId = conversation.rows[0].id;
-  await reopenIfClosed(conversationId);
+  // Писати можна лише в підтверджений діалог: діалог більше не створюється
+  // повідомленням і завершений не відкривається знову — потрібен новий запит.
+  const conversation = await findConversation(token);
+  const state = toChatState(conversation);
+  if (state !== CHAT_STATE.ACTIVE) {
+    return res.status(HTTP_CONFLICT).json({ error: describeGate(state), state });
+  }
 
   const message = await query(
     `insert into chat_messages (conversation_id, sender, body)
      values ($1, 'guest', $2)
      returning id, conversation_id, sender, body, created_at`,
-    [conversationId, body]
+    [conversation.id, body]
+  );
+  await query(
+    'update chat_conversations set updated_at = now() where id = $1',
+    [conversation.id]
   );
 
   return res.status(HTTP_CREATED).json(message.rows[0]);
@@ -143,58 +243,42 @@ router.get('/guest/messages', async (req, res) => {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing guest token' });
   }
 
+  const conversation = await findConversation(token);
+  const state = toChatState(conversation);
+  if (!conversation) {
+    return res.json({ state, messages: [] });
+  }
+
   const result = await query(
-    `select m.id, m.sender, m.body, m.created_at
-     from chat_messages m
-     join chat_conversations c on c.id = m.conversation_id
-     where c.guest_token = $1 and m.id > $2
-     order by m.id`,
-    [token, after]
+    `select id, sender, body, created_at
+     from chat_messages
+     where conversation_id = $1 and id > $2
+     order by id`,
+    [conversation.id, after]
   );
 
-  return res.json(result.rows);
+  return res.json({ state, messages: result.rows });
 });
-
-/**
- * Знову відкриває завершений діалог після нового повідомлення відвідувача.
- * Діалог повертається в чергу очікування (assigned_admin_id скидається),
- * бо попередній адміністратор може бути вже не на зміні.
- *
- * @param {number} conversationId Ідентифікатор діалогу.
- * @returns {Promise<void>}
- */
-async function reopenIfClosed(conversationId) {
-  await query(
-    `update chat_conversations
-     set closed_at = null, assigned_admin_id = null, updated_at = now()
-     where id = $1 and closed_at is not null`,
-    [conversationId]
-  );
-}
 
 // ─── Клієнтська частина (JWT, будь-яка роль) ─────────────────────────────────
 
 router.use('/client', authRequired);
 
 /**
- * Знаходить або створює діалог авторизованого користувача.
- * Ім'я оновлюється при кожному зверненні, щоб перейменування акаунта
- * відображалось у списку адміністратора.
+ * Токен діалогу авторизованого користувача.
  *
- * @param {{ id: number, name: string }} user Користувач із JWT.
- * @returns {Promise<number>} Ідентифікатор діалогу.
+ * @param {{ id: number }} user Користувач із JWT.
+ * @returns {string}
  */
-async function findOrCreateClientConversation(user) {
-  const token = `${CLIENT_TOKEN_PREFIX}${user.id}`;
-  const conversation = await query(
-    `insert into chat_conversations (guest_token, guest_name)
-     values ($1, $2)
-     on conflict (guest_token) do update set updated_at = now(), guest_name = $2
-     returning id`,
-    [token, user.name]
-  );
-  return conversation.rows[0].id;
+function clientToken(user) {
+  return `${CLIENT_TOKEN_PREFIX}${user.id}`;
 }
+
+router.post('/client/request', async (req, res) => {
+  // Ім'я зберігаємо при створенні запиту, щоб адміністратор бачив, хто звернувся.
+  await createConversationRequest(clientToken(req.user), req.user.name);
+  return res.status(HTTP_CREATED).json({ state: CHAT_STATE.PENDING });
+});
 
 router.post('/client/messages', async (req, res) => {
   const body = normalizeBody(req.body?.body);
@@ -202,13 +286,21 @@ router.post('/client/messages', async (req, res) => {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Повідомлення не може бути порожнім' });
   }
 
-  const conversationId = await findOrCreateClientConversation(req.user);
-  await reopenIfClosed(conversationId);
+  const conversation = await findConversation(clientToken(req.user));
+  const state = toChatState(conversation);
+  if (state !== CHAT_STATE.ACTIVE) {
+    return res.status(HTTP_CONFLICT).json({ error: describeGate(state), state });
+  }
+
   const message = await query(
     `insert into chat_messages (conversation_id, sender, body)
      values ($1, 'guest', $2)
      returning id, conversation_id, sender, body, created_at`,
-    [conversationId, body]
+    [conversation.id, body]
+  );
+  await query(
+    'update chat_conversations set updated_at = now() where id = $1',
+    [conversation.id]
   );
 
   return res.status(HTTP_CREATED).json(message.rows[0]);
@@ -216,18 +308,22 @@ router.post('/client/messages', async (req, res) => {
 
 router.get('/client/messages', async (req, res) => {
   const after = parseAfter(req.query.after);
-  const token = `${CLIENT_TOKEN_PREFIX}${req.user.id}`;
+
+  const conversation = await findConversation(clientToken(req.user));
+  const state = toChatState(conversation);
+  if (!conversation) {
+    return res.json({ state, messages: [] });
+  }
 
   const result = await query(
-    `select m.id, m.sender, m.body, m.created_at
-     from chat_messages m
-     join chat_conversations c on c.id = m.conversation_id
-     where c.guest_token = $1 and m.id > $2
-     order by m.id`,
-    [token, after]
+    `select id, sender, body, created_at
+     from chat_messages
+     where conversation_id = $1 and id > $2
+     order by id`,
+    [conversation.id, after]
   );
 
-  return res.json(result.rows);
+  return res.json({ state, messages: result.rows });
 });
 
 // ─── Адмінська частина (JWT, role=admin) ─────────────────────────────────────

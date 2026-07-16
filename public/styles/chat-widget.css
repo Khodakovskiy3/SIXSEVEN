@@ -85,14 +85,103 @@
     justify-content: space-between;
 }
 
-.chat-widget-header .chat-widget-close {
+/* Група кнопок праворуч у шапці (очистити + закрити). */
+.chat-widget-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+/* Обидві кнопки шапки — однакові круглі цілі з підсвіткою при наведенні.
+   Шапка акцентна, тому підсвітка біла напівпрозора, а не темна. */
+.chat-widget-header .chat-widget-close,
+.chat-widget-header .chat-widget-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
     background: none;
     border: none;
+    border-radius: 50%;
     color: #fff;
-    font-size: 22px;
     line-height: 1;
     cursor: pointer;
-    padding: 0;
+    opacity: 0.8;
+    transition: opacity 0.15s ease, background-color 0.15s ease, transform 0.1s ease;
+}
+
+.chat-widget-header .chat-widget-close {
+    font-size: 22px;
+}
+
+.chat-widget-header .chat-widget-clear svg {
+    width: 16px;
+    height: 16px;
+}
+
+.chat-widget-header .chat-widget-close:hover,
+.chat-widget-header .chat-widget-clear:hover {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.chat-widget-header .chat-widget-close:active,
+.chat-widget-header .chat-widget-clear:active {
+    transform: scale(0.92);
+}
+
+/* hidden не спрацював би проти display: inline-flex вище. */
+.chat-widget-header .chat-widget-clear[hidden] {
+    display: none;
+}
+
+/* Смужка підтвердження очищення — замість системного window.confirm. */
+.chat-widget-confirm {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--line, rgba(255, 255, 255, 0.14));
+    background: var(--surface-2, rgba(32, 32, 36, 0.92));
+    font-size: 13px;
+}
+
+.chat-widget-confirm[hidden] {
+    display: none;
+}
+
+.chat-widget-confirm > span {
+    flex: 1;
+    color: var(--muted, #b3b3bd);
+}
+
+.chat-widget-confirm-btn {
+    border: 1px solid var(--line, rgba(255, 255, 255, 0.14));
+    border-radius: 8px;
+    padding: 5px 10px;
+    background: transparent;
+    color: var(--text, #f6f6f7);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.chat-widget-confirm-btn:hover {
+    border-color: var(--accent, #ff6424);
+}
+
+.chat-widget-confirm-btn.is-danger {
+    border-color: transparent;
+    background: #e23b3b;
+    color: #fff;
+}
+
+.chat-widget-confirm-btn.is-danger:hover {
+    background: #c93030;
 }
 
 /* Вкладки «Адміністратор / АІ-асистент» (лише для авторизованих). */
@@ -192,11 +281,69 @@
     font-style: italic;
 }
 
+/* Блок запиту діалогу — показується замість поля вводу, поки адміністратор
+   не підтвердив звернення (або після його завершення). */
+.chat-widget-gate {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 14px 12px;
+    border-top: 1px solid var(--line, rgba(255, 255, 255, 0.14));
+}
+
+.chat-widget-gate[hidden] {
+    display: none;
+}
+
+.chat-widget-gate-text {
+    margin: 0;
+    text-align: center;
+    color: var(--muted, #b3b3bd);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.chat-widget-gate-btn {
+    border: none;
+    border-radius: 10px;
+    padding: 11px 14px;
+    background: var(--accent, #ff6424);
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s ease, transform 0.1s ease;
+}
+
+.chat-widget-gate-btn:hover {
+    filter: brightness(1.08);
+}
+
+.chat-widget-gate-btn:active {
+    transform: scale(0.98);
+}
+
+.chat-widget-gate-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.chat-widget-gate-btn[hidden] {
+    display: none;
+}
+
 .chat-widget-form {
     display: flex;
     gap: 8px;
     padding: 12px;
     border-top: 1px solid var(--line, rgba(255, 255, 255, 0.14));
+}
+
+/* display: flex перебив би стандартну поведінку hidden. */
+.chat-widget-form[hidden] {
+    display: none;
 }
 
 .chat-widget-form textarea {
