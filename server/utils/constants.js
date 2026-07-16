@@ -96,6 +96,9 @@ export const SUBSCRIPTION_STATUS = Object.freeze({
   ACTIVE: 'active',
   PAUSED: 'paused',
   EXPIRED: 'expired',
+  // Скасований клієнтом вручну — на відміну від EXPIRED, що виставляється
+  // автоматично після завершення терміну дії.
+  CANCELLED: 'cancelled',
 });
 
 /** Статуси бронювання. */

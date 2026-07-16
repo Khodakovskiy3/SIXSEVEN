@@ -140,6 +140,7 @@ const statusLabels = {
   inactive: 'Неактивний',
   paused: 'Пауза',
   expired: 'Неактивний',
+  cancelled: 'Скасований',
 };
 
 const planTypeLabels = {

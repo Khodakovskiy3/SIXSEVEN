@@ -11,3 +11,4 @@ server-run.err
 *.docx
 Dockerfile
 docker-compose.yml
+AGENTS.md

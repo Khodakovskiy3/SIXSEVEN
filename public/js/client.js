@@ -19,6 +19,8 @@ const titles = {
 };
 
 let activePlans = [];
+// Чинний абонемент блокує купівлю нового: спершу його треба скасувати.
+let hasActiveSubscription = false;
 let currentPlanForPurchase = null;
 let schedules = [];
 let bookings = [];
@@ -40,8 +42,12 @@ const accessTypeLabels = {
 /**
  * Кастомний діалог підтвердження замість window.confirm()
  * Повертає Promise<boolean>
+ *
+ * @param {string} message Текст запитання.
+ * @param {string} [okLabel] Підпис кнопки підтвердження (дія не завжди «Видалити»).
+ * @returns {Promise<boolean>}
  */
-function showConfirm(message) {
+function showConfirm(message, okLabel = 'Видалити') {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.className = 'custom-confirm-overlay';
@@ -50,7 +56,7 @@ function showConfirm(message) {
         <p class="custom-confirm-msg">${escapeHtml(message)}</p>
         <div class="custom-confirm-actions">
           <button class="ghost-btn custom-confirm-cancel">Скасувати</button>
-          <button class="danger-btn custom-confirm-ok">Видалити</button>
+          <button class="danger-btn custom-confirm-ok">${escapeHtml(okLabel)}</button>
         </div>
       </div>
     `;
@@ -243,6 +249,8 @@ function renderCurrentSubscription(subscriptions = []) {
   if (!container) return;
 
   const activeSubscription = subscriptions.find((item) => item.status === 'active' && new Date(item.end_date) >= new Date());
+  hasActiveSubscription = Boolean(activeSubscription);
+
   if (!activeSubscription) {
     container.innerHTML = `
       <span class="chip">Немає активного</span>
@@ -257,6 +265,8 @@ function renderCurrentSubscription(subscriptions = []) {
     <h3>${escapeHtml(activeSubscription.type || activeSubscription.plan_name || 'Абонемент')}</h3>
     <p>Початок: ${formatDate(activeSubscription.start_date)}</p>
     <p>Діє до: ${formatDate(activeSubscription.end_date)}</p>
+    <p class="form-note">Щоб придбати інший тариф, спершу скасуйте поточний абонемент.</p>
+    <button class="danger-btn" data-cancel-subscription>Скасувати абонемент</button>
   `;
 }
 
@@ -299,7 +309,10 @@ function renderAvailablePlans() {
             <span class="manage-card__period">${period}</span>
           </div>
           <div class="manage-card__cta">
-            <button class="primary-btn" data-purchase-plan="${plan.id}">Придбати</button>
+            ${hasActiveSubscription
+              ? `<button class="primary-btn" disabled
+                   title="Спершу скасуйте поточний абонемент">Придбати</button>`
+              : `<button class="primary-btn" data-purchase-plan="${plan.id}">Придбати</button>`}
           </div>
         </div>
         <div class="manage-card__light">
@@ -1126,6 +1139,30 @@ function openPurchaseModal(plan) {
   modal.classList.add('active');
 }
 
+/**
+ * Скасовує чинний абонемент клієнта після підтвердження.
+ * Після успіху сторінка перезавантажує дані, і кнопки «Придбати» розблоковуються.
+ *
+ * @returns {Promise<void>}
+ */
+async function cancelCurrentSubscription() {
+  const confirmed = await showConfirm(
+    'Скасувати поточний абонемент? Після цього ви зможете придбати новий.',
+    'Скасувати абонемент'
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    await apiFetch('/subscriptions/me/cancel', { method: 'POST' });
+    setSubscriptionFeedback('Абонемент скасовано. Тепер можна придбати новий.', 'success');
+    await loadSubscriptionPage();
+  } catch (error) {
+    setSubscriptionFeedback(`Не вдалося скасувати абонемент: ${error.message}`, 'error');
+  }
+}
+
 async function purchaseSelectedPlan() {
   if (!currentPlanForPurchase) return;
 
@@ -1246,6 +1283,11 @@ document.addEventListener('click', (event) => {
   const cancelButton = event.target.closest('[data-cancel-booking]');
   if (cancelButton) {
     cancelBooking(cancelButton.dataset.cancelBooking);
+    return;
+  }
+
+  if (event.target.closest('[data-cancel-subscription]')) {
+    cancelCurrentSubscription();
     return;
   }
 

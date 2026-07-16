@@ -91,11 +91,13 @@ function validatePlanPayload(plan) {
  * @returns {Promise<void>}
  */
 async function refreshSubscriptionStatuses() {
+  // Скасовані клієнтом абонементи не чіпаємо: інакше після завершення терміну
+  // 'cancelled' затерлося б на 'expired' і зникла б причина завершення.
   await query(
     `update subscriptions
      set status = $1
-     where end_date < CURRENT_DATE and status != $1`,
-    [SUBSCRIPTION_STATUS.EXPIRED]
+     where end_date < CURRENT_DATE and status not in ($1, $2)`,
+    [SUBSCRIPTION_STATUS.EXPIRED, SUBSCRIPTION_STATUS.CANCELLED]
   );
 }
 
@@ -463,6 +465,32 @@ router.get('/me', requireRole(ROLE.CLIENT), async (req, res) => {
   );
 
   return res.json(result.rows);
+});
+
+/**
+ * Скасовує чинний абонемент клієнта: переводить його у статус 'inactive'.
+ * Рядок не видаляється — історія покупок і пов'язана оплата зберігаються.
+ * Після скасування клієнт може придбати новий абонемент (див. POST /purchase).
+ */
+router.post('/me/cancel', requireRole(ROLE.CLIENT), async (req, res) => {
+  const clientId = await getClientIdByUserId(req.user.id);
+  if (!clientId) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
+  }
+
+  const result = await query(
+    `update subscriptions
+     set status = $1
+     where client_id = $2 and status = $3 and end_date >= current_date
+     returning id`,
+    [SUBSCRIPTION_STATUS.CANCELLED, clientId, SUBSCRIPTION_STATUS.ACTIVE]
+  );
+
+  if (result.rows.length === 0) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Активного абонемента немає' });
+  }
+
+  return res.json({ ok: true });
 });
 
 router.post('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
