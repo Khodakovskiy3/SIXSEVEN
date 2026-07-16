@@ -10,9 +10,10 @@
  * маршрут, щоб контролювати доступ, навантаження і контекст.
  *
  * Персоналізація: перед викликом моделі з БД підтягуються дані клієнта
- * (активний абонемент, найближчі заброньовані заняття, відвідування),
- * і додаються у системний промпт. Історія діалогу зберігається на боці
- * клієнта (stateless REST, як і решта API проєкту).
+ * (активний абонемент, найближчі заброньовані заняття, відвідування,
+ * останній антропометричний вимір), і додаються у системний промпт.
+ * Історія діалогу зберігається на боці клієнта (stateless REST, як
+ * і решта API проєкту).
  */
 
 import { Router } from 'express';
@@ -58,6 +59,9 @@ const CONTEXT_BOOKINGS_LIMIT = 5;
 /** За скільки останніх днів рахувати відвідування у контексті. */
 const CONTEXT_VISITS_DAYS = 30;
 
+/** Максимум занять розкладу на сьогодні, що передаються у контекст. */
+const CONTEXT_SCHEDULE_LIMIT = 30;
+
 // ─── Системний промпт ─────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `Ти — АІ-асистент спортивного клубу OLIMP.
@@ -68,12 +72,24 @@ const SYSTEM_PROMPT = `Ти — АІ-асистент спортивного к�
 - Відповідай коротко і по суті: 2–6 речень, за потреби — короткий список.
 - Теми: тренування, техніка вправ, плани занять, розминка, відновлення,
   базові поради з харчування для тренувань, мотивація, послуги клубу.
-- НЕ став медичних діагнозів і не признач лікування. При болях, травмах
-  чи хронічних станах радь звернутися до лікаря.
+- НЕ давай медичних порад. Це означає: не став діагнозів, не признач і не
+  рекомендуй ліки, дозування, добавки чи лікування, не інтерпретуй симптоми,
+  аналізи чи стан здоров'я. При болях, травмах, захворюваннях, вагітності,
+  прийомі ліків чи будь-яких скаргах на здоров'я — не давай порад по суті,
+  а ввічливо порадь звернутися до лікаря. Обмежуйся загальними питаннями
+  тренувань і техніки вправ у межах здорової людини.
 - Якщо питання не стосується фітнесу чи клубу — ввічливо поверни розмову
   до тренувань.
-- Якщо нижче наведено дані клієнта (абонемент, бронювання) — враховуй їх
-  у порадах.`;
+- НЕ вигадуй розклад, заняття, тренерів, ціни та інші факти про клуб.
+  Спирайся ВИКЛЮЧНО на дані, наведені нижче. Якщо потрібної інформації
+  там немає — так і скажи та запропонуй переглянути сторінку «Розклад»
+  або звернутися до адміністратора. Не додавай занять, яких немає в списку.
+- Дату «сьогодні» бери лише з наведених даних, не вгадуй її.
+- Якщо нижче наведено дані клієнта (абонемент, бронювання, антропометрія) —
+  враховуй їх у порадах: наприклад, орієнтовну калорійність чи навантаження
+  можна прив'язати до ваги й зросту, а зміну обхватів — відзначити як прогрес.
+- Розрахунки на основі ваги/зросту (калорії, ІМТ) давай як орієнтовні,
+  не як медичний припис.`;
 
 // Час останнього запиту кожного користувача для обмеження частоти.
 // In-memory достатньо: один процес, втрата при рестарті некритична.
@@ -110,6 +126,74 @@ function normalizeHistory(value) {
 }
 
 /**
+ * Складає повний контекст для системного промпта: поточна дата,
+ * розклад на сьогодні (спільний для всіх ролей) і персональні дані
+ * клієнта. Дату й розклад беремо з БД, щоб модель не вгадувала їх.
+ *
+ * @param {{ id: number, name: string, role: string }} user Користувач із JWT.
+ * @returns {Promise<string>} Багаторядковий контекст.
+ */
+async function buildContext(user) {
+  const [todayLine, scheduleBlock, clientBlock] = await Promise.all([
+    buildTodayLine(),
+    buildTodaySchedule(),
+    buildClientContext(user),
+  ]);
+
+  return [todayLine, scheduleBlock, clientBlock].filter(Boolean).join('\n\n');
+}
+
+/**
+ * Повертає рядок з поточною датою з БД (та сама, що й current_date
+ * у запитах розкладу) — без нього модель вгадує «сьогодні» і помиляється.
+ *
+ * @returns {Promise<string>}
+ */
+async function buildTodayLine() {
+  const result = await query(
+    `select to_char(current_date, 'DD.MM.YYYY') as human,
+            to_char(current_date, 'YYYY-MM-DD') as iso`
+  );
+  const { human, iso } = result.rows[0];
+  return `Сьогодні ${human} (${iso}).`;
+}
+
+/**
+ * Формує розклад занять на сьогодні з БД: час, назва, тренер, вільні
+ * місця. Саме цих даних бракувало моделі, коли вона вигадувала заняття.
+ *
+ * @returns {Promise<string>}
+ */
+async function buildTodaySchedule() {
+  const result = await query(
+    `select sc.time, w.name as workout, u.name as trainer, w.max_clients,
+            (select count(*) from bookings b
+             where b.schedule_id = sc.id and b.status = 'active') as booked
+     from schedules sc
+     join workouts w on w.id = sc.workout_id
+     left join trainers t on t.id = sc.trainer_id
+     left join users u on u.id = t.user_id
+     where sc.date = current_date
+     order by sc.time
+     limit $1`,
+    [CONTEXT_SCHEDULE_LIMIT]
+  );
+
+  if (result.rows.length === 0) {
+    return 'Розклад на сьогодні: занять немає.';
+  }
+
+  const lines = ['Розклад на сьогодні:'];
+  for (const row of result.rows) {
+    const time = String(row.time).slice(0, 5);
+    const free = Math.max(0, Number(row.max_clients) - Number(row.booked));
+    const trainer = row.trainer ? `, тренер ${row.trainer}` : '';
+    lines.push(`- ${time} — ${row.workout}${trainer} (вільно ${free} місць).`);
+  }
+  return lines.join('\n');
+}
+
+/**
  * Збирає текстовий контекст клієнта з БД для системного промпта:
  * активний абонемент, найближчі бронювання, кількість відвідувань.
  * Для ролей, відмінних від client, повертає порожній рядок.
@@ -128,7 +212,7 @@ async function buildClientContext(user) {
   }
   const clientId = client.rows[0].id;
 
-  const [subscription, bookings, visits] = await Promise.all([
+  const [subscription, bookings, visits, anthropometry] = await Promise.all([
     query(
       `select coalesce(p.name, s.type) as plan_name, s.end_date
        from subscriptions s
@@ -156,6 +240,16 @@ async function buildClientContext(user) {
        where client_id = $1
          and visit_time >= current_date - make_interval(days => $2)`,
       [clientId, CONTEXT_VISITS_DAYS]
+    ),
+    // Останні два виміри — щоб можна було показати не лише поточні
+    // параметри, а й напрямок зміни (набір/втрата ваги, обхвати).
+    query(
+      `select recorded_at, weight, height, chest, waist, hips, bicep, thigh
+       from client_anthropometry
+       where client_id = $1
+       order by recorded_at desc, id desc
+       limit 2`,
+      [clientId]
     ),
   ]);
 
@@ -185,7 +279,61 @@ async function buildClientContext(user) {
     `- Відвідувань за останні ${CONTEXT_VISITS_DAYS} днів: ${visits.rows[0].total}.`
   );
 
+  if (anthropometry.rows.length > 0) {
+    lines.push(...describeAnthropometry(anthropometry.rows[0], anthropometry.rows[1]));
+  }
+
   return lines.join('\n');
+}
+
+/** Українські підписи показників антропометрії у порядку виводу. */
+const ANTHROPOMETRY_LABELS = {
+  weight: 'вага',
+  height: 'зріст',
+  chest: 'груди',
+  waist: 'талія',
+  hips: 'стегна',
+  bicep: 'біцепс',
+  thigh: 'стегно',
+};
+
+/**
+ * Формує рядки контексту з останнього антропометричного виміру.
+ * Якщо є попередній вимір — додає різницю (набір/втрата), щоб
+ * асистент бачив динаміку, а не лише поточний стан.
+ *
+ * @param {object} latest Останній запис client_anthropometry.
+ * @param {object|undefined} previous Попередній запис (може бути відсутній).
+ * @returns {string[]} Рядки для додавання в контекст.
+ */
+function describeAnthropometry(latest, previous) {
+  const date = new Date(latest.recorded_at).toISOString().slice(0, 10);
+  const parts = [];
+
+  for (const [field, label] of Object.entries(ANTHROPOMETRY_LABELS)) {
+    const value = latest[field];
+    if (value === null || value === undefined) {
+      continue;
+    }
+    const unit = field === 'height' ? 'см' : field === 'weight' ? 'кг' : 'см';
+
+    const previousValue = previous?.[field];
+    let delta = '';
+    if (previousValue !== null && previousValue !== undefined) {
+      const diff = Number(value) - Number(previousValue);
+      if (Math.abs(diff) >= 0.1) {
+        delta = ` (${diff > 0 ? '+' : ''}${diff.toFixed(1)} з попереднього виміру)`;
+      }
+    }
+
+    parts.push(`${label} ${value} ${unit}${delta}`);
+  }
+
+  if (parts.length === 0) {
+    return [];
+  }
+
+  return [`- Останній вимір тіла (${date}): ${parts.join(', ')}.`];
 }
 
 /**
@@ -249,8 +397,8 @@ router.post('/assistant', async (req, res, next) => {
   lastRequestAt.set(req.user.id, now);
 
   try {
-    const context = await buildClientContext(req.user);
-    const system = context ? `${SYSTEM_PROMPT}\n\n${context}` : SYSTEM_PROMPT;
+    const context = await buildContext(req.user);
+    const system = `${SYSTEM_PROMPT}\n\n${context}`;
     const reply = await generateReply([
       { role: 'system', content: system },
       ...history,

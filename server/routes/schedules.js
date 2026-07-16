@@ -53,24 +53,37 @@ async function getScheduleById(scheduleId) {
 }
 
 /**
- * Перевіряє, чи тренер уже зайнятий на іншому занятті в той самий день і час.
- * Один тренер не може одночасно проводити два заняття (бізнес-правило розкладу).
+ * Перевіряє, чи нове заняття тренера перетинається за часом з іншим його заняттям.
+ * Враховує тривалість обох занять: конфлікт є, якщо інтервали [start, start+duration)
+ * перекриваються (а не лише збігаються на початку).
  *
- * @param {number|null} trainerId — тренер, що призначається.
- * @param {string} date — дата заняття (YYYY-MM-DD).
- * @param {string} time — час заняття (HH:MM).
- * @param {number|null} [excludeId] — id запису, який слід виключити (для редагування).
- * @returns {Promise<boolean>} true, якщо є конфлікт за часом.
+ * @param {number|null} trainerId    — тренер, що призначається.
+ * @param {string}      date         — дата заняття (YYYY-MM-DD).
+ * @param {string}      time         — час початку нового заняття (HH:MM або HH:MM:SS).
+ * @param {number|null} newWorkoutId — тип нового заняття (для визначення його тривалості).
+ * @param {number|null} [excludeId]  — id запису, що редагується (виключити зі звірки).
+ * @returns {Promise<boolean>} true, якщо є конфлікт.
  */
-async function trainerHasTimeConflict(trainerId, date, time, excludeId = null) {
-  if (!trainerId || !date || !time) return false;
+async function trainerHasTimeConflict(trainerId, date, time, newWorkoutId, excludeId = null) {
+  if (!trainerId || !date || !time || !newWorkoutId) return false;
 
-  const params = [trainerId, date, time];
-  let sql = `select 1 from schedules
-             where trainer_id = $1 and date = $2 and time = $3`;
+  // Інтервал нового заняття: [time, time + nw.duration_minutes)
+  // Інтервал існуючого заняття: [s.time, s.time + w.duration_minutes)
+  // Перекриття: existing_start < new_end AND existing_end > new_start
+  const params = [trainerId, date, time, newWorkoutId];
+  let sql = `
+    select 1 from schedules s
+    join workouts w  on w.id  = s.workout_id
+    join workouts nw on nw.id = $4
+    where s.trainer_id = $1
+      and s.date = $2
+      and s.time < ($3::time + (coalesce(nw.duration_minutes, 60) || ' minutes')::interval)
+      and (s.time + (coalesce(w.duration_minutes, 60) || ' minutes')::interval) > $3::time
+  `;
+
   if (excludeId) {
     params.push(excludeId);
-    sql += ' and id <> $4';
+    sql += ` and s.id <> $5`;
   }
 
   const result = await query(`${sql} limit 1`, params);
@@ -114,6 +127,7 @@ router.get('/', async (req, res) => {
   const result = await query(
     `select s.id, s.date, s.time, s.workout_id, w.name as workout_name,
             w.description as workout_description,
+            w.duration_minutes,
             s.trainer_id, u.name as trainer_name, w.max_clients,
             coalesce(b.booked, 0) as booked
      from schedules s
@@ -156,8 +170,10 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Trainer does not match workout specialization' });
   }
 
-  if (await trainerHasTimeConflict(trainerId, date, time)) {
-    return res.status(HTTP_CONFLICT).json({ error: 'Trainer is already booked at this time' });
+  if (await trainerHasTimeConflict(trainerId, date, time, workoutId)) {
+    return res.status(HTTP_CONFLICT).json({
+      error: 'Тренер вже проводить інше заняття в цей проміжок часу',
+    });
   }
 
   const result = await query(
@@ -228,8 +244,10 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   // Фактичні дата й час після оновлення (якщо не передані — лишаються поточні).
   const effectiveDate = date || existing.date;
   const effectiveTime = time || existing.time;
-  if (await trainerHasTimeConflict(trainerId, effectiveDate, effectiveTime, id)) {
-    return res.status(HTTP_CONFLICT).json({ error: 'Trainer is already booked at this time' });
+  if (await trainerHasTimeConflict(trainerId, effectiveDate, effectiveTime, targetWorkoutId, id)) {
+    return res.status(HTTP_CONFLICT).json({
+      error: 'Тренер вже проводить інше заняття в цей проміжок часу',
+    });
   }
 
   // Аудиторію збираємо ДО оновлення, а порівнюємо дату/час ПІСЛЯ —

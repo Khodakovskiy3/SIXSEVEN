@@ -26,7 +26,7 @@ router.use(authRequired);
 
 router.get('/', async (req, res) => {
   const result = await query(
-    `select id, name, description, max_clients, status, image_url
+    `select id, name, description, max_clients, duration_minutes, status, image_url
      from workouts
      order by id desc`
   );
@@ -38,6 +38,7 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
     name,
     description,
     max_clients: maxClients,
+    duration_minutes: durationMinutes,
     status,
     image_url: imageUrl,
   } = req.body || {};
@@ -46,10 +47,10 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
   }
 
   const result = await query(
-    `insert into workouts (name, description, max_clients, status, image_url)
-     values ($1, $2, $3, $4, $5)
-     returning id, name, description, max_clients, status, image_url`,
-    [name, description || null, maxClients, status || 'active', imageUrl || null]
+    `insert into workouts (name, description, max_clients, duration_minutes, status, image_url)
+     values ($1, $2, $3, $4, $5, $6)
+     returning id, name, description, max_clients, duration_minutes, status, image_url`,
+    [name, description || null, maxClients, durationMinutes || 60, status || 'active', imageUrl || null]
   );
 
   return res.status(HTTP_CREATED).json(result.rows[0]);
@@ -61,20 +62,22 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
     name,
     description,
     max_clients: maxClients,
+    duration_minutes: durationMinutes,
     status,
     image_url: imageUrl,
   } = req.body || {};
 
   const result = await query(
     `update workouts
-     set name      = coalesce($1, name),
-         description = coalesce($2, description),
-         max_clients = coalesce($3, max_clients),
-         status     = coalesce($4, status),
-         image_url  = coalesce($5, image_url)
-     where id = $6
-     returning id, name, description, max_clients, status, image_url`,
-    [name || null, description || null, maxClients || null, status || null, imageUrl ?? null, id]
+     set name             = coalesce($1, name),
+         description      = coalesce($2, description),
+         max_clients      = coalesce($3, max_clients),
+         duration_minutes = coalesce($4, duration_minutes),
+         status           = coalesce($5, status),
+         image_url        = coalesce($6, image_url)
+     where id = $7
+     returning id, name, description, max_clients, duration_minutes, status, image_url`,
+    [name || null, description || null, maxClients || null, durationMinutes || null, status || null, imageUrl ?? null, id]
   );
 
   if (result.rows.length === 0) {

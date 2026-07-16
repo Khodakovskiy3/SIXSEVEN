@@ -65,6 +65,23 @@ export const ROLE = Object.freeze({
 /** Перелік допустимих ролей як масив (для валідації input). */
 export const VALID_ROLES = Object.values(ROLE);
 
+/**
+ * Ролі, для яких двофакторна автентифікація обов'язкова.
+ * Для цих ролей 2FA примусово увімкнена: код надсилається під час кожного
+ * входу незалежно від прапорця users.twofa_enabled, і вимкнути її не можна.
+ */
+export const MANDATORY_2FA_ROLES = Object.freeze([ROLE.ADMIN, ROLE.MANAGER]);
+
+/**
+ * Чи вимагає роль обов'язкової 2FA.
+ *
+ * @param {string} role — роль користувача (ROLE.*).
+ * @returns {boolean} true, якщо для ролі 2FA примусова.
+ */
+export function isMandatory2faRole(role) {
+  return MANDATORY_2FA_ROLES.includes(role);
+}
+
 /** Статуси абонемента. */
 export const SUBSCRIPTION_STATUS = Object.freeze({
   ACTIVE: 'active',

@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:15-alpine
@@ -8,7 +6,17 @@ services:
       POSTGRES_DB: sports_club_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${PGPASSWORD}
+<<<<<<< HEAD
     ports:
+=======
+    # TZ/PGTZ офіційним образом Postgres для часу в логах НЕ використовуються
+    # (PGTZ — це лише для клієнтських бібліотек libpq). Час логів керується
+    # параметром log_timezone, тому передаємо його явно як аргумент сервера.
+    command: ["postgres", "-c", "log_timezone=Europe/Kyiv"]
+    ports:
+      # Проброс на хост потрібен, коли сервер (npm run dev) запускається
+      # НЕ в Docker, а напряму на машині розробника.
+>>>>>>> 367d1186bbb639ab19ef5481013738a7f0c90667
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -30,12 +38,30 @@ services:
       # Усередині compose-мережі БД доступна за іменем сервісу,
       # тому PGHOST з .env (localhost) перевизначається.
       PGHOST: db
-      # Ollama працює нативно на хості (Docker на macOS не має доступу
-      # до GPU/Metal), тому з контейнера звертаємось через host-шлюз.
-      OLLAMA_URL: http://host.docker.internal:11434
+      # За замовчуванням Ollama працює нативно на хості (Docker на macOS
+      # не має доступу до GPU/Metal), тому йдемо через host-шлюз.
+      # Для повністю контейнерного запуску (profile "ollama") задайте
+      # у .env: OLLAMA_DOCKER_URL=http://ollama:11434
+      OLLAMA_URL: ${OLLAMA_DOCKER_URL:-http://host.docker.internal:11434}
     depends_on:
       db:
         condition: service_healthy
 
+  # АІ-асистент у контейнері — опціонально (docker compose --profile ollama up).
+  # На macOS працює лише на CPU, тому для розробки швидша нативна Ollama;
+  # профіль призначений насамперед для деплою на Linux-сервер.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    restart: unless-stopped
+    volumes:
+      # Завантажені моделі переживають перезапуск контейнера.
+      - ollama_models:/root/.ollama
+    # Стандартний entrypoint лише піднімає сервер; нам треба ще й
+    # автоматично завантажити модель при першому старті.
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama serve & sleep 5 && ollama pull ${OLLAMA_MODEL:-qwen3:8b}; wait"]
+
 volumes:
   postgres_data:
+  ollama_models:

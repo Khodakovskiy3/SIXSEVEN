@@ -183,13 +183,225 @@ p {
 .next-training {
     border-top: 2px solid var(--accent);
     background:
-        radial-gradient(ellipse at 5% 0%, rgba(232,80,2,0.20) 0%, transparent 60%),
+        radial-gradient(ellipse at 2% 50%, rgba(232,80,2,0.18) 0%, transparent 50%),
+        radial-gradient(ellipse at 98% 50%, rgba(232,80,2,0.06) 0%, transparent 40%),
         var(--surface);
     box-shadow: var(--shadow), inset 0 1px 0 rgba(232,80,2,0.18);
 }
 
+/* Іконка-аватар для порожнього стану */
+.next-icon-wrap {
+    width: 46px;
+    height: 46px;
+    border-radius: 12px;
+    background: rgba(232,80,2,0.12);
+    border: 1px solid rgba(232,80,2,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: var(--accent);
+}
+
+/* Текстовий блок (назва + підпис) */
+.next-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.next-info h2 {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 2px;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.next-info p {
+    color: var(--muted);
+    font-size: 12px;
+    margin: 0;
+}
+
+.next-dur {
+    display: inline-block;
+    background: rgba(232,80,2,0.12);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 5px;
+    padding: 1px 6px;
+    vertical-align: middle;
+}
+
+/* Бейдж дата/час тренування */
+.next-time-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    background: var(--accent);
+    border-radius: 12px;
+    padding: 8px 14px;
+    flex-shrink: 0;
+    min-width: 72px;
+    text-align: center;
+}
+
+.next-day {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.75);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1;
+}
+
+.next-hour {
+    font-size: 20px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: -0.03em;
+    line-height: 1;
+}
+
 .club-news {
     border-color: var(--line);
+}
+
+/* ═══════════════════════════════════════
+   АНТРОПОМЕТРІЯ — картка на дашборді
+═══════════════════════════════════════ */
+.anthro-card {
+    border-top: 2px solid var(--accent);
+    background:
+        radial-gradient(ellipse at 96% 4%, rgba(232,80,2,0.13) 0%, transparent 55%),
+        var(--surface);
+}
+
+#home-anthro-widget {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.anthro-home-date {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin: 0 0 10px;
+}
+
+.anthro-home-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 7px;
+    flex: 1;
+}
+
+.anthro-home-stat {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    position: relative;
+    overflow: hidden;
+}
+
+.anthro-home-val {
+    font-size: 21px;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    color: var(--text);
+    line-height: 1;
+}
+
+.anthro-home-unit {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0;
+}
+
+.anthro-home-lbl {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    line-height: 1;
+}
+
+.anthro-home-delta {
+    position: absolute;
+    top: 8px;
+    right: 9px;
+    font-size: 10px;
+    font-weight: 800;
+    border-radius: 6px;
+    padding: 2px 6px;
+}
+
+.anthro-delta--down {
+    color: #2dc87a;
+    background: rgba(45,200,122,0.13);
+}
+
+.anthro-delta--up {
+    color: #e85002;
+    background: rgba(232,80,2,0.13);
+}
+
+.anthro-delta--same {
+    color: var(--muted);
+    background: rgba(128,128,128,0.1);
+}
+
+.anthro-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 10px;
+    padding: 7px 13px;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    align-self: flex-start;
+    transition: opacity 0.18s, transform 0.14s;
+    letter-spacing: 0.01em;
+}
+
+.anthro-add-btn:hover {
+    opacity: 0.85;
+    transform: translateY(-1px);
+}
+
+.anthro-home-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px;
+    text-align: center;
+}
+
+.anthro-home-empty p {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0;
 }
 
 .today-schedule {
@@ -1873,7 +2085,51 @@ dd {
 
     [data-screen-panel="home"] .dashboard-grid {
         flex: 1;
-        grid-template-rows: minmax(170px, 1fr) minmax(280px, 2fr);
+        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-rows: auto 1fr;
+        grid-template-areas:
+            "next  next  next"
+            "sub   anth  sched";
+    }
+
+    .next-training     { grid-area: next;  flex-direction: row; align-items: center; gap: 20px; padding: 18px 24px; min-height: 96px; }
+    .subscription-card { grid-area: sub;   }
+    .anthro-card       { grid-area: anth;  align-self: start; }
+    .today-schedule    { grid-area: sched; }
+
+    /* Next-training як горизонтальний банер */
+    .next-training .section-label {
+        display: none;
+    }
+
+    .next-training #client-next-training {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        justify-content: space-between;
+    }
+
+    .next-training h2 {
+        font-size: 22px;
+        margin-bottom: 3px;
+    }
+
+    .next-training p {
+        font-size: 13px;
+    }
+
+    .next-training .panel-icon {
+        width: 48px;
+        height: 48px;
+        flex-shrink: 0;
+    }
+
+    .next-training .training-main {
+        flex: 1;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
     }
 
     .topbar {
@@ -1899,7 +2155,6 @@ dd {
     }
 
     .dashboard-grid {
-        grid-template-columns: 1.2fr 1fr;
         gap: 14px;
     }
 
@@ -1911,14 +2166,6 @@ dd {
         margin-bottom: 14px;
     }
 
-    /* Next training fills height, content centered vertically */
-    .next-training #client-next-training {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-
     .next-training h2 {
         font-size: 30px;
     }
@@ -1926,6 +2173,46 @@ dd {
     /* Subscription card fills height */
     .subscription-card #client-subscription-summary {
         flex: 1;
+    }
+
+    /* Anthro card на десктопі — компактні тайли, не розтягуються */
+    #home-anthro-widget {
+        flex: none;
+    }
+
+    .anthro-home-stats {
+        gap: 8px;
+        flex: none;
+    }
+
+    .anthro-home-stat {
+        padding: 11px 13px 10px;
+        min-height: 0;
+    }
+
+    .anthro-home-val {
+        font-size: 22px;
+    }
+
+    .anthro-add-btn {
+        padding: 8px 14px;
+        font-size: 12px;
+        margin-top: 11px;
+    }
+
+    /* next-training: займає всю висоту лівої колонки */
+    .next-training #client-next-training {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    /* today-schedule: займає всю висоту */
+    .today-schedule #client-today-list {
+        flex: 1;
+        overflow-y: auto;
+        scrollbar-width: none;
     }
 
     /* today-schedule compact class cards */
@@ -2021,13 +2308,6 @@ dd {
         padding: 14px 16px;
     }
 
-    /* today-schedule sits in the right column, timeline scrolls if full */
-    .today-schedule #client-today-list {
-        flex: 1;
-        overflow-y: auto;
-        scrollbar-width: none;
-    }
-
     /* club-news fills its column fully */
     .club-news {
         align-items: stretch;
@@ -2065,6 +2345,81 @@ dd {
     .modal {
         margin: 0;
     }
+}
+
+/* ── Планшет: 2-колоночна сітка дашборду (580–899px) ── */
+@media (min-width: 580px) and (max-width: 899px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+
+    /* next-training компактний горизонтальний банер */
+    .next-training {
+        grid-column: 1 / -1;
+        flex-direction: row;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 18px;
+        min-height: 80px;
+    }
+
+    .next-training .section-label { display: none; }
+
+    .next-training #client-next-training {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+    }
+
+    .today-schedule {
+        grid-column: 1 / -1;
+    }
+
+    .subscription-card,
+    .anthro-card {
+        grid-column: auto;
+    }
+
+    .anthro-home-stats {
+        grid-template-columns: repeat(2, 1fr);
+        flex: none;
+    }
+
+    #home-anthro-widget {
+        flex: none;
+    }
+}
+
+/* ── Мобільний: next-training вертикальний ── */
+@media (max-width: 579px) {
+    .next-training {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .next-training #client-next-training {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .next-training .training-main,
+    .next-time-badge {
+        width: 100%;
+    }
+
+    .next-time-badge {
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 10px;
+        padding: 10px 14px;
+    }
+
+    .next-hour { font-size: 22px; }
 }
 
 /* ── Розклад: нові картки (стиль адміна) ────────────────────────────────── */

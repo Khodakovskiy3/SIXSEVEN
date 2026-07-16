@@ -5,3 +5,8 @@ node_modules/
 *.zip
 server-run.*
 .claude/settings.local.json
+.claude
+CLAUDE.md
+graphify-out/
+*.docx
+docx

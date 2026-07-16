@@ -2748,6 +2748,20 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.sched-duration {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface-2, rgba(128,128,128,0.1));
+    border-radius: 5px;
+    padding: 1px 6px;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 .sched-card-meta {
     display: flex;
@@ -3966,67 +3980,4 @@
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
-}
-
-/* ════════════════════════════════════════
-   ВІКНО ПІДТВЕРДЖЕННЯ: компактний розмір
-   ════════════════════════════════════════ */
-/* Коротке питання не потребує повної ширини форми — прибираємо
-   порожнє місце і притискаємо кнопки праворуч. */
-.admin-modal.modal--confirm {
-    width: min(400px, calc(100vw - 32px));
-}
-
-.admin-modal.modal--confirm .modal-actions {
-    justify-content: flex-end;
-    margin-top: 4px;
-}
-
-/* ════════════════════════════════════════
-   ВИБІР ОТРИМУВАЧІВ У ФОРМІ ПОВІДОМЛЕННЯ
-   ════════════════════════════════════════ */
-.recipients-hint {
-    font-size: 12px;
-    color: var(--muted, #b3b3bd);
-    margin-bottom: 8px;
-}
-
-.recipient-list {
-    max-height: 180px;
-    overflow-y: auto;
-    border: 1px solid var(--line, rgba(255, 255, 255, 0.14));
-    border-radius: var(--radius);
-    padding: 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--accent) transparent;
-}
-
-/* Подвійний селектор перебиває загальний .admin-form label,
-   який розкладає вміст label у стовпчик. */
-.admin-form .recipient-item,
-.recipient-item {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 10px;
-    padding: 7px 10px;
-    margin: 0;
-    border-radius: 8px;
-    font-size: 13px;
-    cursor: pointer;
-    transition: background 0.12s;
-}
-
-.recipient-item:hover {
-    background: rgba(255, 255, 255, 0.06);
-}
-
-.recipient-item input {
-    accent-color: var(--accent, #e85002);
-    width: 15px;
-    height: 15px;
-    flex-shrink: 0;
 }

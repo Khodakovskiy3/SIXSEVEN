@@ -483,7 +483,10 @@ function renderScheduleDayList() {
           <span>${formatTime(schedule.time)}</span>
         </div>
         <div class="sched-card-body">
-          <div class="sched-card-title">${escapeHtml(schedule.workout_name || '—')}</div>
+          <div class="sched-card-title">
+            ${escapeHtml(schedule.workout_name || '—')}
+            ${schedule.duration_minutes ? `<span class="sched-duration">${schedule.duration_minutes} хв</span>` : ''}
+          </div>
           <div class="sched-card-meta">
             <div class="client-avatar" style="background:${trainerColor};width:20px;height:20px;font-size:8px;flex-shrink:0">${escapeHtml(trainerInitials)}</div>
             <span>${escapeHtml(schedule.trainer_name || 'Тренер не призначений')}</span>
@@ -846,6 +849,7 @@ function _buildAdminSvcCard(service, globalIndex) {
   const capacity = Number(service.max_clients) > 1
     ? `До ${escapeHtml(String(service.max_clients))} осіб`
     : 'Індивідуально';
+  const duration = service.duration_minutes ? `${service.duration_minutes} хв` : '';
   const statusLabel = isActive ? '● Активна' : '● Неактивна';
 
   return `
@@ -870,7 +874,10 @@ function _buildAdminSvcCard(service, globalIndex) {
       <div class="svc-card__body">
         <h3 class="svc-card__title">${escapeHtml(service.name)}</h3>
         <p class="svc-card__desc">${escapeHtml(service.description || 'Опис не вказано')}</p>
-        <div class="svc-card__chips"><span>${capacity}</span></div>
+        <div class="svc-card__chips">
+          <span>${capacity}</span>
+          ${duration ? `<span>⏱ ${duration}</span>` : ''}
+        </div>
       </div>
     </article>
   `;
@@ -1616,6 +1623,9 @@ function renderServiceForm(service = null) {
       <label>Максимальна кількість клієнтів
         <input name="max_clients" type="number" min="1" required value="${escapeHtml(service?.max_clients || 10)}">
       </label>
+      <label>Тривалість заняття, хв
+        <input name="duration_minutes" type="number" min="5" max="480" required value="${escapeHtml(service?.duration_minutes || 60)}">
+      </label>
       <div class="image-upload-field">
         <div class="img-drop-zone" id="img-drop-zone">
           ${service?.image_url
@@ -2085,6 +2095,7 @@ async function saveService(form) {
     name: formData.get('name')?.trim(),
     description: formData.get('description')?.trim(),
     max_clients: Number(formData.get('max_clients')),
+    duration_minutes: Number(formData.get('duration_minutes')) || 60,
     status: formData.get('status'),
     image_url: formData.get('image_url')?.trim() || null,
   };
@@ -2374,10 +2385,38 @@ document.querySelectorAll('[data-screen], [data-screen-link]').forEach((button) 
   });
 });
 
+/**
+ * Діалог підтвердження виходу з кабінету.
+ * @returns {Promise<boolean>}
+ */
+function showLogoutConfirm() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'custom-confirm-overlay';
+    overlay.innerHTML = `
+      <div class="custom-confirm-box">
+        <p class="custom-confirm-msg">Вийти з кабінету?</p>
+        <div class="custom-confirm-actions">
+          <button class="ghost-btn custom-confirm-cancel">Скасувати</button>
+          <button class="primary-btn custom-confirm-ok">Вийти</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const cleanup = (result) => { overlay.remove(); resolve(result); };
+    overlay.querySelector('.custom-confirm-ok').addEventListener('click', () => cleanup(true));
+    overlay.querySelector('.custom-confirm-cancel').addEventListener('click', () => cleanup(false));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); });
+  });
+}
+
 document.querySelectorAll('.logout, .logout-row').forEach((button) => {
   button.addEventListener('click', () => {
-    clearAuth();
-    window.location.href = PAGE.HOME;
+    showLogoutConfirm().then((confirmed) => {
+      if (!confirmed) return;
+      clearAuth();
+      window.location.href = PAGE.HOME;
+    });
   });
 });
 
