@@ -12,3 +12,4 @@ graphify-out/
 *.docx
 docx
 .graphifyignore
+AGENTS.md
