@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { query } from '../db.js';
+import { logError } from '../utils/logger.js';
 
 const router = Router();
 
@@ -94,7 +95,7 @@ router.get('/schedules', async (req, res) => {
     `);
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
+    logError('Помилка публічного маршруту', err, { path: req.originalUrl });
     res.status(500).json([]);
   }
 });

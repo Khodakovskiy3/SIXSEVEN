@@ -11,11 +11,13 @@
 import { Router } from 'express';
 
 import { query, withClient } from '../db.js';
+import { logError } from '../utils/logger.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import { getClientIdByUserId } from '../utils/identity.js';
 import { notifyUsers } from '../utils/notify.js';
 import {
   BOOKING_STATUS,
+  CLUB_TIMEZONE,
   HTTP_BAD_REQUEST,
   HTTP_CONFLICT,
   HTTP_CREATED,
@@ -90,16 +92,19 @@ router.get(
       }
     }
 
+    // «Присутній» не зберігається окремо: скасування бронювання видаляє рядок,
+    // тож наявний запис = не скасований. Клієнт вважається присутнім, якщо час
+    // початку заняття вже минув. Настінний час заняття інтерпретуємо в зоні клубу.
     const result = await query(
       `select b.id, b.status, b.client_id, u.name as client_name,
-              v.id as visit_id
+              ((s.date + s.time) at time zone $2 <= now()) as attended
        from bookings b
        join clients c on c.id = b.client_id
        join users u on u.id = c.user_id
-       left join visits v on v.client_id = b.client_id and v.schedule_id = b.schedule_id
+       join schedules s on s.id = b.schedule_id
        where b.schedule_id = $1
        order by u.name asc`,
-      [id]
+      [id, CLUB_TIMEZONE]
     );
     return res.json(result.rows);
   }
@@ -217,6 +222,7 @@ router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
     if (error.code === PG_UNIQUE_VIOLATION) {
       return res.status(HTTP_CONFLICT).json({ error: 'Already booked' });
     }
+    logError('Помилка створення бронювання', error, { userId: req.user?.id });
     return res.status(HTTP_SERVER_ERROR).json({ error: 'Booking failed' });
   }
 });

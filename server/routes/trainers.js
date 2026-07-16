@@ -12,9 +12,11 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 
 import { query, withClient } from '../db.js';
+import { logError } from '../utils/logger.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import {
   BCRYPT_SALT_ROUNDS,
+  CLUB_TIMEZONE,
   HTTP_BAD_REQUEST,
   HTTP_CONFLICT,
   HTTP_CREATED,
@@ -171,7 +173,8 @@ router.post('/from-client', requireRole(ROLE.ADMIN), async (req, res) => {
     }
 
     return res.status(HTTP_CREATED).json(promoted);
-  } catch {
+  } catch (error) {
+    logError('Помилка підвищення клієнта до тренера', error, { actorId: req.user?.id });
     return res.status(HTTP_SERVER_ERROR).json({ error: 'Trainer promotion failed' });
   }
 });
@@ -222,6 +225,7 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
     if (error.code === PG_UNIQUE_VIOLATION) {
       return res.status(HTTP_CONFLICT).json({ error: 'Email already registered' });
     }
+    logError('Помилка створення тренера', error, { actorId: req.user?.id });
     return res.status(HTTP_SERVER_ERROR).json({ error: 'Trainer creation failed' });
   }
 });
@@ -341,7 +345,7 @@ router.get('/me', authRequired, requireRole(ROLE.TRAINER), async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error(error);
+    logError('Помилка у trainers-маршруті', error, { path: req.originalUrl });
 
     res.status(500).json({
       error: 'Помилка отримання тренера',
@@ -398,7 +402,7 @@ router.get('/me/schedule', authRequired, requireRole(ROLE.TRAINER), async (req, 
 
     res.json(result.rows);
   } catch (error) {
-    console.error(error);
+    logError('Помилка у trainers-маршруті', error, { path: req.originalUrl });
 
     res.status(500).json({
       error: 'Помилка отримання розкладу тренера',
@@ -453,7 +457,7 @@ router.get('/me/schedule/:id/clients', authRequired, requireRole(ROLE.TRAINER), 
 
     res.json(result.rows);
   } catch (error) {
-    console.error(error);
+    logError('Помилка у trainers-маршруті', error, { path: req.originalUrl });
 
     res.status(500).json({
       error: 'Помилка отримання клієнтів заняття',
@@ -469,31 +473,33 @@ router.get('/me/schedule/:id/clients', authRequired, requireRole(ROLE.TRAINER), 
 
 router.get('/me/visits', authRequired, requireRole(ROLE.TRAINER), async (req, res) => {
   try {
+    // Історія відвідувань занять тренера виводиться з бронювань: клієнт вважається
+    // присутнім, якщо бронювання не скасовано (рядок існує) і час заняття вже минув.
     const result = await query(
       `
       select
-        v.id,
-        v.visit_time,
+        b.id,
         u.name as client_name,
         w.name as workout_name,
         s.date,
         s.time
-      from visits v
-      join clients c on c.id = v.client_id
+      from bookings b
+      join schedules s on s.id = b.schedule_id
+      join trainers t on t.id = s.trainer_id
+      join clients c on c.id = b.client_id
       join users u on u.id = c.user_id
-      left join schedules s on s.id = v.schedule_id
-      left join workouts w on w.id = s.workout_id
-      left join trainers t on t.id = s.trainer_id
+      join workouts w on w.id = s.workout_id
       where t.user_id = $1
-      order by v.visit_time desc
+        and (s.date + s.time) at time zone $2 <= now()
+      order by s.date desc, s.time desc
       limit 30
       `,
-      [req.user.id]
+      [req.user.id, CLUB_TIMEZONE]
     );
 
     res.json(result.rows);
   } catch (error) {
-    console.error(error);
+    logError('Помилка у trainers-маршруті', error, { path: req.originalUrl });
 
     res.status(500).json({
       error: 'Помилка отримання історії відвідувань',
@@ -541,7 +547,7 @@ router.get('/me/notifications', authRequired, requireRole(ROLE.TRAINER), async (
 
     res.json(notifications);
   } catch (error) {
-    console.error(error);
+    logError('Помилка у trainers-маршруті', error, { path: req.originalUrl });
 
     res.status(500).json({
       error: 'Помилка отримання сповіщень',
@@ -572,7 +578,7 @@ router.get('/me/client-notes', requireRole(ROLE.TRAINER), async (req, res) => {
     );
     return res.json(result.rows);
   } catch (error) {
-    console.error(error);
+    logError('Помилка у trainers-маршруті', error, { path: req.originalUrl });
     return res.status(HTTP_SERVER_ERROR).json({ error: 'Failed to load notes' });
   }
 });
@@ -610,7 +616,7 @@ router.put('/me/client-notes/:clientId', requireRole(ROLE.TRAINER), async (req, 
     );
     return res.json(result.rows[0]);
   } catch (error) {
-    console.error(error);
+    logError('Помилка у trainers-маршруті', error, { path: req.originalUrl });
     return res.status(HTTP_SERVER_ERROR).json({ error: 'Failed to save note' });
   }
 });

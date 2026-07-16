@@ -616,3 +616,9 @@ function initCountUp() {
 
 initCountUp();
 loadHomeData();
+
+// Довідка для гостя. home.js — класичний скрипт, тож підключаємо модуль
+// динамічним імпортом за абсолютним шляхом (щоб не залежати від теки сторінки).
+import('/js/help-widget.js')
+  .then((module) => module.initHelpWidget('guest'))
+  .catch(() => { /* довідка необов'язкова — тихо ігноруємо збій завантаження */ });

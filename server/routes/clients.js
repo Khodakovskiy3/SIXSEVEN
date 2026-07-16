@@ -12,6 +12,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 
 import { query, withClient } from '../db.js';
+import { logError } from '../utils/logger.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import { getClientIdByUserId } from '../utils/identity.js';
 import {
@@ -146,6 +147,7 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
     if (error.code === PG_UNIQUE_VIOLATION) {
       return res.status(HTTP_CONFLICT).json({ error: 'Email already registered' });
     }
+    logError('Помилка створення клієнта', error, { userId: req.user?.id });
     return res.status(HTTP_SERVER_ERROR).json({ error: 'Client creation failed' });
   }
 });
@@ -215,8 +217,9 @@ router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
     return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
   }
 
-  // payments не має ON DELETE CASCADE, тому видаляємо вручну перед видаленням юзера
-  await query('delete from payments where client_id = $1', [id]);
+  // Оплати навмисно НЕ видаляємо: FK payments.client_id має ON DELETE SET NULL
+  // (міграція 020), тож фінансова історія лишається у звітах, а запис оплати
+  // просто відв'язується від видаленого клієнта.
   await query('delete from users where id = $1', [current.rows[0].user_id]);
   return res.json({ ok: true });
 });

@@ -372,6 +372,20 @@ router.post('/purchase', requireRole(ROLE.CLIENT), async (req, res) => {
   const purchased = await withClient(async (client) => {
     await client.query('begin');
 
+    // Правило: новий абонемент можна придбати лише за відсутності чинного.
+    // Клієнт повинен спершу скасувати активний абонемент. Перевірка в межах
+    // транзакції захищає від подвійної покупки при паралельних запитах.
+    const activeResult = await client.query(
+      `select id from subscriptions
+       where client_id = $1 and status = $2 and end_date >= current_date
+       limit 1`,
+      [clientId, SUBSCRIPTION_STATUS.ACTIVE]
+    );
+    if (activeResult.rows.length > 0) {
+      await client.query('rollback');
+      return { reason: 'active_exists' };
+    }
+
     const planResult = await client.query(
       `select id, name, plan_type, duration_days, price, status
        from subscription_plans
@@ -381,7 +395,7 @@ router.post('/purchase', requireRole(ROLE.CLIENT), async (req, res) => {
     const plan = planResult.rows[0];
     if (!plan || plan.status !== PLAN_STATUS.ACTIVE) {
       await client.query('rollback');
-      return null;
+      return { reason: 'plan_unavailable' };
     }
 
     const end = new Date(today);
@@ -413,14 +427,22 @@ router.post('/purchase', requireRole(ROLE.CLIENT), async (req, res) => {
     );
 
     await client.query('commit');
-    return { subscription, payment: paymentResult.rows[0] };
+    return { reason: 'ok', subscription, payment: paymentResult.rows[0] };
   });
 
-  if (!purchased) {
+  if (purchased.reason === 'active_exists') {
+    return res.status(HTTP_CONFLICT).json({
+      error: 'У вас вже є активний абонемент. Спершу скасуйте його, щоб придбати новий.',
+    });
+  }
+  if (purchased.reason !== 'ok') {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Plan is not available' });
   }
 
-  return res.status(HTTP_CREATED).json(purchased);
+  return res.status(HTTP_CREATED).json({
+    subscription: purchased.subscription,
+    payment: purchased.payment,
+  });
 });
 
 router.get('/me', requireRole(ROLE.CLIENT), async (req, res) => {

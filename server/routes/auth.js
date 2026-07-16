@@ -15,6 +15,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 
 import { query, withClient } from '../db.js';
+import { logError } from '../utils/logger.js';
 import { authRequired, signToken } from '../middleware/auth.js';
 import { issueCode, verifyCode, getResendWaitSeconds, generateCode } from '../utils/otp.js';
 import { sendOtpEmail, isMailConfigured } from '../utils/mailer.js';
@@ -285,7 +286,7 @@ router.post('/register', async (req, res) => {
     // Надсилання листа не блокує відповідь: код уже збережено, тож одразу
     // переходимо до кроку вводу коду, а лист летить у фоні.
     sendOtpEmail(emailLc, code, OTP_PURPOSE.ENABLE_2FA)
-      .catch((e) => console.error('[2FA] помилка надсилання листа реєстрації:', e.message));
+      .catch((e) => logError('[2FA] помилка надсилання листа реєстрації', e));
     return res.json({
       twofaRequired: true,
       email: emailLc,
@@ -294,6 +295,7 @@ router.post('/register', async (req, res) => {
       ...(isMailConfigured ? {} : { devCode: code }),
     });
   } catch (error) {
+    logError('Помилка реєстрації користувача', error, { email: emailLc });
     return res.status(HTTP_SERVER_ERROR).json({ error: 'Registration failed' });
   }
 });
@@ -346,6 +348,7 @@ router.post('/register/verify', async (req, res) => {
       await query('delete from pending_registrations where id = $1', [pending.id]);
       return res.status(HTTP_CONFLICT).json({ error: 'Цей email вже зареєстрований' });
     }
+    logError('Помилка підтвердження реєстрації', error, { email: emailLc });
     return res.status(HTTP_SERVER_ERROR).json({ error: 'Registration failed' });
   }
 });
@@ -384,7 +387,7 @@ router.post('/register/resend', async (req, res) => {
     role: pending.role,
   });
   sendOtpEmail(emailLc, code, OTP_PURPOSE.ENABLE_2FA)
-    .catch((e) => console.error('[2FA] помилка повторного надсилання листа:', e.message));
+    .catch((e) => logError('[2FA] помилка повторного надсилання листа', e));
   return res.json({
     ok: true,
     email: emailLc,
@@ -434,7 +437,7 @@ router.post('/login', async (req, res) => {
 
     const code = await issueCode(user.id, OTP_PURPOSE.LOGIN);
     sendOtpEmail(user.email, code, OTP_PURPOSE.LOGIN)
-      .catch((e) => console.error('[2FA] помилка надсилання листа входу:', e.message));
+      .catch((e) => logError('[2FA] помилка надсилання листа входу', e));
     return res.json({
       twofaRequired: true,
       email: user.email,
@@ -489,7 +492,7 @@ router.post('/2fa/request', authRequired, async (req, res) => {
 
   const code = await issueCode(req.user.id, OTP_PURPOSE.ENABLE_2FA);
   sendOtpEmail(req.user.email, code, OTP_PURPOSE.ENABLE_2FA)
-    .catch((e) => console.error('[2FA] помилка надсилання листа увімкнення 2FA:', e.message));
+    .catch((e) => logError('[2FA] помилка надсилання листа увімкнення 2FA', e));
   return res.json({
     ok: true,
     sentTo: req.user.email,

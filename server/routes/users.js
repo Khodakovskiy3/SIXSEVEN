@@ -11,6 +11,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 
 import { query, withClient } from '../db.js';
+import { logError } from '../utils/logger.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import {
   BCRYPT_SALT_ROUNDS,
@@ -137,6 +138,7 @@ router.post('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
     if (error.code === PG_UNIQUE_VIOLATION) {
       return res.status(HTTP_CONFLICT).json({ error: 'Email already registered' });
     }
+    logError('Помилка створення користувача', error, { actorId: req.user?.id });
     return res.status(HTTP_SERVER_ERROR).json({ error: 'User creation failed' });
   }
 });

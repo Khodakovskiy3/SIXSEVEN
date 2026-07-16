@@ -12,6 +12,7 @@
 import { Router } from 'express';
 
 import { query } from '../db.js';
+import { logError } from '../utils/logger.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import {
   BOOKING_STATUS,
@@ -353,7 +354,7 @@ router.get('/manager', async (req, res) => {
     });
 
   } catch (error) {
-    console.error(error);
+    logError('Помилка формування звіту', error, { path: req.originalUrl });
 
     res.status(500).json({
       error: 'Помилка формування звіту менеджера',
@@ -385,7 +386,7 @@ router.get('/payments-list', authRequired, requireRole(ROLE.MANAGER, ROLE.ADMIN)
 
     res.json(result.rows);
   } catch (error) {
-    console.error(error);
+    logError('Помилка формування звіту', error, { path: req.originalUrl });
 
     res.status(500).json({
       error: 'Помилка отримання списку оплат',

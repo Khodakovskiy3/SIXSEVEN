@@ -32,6 +32,7 @@ import notificationsRoutes from './routes/notifications.js';
 import aiRoutes from './routes/ai.js';
 
 import { DEFAULT_HTTP_PORT, HTTP_SERVER_ERROR } from './utils/constants.js';
+import { logError } from './utils/logger.js';
 import { runMigrations } from './migrate.js';
 console.log('SERVER INDEX JS STARTED');
 dotenv.config();
@@ -102,7 +103,11 @@ app.use('/api/ai', aiRoutes);
 // саме обробник помилок.
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  console.error('Необроблена помилка запиту:', err);
+  logError('Необроблена помилка запиту', err, {
+    method: req.method,
+    path: req.originalUrl,
+    userId: req.user?.id,
+  });
   if (res.headersSent) {
     return next(err);
   }
@@ -112,11 +117,11 @@ app.use((err, req, res, next) => {
 // Підстраховка на рівні процесу: непередбачена відмова промісу чи виняток
 // в асинхронному обробнику не повинні «вбивати» сервер для всіх користувачів.
 process.on('unhandledRejection', (reason) => {
-  console.error('Необроблений reject промісу:', reason);
+  logError('Необроблений reject промісу', reason);
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('Необроблений виняток:', error);
+  logError('Необроблений виняток', error);
 });
 
 console.log('ROUTES REGISTERED');
@@ -128,7 +133,7 @@ runMigrations()
     });
   })
   .catch((err) => {
-    console.error('Не вдалося застосувати міграції:', err);
+    logError('Не вдалося застосувати міграції', err);
     process.exit(1);
   });
 

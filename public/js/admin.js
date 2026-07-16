@@ -559,7 +559,7 @@ async function openScheduleDetails(scheduleId) {
 
     attendeeList.innerHTML = activeAttendees.length
       ? activeAttendees
-        .map((item) => `<li>${escapeHtml(item.client_name)}${item.visit_id ? ' · відвідав' : ''}</li>`)
+        .map((item) => `<li>${escapeHtml(item.client_name)}${item.attended ? ' · відвідав' : ''}</li>`)
         .join('')
       : '<li>Ще ніхто не записався</li>';
   } catch (error) {

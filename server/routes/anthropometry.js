@@ -8,6 +8,7 @@
 
 import { Router } from 'express';
 import { query } from '../db.js';
+import { logError } from '../utils/logger.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import { getClientIdByUserId } from '../utils/identity.js';
 import {
@@ -63,7 +64,7 @@ router.get('/me', requireRole(ROLE.CLIENT), async (req, res) => {
     );
     return res.json(result.rows);
   } catch (err) {
-    console.error('[anthro GET /me]', err.message);
+    logError('[anthro GET /me]', err, { userId: req.user?.id });
     return res.status(HTTP_SERVER_ERROR).json({ error: err.message });
   }
 });
@@ -104,7 +105,7 @@ router.post('/me', requireRole(ROLE.CLIENT), async (req, res) => {
     console.log('[anthro POST] OK, id:', result.rows[0]?.id);
     return res.status(HTTP_CREATED).json(result.rows[0]);
   } catch (err) {
-    console.error('[anthro POST] ERROR:', err.message);
+    logError('[anthro POST]', err, { userId: req.user?.id });
     // Повертаємо реальну помилку, щоб було видно в UI
     return res.status(HTTP_SERVER_ERROR).json({ error: err.message });
   }
@@ -127,7 +128,7 @@ router.get('/client/:clientId', requireRole(ROLE.TRAINER), async (req, res) => {
     );
     return res.json(result.rows);
   } catch (err) {
-    console.error('[anthro GET /client]', err.message);
+    logError('[anthro GET /client]', err, { userId: req.user?.id });
     return res.status(HTTP_SERVER_ERROR).json({ error: err.message });
   }
 });
@@ -146,7 +147,7 @@ router.delete('/me/:id', requireRole(ROLE.CLIENT), async (req, res) => {
     if (result.rowCount === 0) return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
     return res.json({ ok: true });
   } catch (err) {
-    console.error('[anthro DELETE]', err.message);
+    logError('[anthro DELETE]', err, { userId: req.user?.id });
     return res.status(HTTP_SERVER_ERROR).json({ error: err.message });
   }
 });

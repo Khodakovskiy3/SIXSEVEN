@@ -8,6 +8,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { withClient } from './db.js';
+import { logError } from './utils/logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = join(__dirname, '..', 'db', 'migrations');
@@ -26,7 +27,7 @@ export async function runMigrations() {
         await client.query('commit');
       });
     } catch (error) {
-      console.error(`Міграція ${file} не вдалася:`, error.message);
+      logError(`Міграція ${file} не вдалася`, error);
       throw error;
     }
   }

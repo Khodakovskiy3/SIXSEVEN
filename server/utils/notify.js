@@ -8,6 +8,7 @@
  */
 
 import { query } from '../db.js';
+import { logError } from './logger.js';
 
 /**
  * Надсилає сповіщення переліченим користувачам.
@@ -42,6 +43,6 @@ export async function notifyUsers(userIds, subject, body = '') {
       [message.rows[0].id, ids]
     );
   } catch (error) {
-    console.error('Не вдалося створити системне сповіщення:', error.message);
+    logError('Не вдалося створити системне сповіщення', error);
   }
 }
