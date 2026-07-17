@@ -43,7 +43,7 @@ function isValidPhone(phone) {
 
 router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const result = await query(
-    `select c.id, u.id as user_id, u.name, u.email, c.phone,
+    `select c.id, u.id as user_id, u.name, u.email, u.phone,
             s.id as subscription_id,
             s.plan_id as subscription_plan_id,
             s.type as subscription_type,
@@ -79,7 +79,7 @@ router.get('/me', requireRole(ROLE.CLIENT), async (req, res) => {
   }
 
   const profile = await query(
-    `select c.id, u.name, u.email, c.phone
+    `select c.id, u.name, u.email, u.phone
      from clients c
      join users u on u.id = c.user_id
      where c.id = $1`,
@@ -117,28 +117,28 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
 
   try {
     // Створюємо users і clients у транзакції, щоб гарантувати атомарність.
+    // Телефон зберігається на users (єдине джерело — див. АУДИТ_БД.md П1).
     const created = await withClient(async (client) => {
       await client.query('begin');
       const userResult = await client.query(
-        `insert into users (name, email, password, role)
-         values ($1, $2, $3, 'client')
-         returning id, name, email, role`,
-        [name, email.toLowerCase(), passwordHash]
+        `insert into users (name, email, password, role, phone)
+         values ($1, $2, $3, 'client', $4)
+         returning id, name, email, role, phone`,
+        [name, email.toLowerCase(), passwordHash, normalizedPhone]
       );
 
       const user = userResult.rows[0];
       const clientResult = await client.query(
-        `insert into clients (user_id, phone)
-         values ($1, $2)
-         returning id, phone`,
-        [user.id, normalizedPhone]
+        `insert into clients (user_id)
+         values ($1)
+         returning id`,
+        [user.id]
       );
 
       await client.query('commit');
       return {
         ...user,
         client_id: clientResult.rows[0].id,
-        phone: clientResult.rows[0].phone,
       };
     });
 
@@ -160,12 +160,12 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid phone format' });
   }
 
-  // Оновлення зачіпає одразу дві таблиці (users + clients),
+  // Оновлення зачіпає users (ім'я, телефон) і потребує client_id з clients,
   // тому виконуємо його в транзакції.
   const updated = await withClient(async (client) => {
     await client.query('begin');
     const current = await client.query(
-      'select user_id from clients where id = $1',
+      'select id, user_id from clients where id = $1',
       [id]
     );
 
@@ -174,33 +174,21 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
       return null;
     }
 
-    const userId = current.rows[0].user_id;
-
-    await client.query(
-      `update users
-       set name = coalesce($1, name)
-       where id = $2`,
-      [name || null, userId]
-    );
-
-    const clientResult = await client.query(
-      `update clients
-       set phone = coalesce($1, phone)
-       where id = $2
-       returning id, phone`,
-      [normalizedPhone, id]
-    );
+    const { id: clientRowId, user_id: userId } = current.rows[0];
 
     const userResult = await client.query(
-      'select id, name, email, role from users where id = $1',
-      [userId]
+      `update users
+       set name = coalesce($1, name),
+           phone = coalesce($2, phone)
+       where id = $3
+       returning id, name, email, role, phone`,
+      [name || null, normalizedPhone, userId]
     );
 
     await client.query('commit');
     return {
       ...userResult.rows[0],
-      client_id: clientResult.rows[0].id,
-      phone: clientResult.rows[0].phone,
+      client_id: clientRowId,
     };
   });
 
@@ -217,9 +205,10 @@ router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
     return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
   }
 
-  // Оплати навмисно НЕ видаляємо: FK payments.client_id має ON DELETE SET NULL
-  // (міграція 020), тож фінансова історія лишається у звітах, а запис оплати
-  // просто відв'язується від видаленого клієнта.
+  // Оплати, підписки й візити навмисно НЕ видаляються: усі три FK мають
+  // ON DELETE SET NULL (payments — міграція 020, subscriptions — 026,
+  // visits — 024), тож фінансова й відвідувальна історія лишається у
+  // звітах, а записи просто відв'язуються від видаленого клієнта.
   await query('delete from users where id = $1', [current.rows[0].user_id]);
   return res.json({ ok: true });
 });
@@ -228,7 +217,7 @@ router.get('/:id', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const { id } = req.params;
 
   const clientResult = await query(
-    `select c.id, u.id as user_id, u.name, u.email, c.phone,
+    `select c.id, u.id as user_id, u.name, u.email, u.phone,
             s.id as subscription_id,
             s.plan_id as subscription_plan_id,
             s.type as subscription_type,

@@ -43,7 +43,7 @@ function isValidPhone(phone) {
 
 router.get('/me', requireRole(ROLE.TRAINER), async (req, res) => {
   const result = await query(
-    `select t.id, u.name, u.email, t.phone, t.specialization
+    `select t.id, u.name, u.email, u.phone, t.specialization
      from trainers t
      join users u on u.id = t.user_id
      where t.user_id = $1`,
@@ -58,7 +58,7 @@ router.get('/me', requireRole(ROLE.TRAINER), async (req, res) => {
 
 router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const result = await query(
-    `select t.id, u.id as user_id, u.name, u.email, t.phone, t.specialization,
+    `select t.id, u.id as user_id, u.name, u.email, u.phone, t.specialization,
             case
               when exists (
                 select 1
@@ -79,7 +79,7 @@ router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
 router.get('/:id', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const { id } = req.params;
   const trainerResult = await query(
-    `select t.id, u.id as user_id, u.name, u.email, t.phone, t.specialization,
+    `select t.id, u.id as user_id, u.name, u.email, u.phone, t.specialization,
             case
               when exists (
                 select 1
@@ -125,10 +125,12 @@ router.post('/from-client', requireRole(ROLE.ADMIN), async (req, res) => {
   }
 
   try {
+    // Телефон уже на users і не залежить від ролі — просування в тренери
+    // його не чіпає, лише додає доменний запис trainers.
     const promoted = await withClient(async (client) => {
       await client.query('begin');
       const current = await client.query(
-        `select c.id, c.user_id, c.phone, u.name, u.email
+        `select c.id, c.user_id, u.name, u.email, u.phone
          from clients c
          join users u on u.id = c.user_id
          where c.id = $1`,
@@ -147,13 +149,12 @@ router.post('/from-client', requireRole(ROLE.ADMIN), async (req, res) => {
       );
 
       const trainerResult = await client.query(
-        `insert into trainers (user_id, phone, specialization)
-         values ($1, $2, $3)
+        `insert into trainers (user_id, specialization)
+         values ($1, $2)
          on conflict (user_id) do update
-         set phone = coalesce(excluded.phone, trainers.phone),
-             specialization = coalesce(excluded.specialization, trainers.specialization)
-         returning id, phone, specialization`,
-        [user.user_id, user.phone || null, specialization || null]
+         set specialization = coalesce(excluded.specialization, trainers.specialization)
+         returning id, specialization`,
+        [user.user_id, specialization || null]
       );
 
       await client.query('commit');
@@ -163,7 +164,7 @@ router.post('/from-client', requireRole(ROLE.ADMIN), async (req, res) => {
         name: user.name,
         email: user.email,
         role: ROLE.TRAINER,
-        phone: trainerResult.rows[0].phone,
+        phone: user.phone,
         specialization: trainerResult.rows[0].specialization,
       };
     });
@@ -193,29 +194,28 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
   const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
   try {
-    // Створюємо users і trainers разом, у транзакції.
+    // Створюємо users і trainers разом, у транзакції. Телефон — на users.
     const created = await withClient(async (client) => {
       await client.query('begin');
       const userResult = await client.query(
-        `insert into users (name, email, password, role)
-         values ($1, $2, $3, 'trainer')
-         returning id, name, email, role`,
-        [name, email.toLowerCase(), passwordHash]
+        `insert into users (name, email, password, role, phone)
+         values ($1, $2, $3, 'trainer', $4)
+         returning id, name, email, role, phone`,
+        [name, email.toLowerCase(), passwordHash, normalizedPhone]
       );
 
       const user = userResult.rows[0];
       const trainerResult = await client.query(
-        `insert into trainers (user_id, phone, specialization)
-         values ($1, $2, $3)
-         returning id, phone, specialization`,
-        [user.id, normalizedPhone, specialization || null]
+        `insert into trainers (user_id, specialization)
+         values ($1, $2)
+         returning id, specialization`,
+        [user.id, specialization || null]
       );
 
       await client.query('commit');
       return {
         ...user,
         trainer_id: trainerResult.rows[0].id,
-        phone: trainerResult.rows[0].phone,
         specialization: trainerResult.rows[0].specialization,
       };
     });
@@ -241,7 +241,7 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const updated = await withClient(async (client) => {
     await client.query('begin');
     const current = await client.query(
-      'select user_id from trainers where id = $1',
+      'select id, user_id from trainers where id = $1',
       [id]
     );
 
@@ -250,34 +250,29 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
       return null;
     }
 
-    const userId = current.rows[0].user_id;
+    const { id: trainerRowId, user_id: userId } = current.rows[0];
 
-    await client.query(
+    const userResult = await client.query(
       `update users
-       set name = coalesce($1, name)
-       where id = $2`,
-      [name || null, userId]
+       set name = coalesce($1, name),
+           phone = coalesce($2, phone)
+       where id = $3
+       returning id, name, email, role, phone`,
+      [name || null, normalizedPhone, userId]
     );
 
     const trainerResult = await client.query(
       `update trainers
-       set phone = coalesce($1, phone),
-           specialization = coalesce($2, specialization)
-       where id = $3
-       returning id, phone, specialization`,
-      [normalizedPhone, specialization || null, id]
-    );
-
-    const userResult = await client.query(
-      'select id, name, email, role from users where id = $1',
-      [userId]
+       set specialization = coalesce($1, specialization)
+       where id = $2
+       returning id, specialization`,
+      [specialization || null, trainerRowId]
     );
 
     await client.query('commit');
     return {
       ...userResult.rows[0],
       trainer_id: trainerResult.rows[0].id,
-      phone: trainerResult.rows[0].phone,
       specialization: trainerResult.rows[0].specialization,
     };
   });
@@ -290,20 +285,21 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
 
 router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
-  const current = await query('select user_id, phone from trainers where id = $1', [id]);
+  const current = await query('select user_id from trainers where id = $1', [id]);
   if (current.rows.length === 0) {
     return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
   }
 
+  // Телефон лишається на users і не залежить від ролі — переведення в клієнти
+  // його не чіпає, лише прибирає доменний запис trainers.
   await withClient(async (client) => {
     await client.query('begin');
     await client.query('delete from trainers where id = $1', [id]);
     await client.query(
-      `insert into clients (user_id, phone)
-       values ($1, $2)
-       on conflict (user_id) do update
-       set phone = coalesce(excluded.phone, clients.phone)`,
-      [current.rows[0].user_id, current.rows[0].phone || null]
+      `insert into clients (user_id)
+       values ($1)
+       on conflict (user_id) do nothing`,
+      [current.rows[0].user_id]
     );
     await client.query(
       'update users set role = $1 where id = $2',
@@ -326,7 +322,7 @@ router.get('/me', authRequired, requireRole(ROLE.TRAINER), async (req, res) => {
       select
         t.id,
         t.user_id,
-        t.phone,
+        u.phone,
         t.specialization,
         u.name,
         u.email
@@ -445,7 +441,7 @@ router.get('/me/schedule/:id/clients', authRequired, requireRole(ROLE.TRAINER), 
         c.id as client_id,
         u.name as client_name,
         u.email as client_email,
-        c.phone as client_phone
+        u.phone as client_phone
       from bookings b
       join clients c on c.id = b.client_id
       join users u on u.id = c.user_id

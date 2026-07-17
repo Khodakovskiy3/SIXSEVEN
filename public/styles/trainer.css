@@ -118,16 +118,45 @@
 
 @media (min-width: 900px) {
     .trainer-home-grid {
-        grid-template-columns: 0.55fr 1fr;
-        gap: 12px;
+        grid-template-columns: 290px 1fr;
+        grid-template-areas:
+            "metric  next"
+            "sched   sched";
+        gap: 16px;
+        max-width: 700px;
+        margin: 0 auto;
+        width: 100%;
     }
 
-    .trainer-home-grid .today-schedule {
-        grid-column: 1 / -1;
+    .trainer-home-grid .metric-card   { grid-area: metric; }
+    .trainer-home-grid .next-training { grid-area: next; }
+    .trainer-home-grid .today-schedule { grid-area: sched; }
+
+    .trainer-home-grid .panel {
+        padding: 22px 24px;
+    }
+
+    .metric-value {
+        font-size: 56px;
+        margin: 10px 0 4px;
+    }
+
+    .metric-card .section-label {
+        font-size: 11px;
+        letter-spacing: 0.08em;
+    }
+
+    .mini-session {
+        padding: 14px 16px;
+        border-radius: 10px;
+    }
+
+    .trainer-mini-list {
+        gap: 10px;
     }
 
     .metric-card {
-        min-height: 154px;
+        min-height: 0;
     }
 
     .trainer-schedule .class-card {
@@ -463,8 +492,6 @@
    МОБІЛЬНА АДАПТАЦІЯ (≤ 719px)
 ══════════════════════════════════════════════════ */
 @media (max-width: 719px) {
-    .trainer-today-panel { display: none; }
-
     .trainer-app {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;

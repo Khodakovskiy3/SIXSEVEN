@@ -9,6 +9,7 @@ import { Router } from 'express';
 
 import { query } from '../db.js';
 import { authRequired } from '../middleware/auth.js';
+import { activatePlannedMessages } from './messages.js';
 
 const router = Router();
 
@@ -31,6 +32,7 @@ function audiencesForRole(role) {
  * Повертає { items: [...], unread: number }
  */
 router.get('/', async (req, res) => {
+  await activatePlannedMessages();
   const { id: userId, role } = req.user;
   const audiences = audiencesForRole(role);
 

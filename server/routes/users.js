@@ -39,9 +39,8 @@ router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   }
 
   const result = await query(
-    `select u.id, u.name, u.email, u.role,
+    `select u.id, u.name, u.email, u.role, u.phone,
             c.id as client_id,
-            coalesce(c.phone, t.phone) as phone,
             t.id as trainer_id
      from users u
      left join clients c on c.user_id = u.id
@@ -109,18 +108,18 @@ router.post('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
       await client.query('begin');
 
       const userResult = await client.query(
-        `insert into users (name, email, password, role)
-         values ($1, $2, $3, $4)
-         returning id, name, email, role`,
-        [name, email.toLowerCase(), passwordHash, normalizedRole]
+        `insert into users (name, email, password, role, phone)
+         values ($1, $2, $3, $4, $5)
+         returning id, name, email, role, phone`,
+        [name, email.toLowerCase(), passwordHash, normalizedRole, phone || null]
       );
 
       const user = userResult.rows[0];
       if (normalizedRole === ROLE.CLIENT) {
         await client.query(
-          `insert into clients (user_id, phone)
-           values ($1, $2)`,
-          [user.id, phone || null]
+          `insert into clients (user_id)
+           values ($1)`,
+          [user.id]
         );
       }
 

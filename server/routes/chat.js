@@ -186,17 +186,19 @@ function describeGate(state) {
  *
  * @param {string} token Токен гостя або client-<userId>.
  * @param {string|null} [guestName] Ім'я для списку адміністратора.
+ * @param {number|null} [userId] Явний FK на users для авторизованих (П7,
+ *   АУДИТ_БД.md) — замінює парсинг токена 'client-<userId>' у JOIN-ах.
  * @returns {Promise<number>} Ідентифікатор створеного діалогу.
  */
-async function createConversationRequest(token, guestName = null) {
+async function createConversationRequest(token, guestName = null, userId = null) {
   return withClient(async (client) => {
     await client.query('begin');
     await client.query('delete from chat_conversations where guest_token = $1', [token]);
     const created = await client.query(
-      `insert into chat_conversations (guest_token, guest_name)
-       values ($1, $2)
+      `insert into chat_conversations (guest_token, guest_name, user_id)
+       values ($1, $2, $3)
        returning id`,
-      [token, guestName]
+      [token, guestName, userId]
     );
     await client.query('commit');
     return created.rows[0].id;
@@ -310,7 +312,8 @@ function clientToken(user) {
 
 router.post('/client/request', async (req, res) => {
   // Ім'я зберігаємо при створенні запиту, щоб адміністратор бачив, хто звернувся.
-  await createConversationRequest(clientToken(req.user), req.user.name);
+  // user_id — явний FK (П7), а не лише кодування в токені.
+  await createConversationRequest(clientToken(req.user), req.user.name, req.user.id);
   return res.status(HTTP_CREATED).json({ state: CHAT_STATE.PENDING });
 });
 

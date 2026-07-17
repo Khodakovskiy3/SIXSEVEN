@@ -174,22 +174,16 @@ router.get('/profile', authRequired, async (req, res) => {
     return res.status(401).json({ error: 'Користувача не знайдено' });
   }
 
-  if (user.role === ROLE.CLIENT) {
-    const client = await query(
-      `select phone from clients where user_id = $1`,
-      [user.id]
-    );
-
-    user.phone = client.rows[0]?.phone || '';
-  }
+  // Телефон уже на users (єдине джерело — АУДИТ_БД.md П1), тож окремого
+  // запиту до clients/trainers для нього більше не потрібно.
+  user.phone = user.phone || '';
 
   if (user.role === ROLE.TRAINER) {
     const trainer = await query(
-      `select phone, specialization from trainers where user_id = $1`,
+      `select specialization from trainers where user_id = $1`,
       [user.id]
     );
 
-    user.phone = trainer.rows[0]?.phone || '';
     user.specialization = trainer.rows[0]?.specialization || '';
   }
 
@@ -199,32 +193,22 @@ router.get('/profile', authRequired, async (req, res) => {
 router.put('/profile', authRequired, validateBody(profileUpdateSchema), async (req, res) => {
   const { name, phone, specialization } = req.body;
 
+  // Телефон — атрибут людини, не ролі, тож завжди пишеться на users
+  // незалежно від ролі (АУДИТ_БД.md П1).
   await query(
-    `update users set name = coalesce($1, name) where id = $2`,
-    [name || null, req.user.id]
+    `update users
+     set name = coalesce($1, name),
+         phone = coalesce($2, phone)
+     where id = $3`,
+    [name || null, phone || null, req.user.id]
   );
-
-  if (req.user.role === ROLE.CLIENT) {
-    await query(
-      `update clients set phone = coalesce($1, phone) where user_id = $2`,
-      [phone || null, req.user.id]
-    );
-  }
 
   if (req.user.role === ROLE.TRAINER) {
     await query(
       `update trainers
-       set phone = coalesce($1, phone),
-           specialization = coalesce($2, specialization)
-       where user_id = $3`,
-      [phone || null, specialization || null, req.user.id]
-    );
-  }
-
-  if (req.user.role === ROLE.ADMIN || req.user.role === 'manager') {
-    await query(
-      `update users set phone = $1 where id = $2`,
-      [phone || null, req.user.id]
+       set specialization = coalesce($1, specialization)
+       where user_id = $2`,
+      [specialization || null, req.user.id]
     );
   }
 
@@ -340,18 +324,18 @@ router.post('/register/verify', validateBody(registerVerifySchema), async (req, 
     const user = await withClient(async (client) => {
       await client.query('begin');
       const result = await client.query(
-        `insert into users (name, email, password, role, twofa_enabled)
-         values ($1, $2, $3, $4, true)
+        `insert into users (name, email, password, role, twofa_enabled, phone)
+         values ($1, $2, $3, $4, true, $5)
          returning id, name, email, role`,
-        [pending.name, pending.email, pending.password, pending.role]
+        [pending.name, pending.email, pending.password, pending.role, pending.phone || null]
       );
 
       const created = result.rows[0];
 
       if (pending.role === ROLE.CLIENT) {
         await client.query(
-          `insert into clients (user_id, phone) values ($1, $2)`,
-          [created.id, pending.phone || null]
+          `insert into clients (user_id) values ($1)`,
+          [created.id]
         );
       }
 

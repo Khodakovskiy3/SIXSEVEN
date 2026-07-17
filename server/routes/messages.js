@@ -81,11 +81,30 @@ function normalizeStatus(value) {
   return VALID_STATUSES.includes(value) ? value : 'sent';
 }
 
+/**
+ * Активує заплановані оголошення, дата яких настала: 'planned' → 'sent'.
+ * Виконується лазиво при кожному запиті — так само, як протермінування
+ * абонементів у subscriptions.js — щоб не тримати окремого cron-job
+ * (П9, АУДИТ_БД.md): раніше 'planned' ніколи не переходив у 'sent' і
+ * розсилка мовчки не з'являлась у сповіщеннях.
+ *
+ * @returns {Promise<void>}
+ */
+export async function activatePlannedMessages() {
+  await query(
+    `update messages
+     set status = 'sent'
+     where status = 'planned' and send_date <= CURRENT_DATE`
+  );
+}
+
 router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
+  await activatePlannedMessages();
   // recipients потрібні формі редагування, щоб показати, кому саме
   // адресовано повідомлення з audience='custom'.
   const result = await query(
     `select m.id, m.subject, m.body, m.audience, m.status, m.send_date, m.created_at,
+            m.created_by, cu.name as created_by_name,
             coalesce(
               (select json_agg(json_build_object('id', u.id, 'name', u.name) order by u.name)
                from message_recipients mr
@@ -94,6 +113,7 @@ router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
               '[]'::json
             ) as recipients
      from messages m
+     left join users cu on cu.id = m.created_by
      order by m.created_at desc`
   );
   return res.json(result.rows);
@@ -117,10 +137,17 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
   const effectiveAudience = recipientIds.length > 0 ? 'custom' : normalizeAudience(audience);
 
   const result = await query(
-    `insert into messages (subject, body, audience, status, send_date)
-     values ($1, $2, $3, $4, $5)
-     returning id, subject, body, audience, status, send_date, created_at`,
-    [subject, body || null, effectiveAudience, normalizeStatus(status), sendDate || null]
+    `insert into messages (subject, body, audience, status, send_date, created_by)
+     values ($1, $2, $3, $4, $5, $6)
+     returning id, subject, body, audience, status, send_date, created_at, created_by`,
+    [
+      subject,
+      body || null,
+      effectiveAudience,
+      normalizeStatus(status),
+      sendDate || null,
+      req.user.id,
+    ]
   );
 
   if (recipientIds.length > 0) {

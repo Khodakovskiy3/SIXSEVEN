@@ -231,14 +231,18 @@ router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
 router.delete('/:id', authRequired, async (req, res) => {
   const { id } = req.params;
 
-  // Клієнт може скасовувати лише власні бронювання,
-  // тому обмежуємо умовою client_id = свій.
+  // Клієнт може скасовувати лише власні бронювання, тому обмежуємо умовою
+  // client_id = свій. Скасування переводить статус у 'cancelled' замість
+  // фізичного видалення — зберігає історію (хто записувався й скасовував)
+  // і не заважає повторному запису: частковий унікальний індекс
+  // bookings_active_unique діє лише на status='active'.
   if (req.user.role === ROLE.CLIENT) {
     const clientId = await getClientIdByUserId(req.user.id);
     const result = await query(
-      `delete from bookings
-       where id = $1 and client_id = $2`,
-      [id, clientId]
+      `update bookings
+       set status = $1, cancelled_at = now()
+       where id = $2 and client_id = $3 and status = $4`,
+      [BOOKING_STATUS.CANCELLED, id, clientId, BOOKING_STATUS.ACTIVE]
     );
     if (result.rowCount === 0) {
       return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
