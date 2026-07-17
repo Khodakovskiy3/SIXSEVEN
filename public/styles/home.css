@@ -2610,13 +2610,8 @@ body:has(.about-shell) .page-shell {
         overflow: hidden !important;
     }
 
+    /* Правила відвідування — не показуємо на мобільному */
     .about-rules {
-        flex: 1 !important;
-        overflow: hidden !important;
-    }
-
-    /* Показуємо лише перші 4 правила */
-    .about-rules li:nth-child(n+5) {
         display: none !important;
     }
 

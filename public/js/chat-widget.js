@@ -68,6 +68,7 @@
   const guestToken = getGuestToken();
   let lastMessageId = 0;
   let pollTimer = null;
+  let sse = null;
   let isOpen = false;
 
   // Стан діалогу з адміністратором (дзеркалить CHAT_STATE на сервері).
@@ -563,10 +564,15 @@
     }
   }
 
-  function startPolling() {
-    if (pollTimer) return;
-    fetchMessages();
-    pollTimer = setInterval(fetchMessages, CHAT_POLL_MS);
+  // Реалтайм: основний канал — SSE (пуш), а polling лишається запобіжником.
+  // Поки SSE підключений, опитування сповільнюється до SAFETY_POLL_MS; якщо
+  // SSE недоступний або впав — повертається швидке опитування (CHAT_POLL_MS).
+  // Так поведінка не гіршає навіть без SSE.
+  const SAFETY_POLL_MS = 20000;
+
+  function setPolling(intervalMs) {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(fetchMessages, intervalMs);
   }
 
   function stopPolling() {
@@ -576,10 +582,64 @@
     }
   }
 
+  /** Відкриває SSE-стрім під поточний режим (гість/клієнт). */
+  async function connectSse() {
+    if (sse) return;
+    try {
+      let url;
+      if (isAuthenticated) {
+        // Клієнту потрібен одноразовий квиток (EventSource не шле Bearer).
+        const ticketResp = await fetch(`${API_BASE}/chat/client/stream-ticket`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        if (!ticketResp.ok) return; // лишаємось на швидкому polling
+        const { ticket } = await ticketResp.json();
+        url = `${API_BASE}/chat/stream?ticket=${encodeURIComponent(ticket)}`;
+      } else {
+        url = `${API_BASE}/chat/guest/stream?token=${encodeURIComponent(guestToken)}`;
+      }
+
+      const es = new EventSource(url);
+      sse = es;
+      // Канал відкрито — можна сповільнити запобіжний polling.
+      es.addEventListener('ready', () => {
+        if (isOpen) setPolling(SAFETY_POLL_MS);
+      });
+      // Є зміни — одразу дозавантажуємо нові повідомлення.
+      es.addEventListener('message', () => { fetchMessages(); });
+      es.onerror = () => {
+        es.close();
+        if (sse === es) sse = null;
+        // Втратили пуш — повертаємось до швидкого опитування.
+        if (isOpen) setPolling(CHAT_POLL_MS);
+      };
+    } catch {
+      // Будь-яка помилка — тихо лишаємось на polling.
+    }
+  }
+
+  function disconnectSse() {
+    if (sse) {
+      sse.close();
+      sse = null;
+    }
+  }
+
+  function startRealtime() {
+    fetchMessages();
+    setPolling(CHAT_POLL_MS); // базово — швидкий polling, поки не підключиться SSE
+    connectSse();
+  }
+
+  function stopRealtime() {
+    stopPolling();
+    disconnectSse();
+  }
+
   function openPanel() {
     isOpen = true;
     panel.classList.add('open');
-    startPolling();
+    startRealtime();
     if (!formEl.hidden) {
       inputEl.focus();
     }
@@ -588,7 +648,7 @@
   function closePanel() {
     isOpen = false;
     panel.classList.remove('open');
-    stopPolling();
+    stopRealtime();
   }
 
   button.addEventListener('click', () => {
@@ -642,6 +702,9 @@
       // Одразу показуємо власне повідомлення, не чекаючи циклу polling.
       appendMessage(data);
       lastMessageId = Math.max(lastMessageId, data.id);
+      // Перше повідомлення щойно створило діалог — тепер можна відкрити SSE,
+      // якщо він досі не під'єднаний (раніше стрім повертав 404).
+      if (!sse && isOpen) connectSse();
     } catch {
       showError('Немає зв’язку з сервером. Спробуйте ще раз.');
       inputEl.value = body;

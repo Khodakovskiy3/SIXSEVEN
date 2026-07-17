@@ -2,10 +2,12 @@ import {
   apiFetch,
   clearAuth,
   formatDate,
+  getAuth,
   requireFreshAuth,
   setAuth,
 } from './api.js';
 
+import { escapeHtml } from './utils.js';
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
 import { initSidebar } from './sidebar.js';
@@ -57,11 +59,10 @@ const pageRoutes = {
   'profile-settings': '/pages/manager/settings.html',
 };
 
+// Повне екранування (включно з лапками) — безпечне і для тексту, і для
+// значень HTML-атрибутів. Делегуємо у спільний escapeHtml, щоб не дублювати.
 function esc(value = '') {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
+  return escapeHtml(value);
 }
 
 function money(value) {
@@ -111,55 +112,183 @@ function setScreen(screen) {
 }
 
 // ── SVG area/line chart ─────────────────────────────────────────────────────
-function svgAreaChart(data, valueKey, {
-  areaClass = 'finance-area',
-  lineClass  = 'finance-line',
-  dotsClass  = 'finance-points',
-  W = 600, H = 180,
-} = {}) {
-  if (!data.length) return '<p class="form-note" style="padding:18px 0">Немає даних за цей період.</p>';
-
-  const vals = data.map(d => Number(d[valueKey] || 0));
-  const max  = Math.max(...vals, 1);
-
-  const pts = vals.map((v, i) => {
-    const x = data.length === 1 ? W / 2 : (i / (data.length - 1)) * W;
-    const y = H - (v / max) * H * 0.85 - H * 0.05;
-    return [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+// Агрегує щоденні дані в тижневі або місячні бакети
+function aggregateChartData(rows, valueKey) {
+  if (rows.length <= 35) return rows;
+  const byMonth = rows.length > 90;
+  const groups  = new Map();
+  rows.forEach(r => {
+    const s  = r.date.slice(0, 10);
+    const [y, mo, d] = s.split('-').map(Number);
+    let key;
+    if (byMonth) {
+      key = `${y}-${String(mo).padStart(2,'0')}-01`;
+    } else {
+      const dt  = new Date(y, mo - 1, d);
+      const dow = (dt.getDay() + 6) % 7; // 0=Пн … 6=Нд
+      const mon = new Date(y, mo - 1, d - dow);
+      key = `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+    }
+    const cur = groups.get(key) || { date: key, [valueKey]: 0 };
+    cur[valueKey] += Number(r[valueKey] || 0);
+    groups.set(key, cur);
   });
-
-  const line = pts.reduce((d, [x, y], i) => {
-    if (i === 0) return `M${x} ${y}`;
-    const [px, py] = pts[i - 1];
-    const cpx = (x - px) / 2.8;
-    return `${d} C${px + cpx} ${py} ${x - cpx} ${y} ${x} ${y}`;
-  }, '');
-
-  const area = `${line} L${pts.at(-1)[0]} ${H} L${pts[0][0]} ${H} Z`;
-
-  const dots = pts.map(([x, y]) =>
-    `<circle cx="${x}" cy="${y}" r="5"/>`
-  ).join('');
-
-  return `
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-      <path class="${areaClass}" d="${area}"/>
-      <path class="${lineClass}" d="${line}"/>
-      <g class="${dotsClass}">${dots}</g>
-    </svg>`;
+  return [...groups.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-// ── Date labels under chart ──────────────────────────────────────────────────
-function chartDateLabels(data, n = 7) {
-  if (!data.length) return '';
-  const step = Math.max(1, Math.floor(data.length / n));
-  const labels = data
-    .filter((_, i) => i % step === 0 || i === data.length - 1)
-    .map(d => {
-      const dt = new Date(d.date);
-      return `<span>${dt.getDate()}.${String(dt.getMonth() + 1).padStart(2, '0')}</span>`;
-    }).join('');
-  return `<div class="chart-labels">${labels}</div>`;
+const MONTHS_UA = ['','Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Гру'];
+
+function svgAreaChart(rows, valueKey, {
+  W = 600, H = 160,
+  color = null,
+} = {}) {
+  if (!rows.length) return '<p class="form-note" style="padding:18px 0">Немає даних за цей період.</p>';
+
+  const data  = aggregateChartData(rows, valueKey);
+  const vals  = data.map(d => Number(d[valueKey] || 0));
+  const max   = Math.max(...vals, 1);
+  const n     = data.length;
+  const isRev = valueKey === 'revenue';
+  const clr   = color || (isRev ? '#F59E0B' : '#E85002');
+  const showDots = n <= 20;
+  const sw    = n > 50 ? 1.8 : n > 25 ? 2.2 : 2.5;
+  const PAD_T = 18, PAD_B = 10;
+  const gradId = 'cg' + Math.random().toString(36).slice(2, 6);
+  const byMonth = rows.length > 90;
+
+  const px = i  => +(n === 1 ? W / 2 : (i / (n - 1)) * W).toFixed(1);
+  const py = v  => +(PAD_T + (H - PAD_T - PAD_B) * (1 - v / max)).toFixed(1);
+  const pts = vals.map((v, i) => [px(i), py(v)]);
+
+  const line = pts.reduce((acc, [x, y], i) => {
+    if (i === 0) return `M${x},${y}`;
+    const [pvx, pvy] = pts[i - 1];
+    const t = (x - pvx) / 2.5;
+    return `${acc} C${(pvx + t).toFixed(1)},${pvy} ${(x - t).toFixed(1)},${y} ${x},${y}`;
+  }, '');
+
+  const area = `${line} L${pts.at(-1)[0]},${H} L${pts[0][0]},${H} Z`;
+
+  // Horizontal grid lines
+  const grid = [0.33, 0.66].map(f => {
+    const y = (PAD_T + (H - PAD_T - PAD_B) * (1 - f)).toFixed(1);
+    return `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="currentColor" stroke-width="0.6" opacity="0.10"/>`;
+  }).join('');
+
+  // Dots
+  const dots = showDots
+    ? pts.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.5"/>`).join('')
+    : '';
+
+  // Hover strips
+  const stripW = n > 1 ? W / n : W;
+  const strips = data.map((d, i) => {
+    const [cx2, cy2] = pts[i];
+    const s  = d.date.slice(0, 10);
+    const [yr, mo, day] = s.split('-').map(Number);
+    const dateLbl = byMonth ? `${MONTHS_UA[mo]} ${yr}` : `${day} ${MONTHS_UA[mo]}`;
+    const v  = vals[i];
+    const valLbl = isRev
+      ? v.toLocaleString('uk-UA') + ' грн'
+      : v + ' відв.';
+    const sx = Math.max(0, cx2 - stripW / 2);
+    return `<rect class="chart-strip" x="${sx.toFixed(1)}" y="0" width="${Math.min(stripW, W - sx).toFixed(1)}" height="${H}" fill="transparent" data-cx="${cx2}" data-cy="${cy2}" data-date="${dateLbl}" data-val="${valLbl}"/>`;
+  }).join('');
+
+  return `<svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" data-chart>
+    <defs>
+      <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${clr}" stop-opacity="0.28"/>
+        <stop offset="100%" stop-color="${clr}" stop-opacity="0.01"/>
+      </linearGradient>
+    </defs>
+    <g color="var(--muted)">${grid}</g>
+    <path d="${area}" fill="url(#${gradId})"/>
+    <path d="${line}" stroke="${clr}" stroke-width="${sw}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    ${showDots ? `<g fill="${clr}" stroke="var(--bg,#fff)" stroke-width="2">${dots}</g>` : ''}
+    <g class="chart-cursor" style="display:none" pointer-events="none">
+      <line class="chart-cursor-line" stroke="${clr}" stroke-width="1" stroke-dasharray="4,3" x1="0" x2="0" y1="${PAD_T}" y2="${H}"/>
+      <circle class="chart-cursor-dot" r="5" fill="${clr}" stroke="var(--bg,#fff)" stroke-width="2.5"/>
+    </g>
+    ${strips}
+  </svg>`;
+}
+
+// ── Підписи дат — абсолютне позиціонування ────────────────────────────────
+function chartDateLabels(rows, n = 6, valueKey = 'revenue') {
+  if (!rows.length) return '';
+  const data    = aggregateChartData(rows, valueKey);
+  const total   = data.length;
+  const byMonth = rows.length > 90;
+
+  const indices = total <= n
+    ? data.map((_, i) => i)
+    : Array.from({ length: n }, (_, k) => Math.round(k * (total - 1) / (n - 1)));
+
+  const labels = [...new Set(indices)].map(i => {
+    const s = data[i].date.slice(0, 10);
+    const [, mo, d] = s.split('-').map(Number);
+    const lbl = byMonth ? MONTHS_UA[mo] : `${+d} ${MONTHS_UA[mo]}`;
+    const pct = total === 1 ? 50 : (i / (total - 1)) * 100;
+    return `<span style="position:absolute;left:${pct.toFixed(1)}%;transform:translateX(-50%);white-space:nowrap">${lbl}</span>`;
+  }).join('');
+
+  return `<div class="chart-labels" style="position:relative;height:16px;margin-top:6px">${labels}</div>`;
+}
+
+// ── Tooltip при наведенні на графік ───────────────────────────────────────
+function initChartTooltips(container) {
+  let tip = document.getElementById('__chart_tip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = '__chart_tip';
+    tip.className = 'chart-tooltip';
+    document.body.appendChild(tip);
+  }
+
+  // SVG charts (analytics page)
+  container.querySelectorAll('[data-chart]').forEach(svg => {
+    const cursor     = svg.querySelector('.chart-cursor');
+    const cursorLine = svg.querySelector('.chart-cursor-line');
+    const cursorDot  = svg.querySelector('.chart-cursor-dot');
+
+    svg.querySelectorAll('.chart-strip').forEach(strip => {
+      strip.addEventListener('mouseenter', () => {
+        const cx = strip.dataset.cx;
+        const cy = strip.dataset.cy;
+        if (cursor) {
+          cursorLine.setAttribute('x1', cx); cursorLine.setAttribute('x2', cx);
+          cursorDot.setAttribute('cx', cx);  cursorDot.setAttribute('cy', cy);
+          cursor.style.display = '';
+        }
+        tip.innerHTML = `<span class="ct-date">${strip.dataset.date}</span><strong class="ct-val">${strip.dataset.val}</strong>`;
+        tip.style.display = 'block';
+      });
+      strip.addEventListener('mousemove', e => {
+        tip.style.left = (e.pageX + 14) + 'px';
+        tip.style.top  = (e.pageY - 58) + 'px';
+      });
+      strip.addEventListener('mouseleave', () => {
+        if (cursor) cursor.style.display = 'none';
+        tip.style.display = 'none';
+      });
+    });
+  });
+
+  // Dashboard charts (HTML-based, .dch-strip)
+  container.querySelectorAll('.dch-strip').forEach(strip => {
+    strip.addEventListener('mouseenter', () => {
+      tip.innerHTML = `<span class="ct-date">${strip.dataset.date}</span><strong class="ct-val">${strip.dataset.val}</strong>`;
+      tip.style.display = 'block';
+    });
+    strip.addEventListener('mousemove', e => {
+      tip.style.left = (e.pageX + 14) + 'px';
+      tip.style.top  = (e.pageY - 58) + 'px';
+    });
+    strip.addEventListener('mouseleave', () => {
+      tip.style.display = 'none';
+    });
+  });
 }
 
 // ── Dashboard revenue chart — HTML layout + SVG paths with preserveAspectRatio="none" ──
@@ -216,9 +345,25 @@ function svgDashChart(data, valueKey, totalLabel = '') {
   }).join('');
 
   // Dots as HTML (perfectly round, no distortion)
-  const dotsHtml = pts.map(([x, y]) =>
-    `<span class="dch-dot" style="left:${x}%;top:${y}%"></span>`
-  ).join('');
+  const showDotsDash = data.length <= 20;
+  const dotsHtml = showDotsDash
+    ? pts.map(([x, y]) => `<span class="dch-dot" style="left:${x}%;top:${y}%"></span>`).join('')
+    : '';
+
+  // Hover strips for tooltip
+  const isRevDash = valueKey === 'revenue';
+  const byMonthDash = data.length > 90;
+  const stripWPct = 100 / data.length;
+  const hoverStripsHtml = data.map((d, i) => {
+    const [x, y] = pts[i];
+    const s  = d.date.slice(0, 10);
+    const [yr, mo, day] = s.split('-').map(Number);
+    const dateLbl = byMonthDash ? `${MONTHS_UA[mo]} ${yr}` : `${day} ${MONTHS_UA[mo]}`;
+    const v = vals[i];
+    const valLbl = isRevDash ? v.toLocaleString('uk-UA') + ' грн' : v + ' відв.';
+    const sx = Math.max(0, x - stripWPct / 2);
+    return `<span class="dch-strip" style="left:${sx.toFixed(2)}%;width:${stripWPct.toFixed(2)}%;height:100%;position:absolute;top:0;cursor:crosshair" data-cx="${x}" data-cy="${y}" data-date="${dateLbl}" data-val="${valLbl}"></span>`;
+  }).join('');
 
   // X-axis labels (max 8 evenly spaced)
   const n    = Math.min(8, data.length);
@@ -226,8 +371,10 @@ function svgDashChart(data, valueKey, totalLabel = '') {
   const xLabelsHtml = data.map((d, i) => {
     if (i % step !== 0 && i !== data.length - 1) return '';
     const pct = data.length === 1 ? 50 : (i / (data.length - 1)) * 100;
-    const dt  = new Date(d.date);
-    return `<span style="left:${pct}%">${dt.getDate()}.${String(dt.getMonth() + 1).padStart(2, '0')}</span>`;
+    const s   = d.date.slice(0, 10);
+    const [, mo, dy] = s.split('-').map(Number);
+    const lbl = byMonthDash ? MONTHS_UA[mo] : `${+dy} ${MONTHS_UA[mo]}`;
+    return `<span style="left:${pct}%">${lbl}</span>`;
   }).join('');
 
   // Summary label: near last point but shifted left if too close to edge
@@ -258,6 +405,7 @@ function svgDashChart(data, valueKey, totalLabel = '') {
             <path d="${line}" stroke="#e85002" stroke-width="0.6" fill="none"/>
           </svg>
           ${dotsHtml}
+          ${hoverStripsHtml}
           ${totalLabel ? `
             <div class="dch-sum" style="left:${sumLeft}%;top:${sumTop}%">
               <strong>${totalLabel}</strong><span>загалом</span>
@@ -290,21 +438,18 @@ function hBars(items, nameKey, valueKey, suffix = '') {
 
 async function loadManagerReport() {
   const startInput = document.querySelector('[data-manager-start]');
-  const endInput = document.querySelector('[data-manager-end]');
+  const endInput   = document.querySelector('[data-manager-end]');
+
+  const now   = new Date();
+  const pad   = n => String(n).padStart(2, '0');
+  const today = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const firstOfMonth = `${now.getFullYear()}-${pad(now.getMonth()+1)}-01`;
 
   const params = new URLSearchParams();
+  params.set('start', startInput?.value || firstOfMonth);
+  params.set('end',   endInput?.value   || today);
 
-  if (startInput?.value) {
-    params.set('start', startInput.value);
-  }
-
-  if (endInput?.value) {
-    params.set('end', endInput.value);
-  }
-
-  const query = params.toString();
-
-  return await apiFetch(`/reports/manager${query ? `?${query}` : ''}`);
+  return await apiFetch(`/reports/manager?${params}`);
 }
 
 // ── Workout icon map ─────────────────────────────────────────────────────────
@@ -321,21 +466,75 @@ async function renderManagerDashboard() {
   const panel = document.querySelector('[data-screen-panel="dashboard"]');
   if (!panel) return;
 
-  const today = new Date();
-  const from  = new Date(today); from.setDate(from.getDate() - 29);
-  const fmt   = d => d.toISOString().slice(0, 10);
-  const report = await apiFetch(`/reports/manager?start=${fmt(from)}&end=${fmt(today)}`);
-  const { summary, revenueByDay, workoutStats, trainerLoad } = report;
+  // ── Skeleton поки дані завантажуються ──────────────────
+  panel.innerHTML = `
+    <p class="skel" style="width:320px;height:14px;margin:0 0 20px"></p>
+    <div class="skel-kpi-grid">
+      ${Array(4).fill(0).map(() => `
+        <div class="skel-kpi-card">
+          <div class="skel" style="width:44px;height:44px;border-radius:12px;flex-shrink:0"></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+            <div class="skel" style="height:11px;width:70%"></div>
+            <div class="skel" style="height:26px;width:50%"></div>
+            <div class="skel" style="height:10px;width:45%"></div>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="skel-chart">
+      <div class="skel" style="height:14px;width:180px;margin-bottom:12px"></div>
+      <div class="skel" style="height:140px;width:100%;border-radius:6px"></div>
+    </div>
+    <div class="skel-bars">
+      ${Array(2).fill(0).map(() => `
+        <div class="skel-bar-card">
+          <div class="skel" style="height:14px;width:60%"></div>
+          ${Array(3).fill(0).map(() => `
+            <div style="display:flex;align-items:center;gap:10px">
+              <div class="skel" style="width:32px;height:32px;border-radius:50%;flex-shrink:0"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+                <div class="skel" style="height:10px;width:80%"></div>
+                <div class="skel" style="height:8px;width:100%"></div>
+              </div>
+            </div>`).join('')}
+        </div>`).join('')}
+    </div>
+  `;
 
-  // Тренд (перша vs друга половина)
-  const half     = Math.floor(revenueByDay.length / 2);
-  const rev1     = revenueByDay.slice(0, half).reduce((s, d) => s + d.revenue, 0);
-  const rev2     = revenueByDay.slice(half).reduce((s, d) => s + d.revenue, 0);
-  const trendPct = rev1 > 0 ? Math.round(((rev2 - rev1) / rev1) * 100) : 0;
-  const trendPos = trendPct >= 0;
+  // ── Дати ───────────────────────────────────────────────
+  const now  = new Date();
+  const pad2 = n => String(n).padStart(2, '0');
+  const fmtD = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+
+  const from30        = new Date(now); from30.setDate(now.getDate() - 29);
+  const prevMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0);        // останній день мин. місяця
+  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);   // перший день мин. місяця
+
+  // ── 2 паралельних запити ───────────────────────────────
+  const [report, prevReport] = await Promise.all([
+    apiFetch(`/reports/manager?start=${fmtD(from30)}&end=${fmtD(now)}`),
+    apiFetch(`/reports/manager?start=${fmtD(prevMonthStart)}&end=${fmtD(prevMonthEnd)}`),
+  ]);
+
+  const { summary, revenueByDay, workoutStats, trainerLoad } = report;
+  const prevS = prevReport.summary;
+
+  // ── Стрілка порівняння з минулим місяцем ──────────────
+  function cmpBadge(curr, prev) {
+    if (!prev || prev === 0) return '';
+    const pct = Math.round(((curr - prev) / prev) * 100);
+    if (pct === 0) return '';
+    const color = pct > 0 ? '#39d98a' : '#ff8585';
+    const arrow = pct > 0 ? '↑' : '↓';
+    return `<small style="color:${color};font-size:11px;font-weight:600">${arrow} ${Math.abs(pct)}% мін. міс.</small>`;
+  }
 
   const topWorkout = workoutStats[0];
   const topTrainer = [...trainerLoad].sort((a, b) => b.sessions_count - a.sessions_count)[0];
+
+  const revBadge  = cmpBadge(summary.revenue,         prevS.revenue);
+  const visBadge  = cmpBadge(summary.visits_count,    prevS.visits_count);
+  const payBadge  = cmpBadge(summary.payments_count,  prevS.payments_count);
+  const subBadge  = cmpBadge(summary.active_subscriptions, prevS.active_subscriptions);
 
   // Workout bars HTML
   const workoutBarsHtml = workoutStats.length
@@ -370,13 +569,7 @@ async function renderManagerDashboard() {
     : '<p class="form-note">Немає даних.</p>';
 
   panel.innerHTML = `
-    <div class="manager-page-head">
-      <div>
-        <h2>Панель керування</h2>
-        <p>Огляд за останні 30 днів · ${fmt(from)} — ${fmt(today)}</p>
-      </div>
-      <button class="primary-btn" data-refresh-manager>↺ Оновити</button>
-    </div>
+    <p style="margin:0 0 20px;color:var(--muted)">Огляд за останні 30 днів · ${fmtD(from30)} — ${fmtD(now)}</p>
 
     <!-- KPI картки -->
     <div class="dash-kpi-grid">
@@ -404,6 +597,7 @@ async function renderManagerDashboard() {
           <div class="dash-kpi-card__body">
             <span>Активних абонементів</span>
             <strong>${number(summary.active_subscriptions)}</strong>
+            ${subBadge}
           </div>
         </div>
         <div class="dash-kpi-card__deco">
@@ -419,7 +613,7 @@ async function renderManagerDashboard() {
           <div class="dash-kpi-card__body">
             <span>Дохід за 30 днів</span>
             <strong>${money(summary.revenue)}</strong>
-            <small class="${trendPos ? 'dash-trend--up' : 'dash-trend--down'}">${trendPos ? '↗' : '↘'} ${Math.abs(trendPct)}%</small>
+            ${revBadge}
           </div>
         </div>
         <div class="dash-kpi-card__deco">
@@ -435,6 +629,7 @@ async function renderManagerDashboard() {
           <div class="dash-kpi-card__body">
             <span>Відвідувань</span>
             <strong>${number(summary.visits_count)}</strong>
+            ${visBadge}
           </div>
         </div>
         <div class="dash-kpi-card__deco">
@@ -485,6 +680,9 @@ async function renderManagerDashboard() {
 
     </div>
   `;
+
+  // Tooltip на дашборд-графіку
+  initChartTooltips(panel);
 }
 
 async function renderManagerAnalytics() {
@@ -492,41 +690,112 @@ async function renderManagerAnalytics() {
   if (!panel) return;
 
   const report = await loadManagerReport();
-  const { summary, revenueByDay, visitsByDay, trainerLoad, planStats } = report;
+  if (!report) return;
 
-  // Фінансові розрахунки
-  const totalRev     = summary.revenue;
-  const revPerVisit  = summary.visits_count > 0
-    ? (totalRev / summary.visits_count).toFixed(0)
-    : 0;
-  const topPlan      = planStats[0];
-  const topPlanShare = totalRev > 0 && topPlan
-    ? Math.round((topPlan.revenue / totalRev) * 100)
-    : 0;
+  const {
+    summary, revenueByDay, visitsByDay, trainerLoad, planStats,
+    prevPeriod = {}, visitsByDayOfWeek = [], cancellationStats = {},
+    workoutStats = [],
+  } = report;
+
+  // Розрахунки
+  const totalRev    = summary.revenue;
+  const revPerVisit = summary.visits_count > 0 ? Math.round(totalRev / summary.visits_count) : 0;
+  const topPlan     = planStats[0];
+  const topPlanShare = totalRev > 0 && topPlan ? Math.round((topPlan.revenue / totalRev) * 100) : 0;
+
+  // Тренд-хелпер: +12% / -5% / без змін
+  function trend(curr, prev) {
+    if (!prev) return '';
+    const pct = Math.round(((curr - prev) / prev) * 100);
+    if (pct === 0) return '<small style="color:var(--muted);font-size:11px">без змін</small>';
+    const color = pct > 0 ? '#39d98a' : '#ff8585';
+    const arrow = pct > 0 ? '↑' : '↓';
+    return `<small style="color:${color};font-size:11px;font-weight:700">${arrow} ${Math.abs(pct)}% до попереднього</small>`;
+  }
+
+  // DOW бар-чарт (Пн–Нд)
+  const maxDow = Math.max(...(visitsByDayOfWeek.map(d => d.visits_count)), 1);
+  const dowBars = visitsByDayOfWeek.map(d => {
+    const pct = Math.round((d.visits_count / maxDow) * 100);
+    const color = pct === 100 ? 'var(--accent)' : pct >= 60 ? '#ffce45' : 'var(--surface2,#333)';
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1">
+      <span style="font-size:10px;color:var(--muted);font-weight:700">${d.visits_count || ''}</span>
+      <div style="height:60px;width:100%;background:var(--surface);border-radius:4px;position:relative;overflow:hidden">
+        <div style="position:absolute;bottom:0;width:100%;height:${pct}%;background:${color};border-radius:4px;transition:.3s"></div>
+      </div>
+      <span style="font-size:11px;color:var(--text);font-weight:600">${esc(d.day)}</span>
+    </div>`;
+  }).join('');
+
+  // Популярність тренувань — бари
+  const totalBookings = workoutStats.reduce((s, w) => s + w.bookings_count, 0);
+  const CHART_COLORS = ['var(--accent)', '#f97316', '#ffce45', '#39d98a', '#818cf8', '#06b6d4'];
+  const workoutPopularityHtml = workoutStats.length
+    ? workoutStats.map((w, i) => {
+        const max   = workoutStats[0]?.bookings_count || 1;
+        const pct   = Math.max(Math.round((w.bookings_count / max) * 100), w.bookings_count > 0 ? 2 : 0);
+        const color = CHART_COLORS[i % CHART_COLORS.length];
+        const share = totalBookings > 0 ? Math.round((w.bookings_count / totalBookings) * 100) : 0;
+        return '<div style="display:flex;align-items:center;gap:10px">'
+          + '<span style="width:22px;text-align:right;font-size:11px;color:var(--muted);font-weight:700;flex-shrink:0">' + (i + 1) + '</span>'
+          + '<span style="flex:1;min-width:0">'
+          + '<div style="display:flex;justify-content:space-between;margin-bottom:4px">'
+          + '<span style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(w.workout_name) + '</span>'
+          + '<span style="font-size:12px;color:var(--muted);flex-shrink:0;margin-left:8px">' + number(w.bookings_count) + ' зап. · ' + share + '%</span>'
+          + '</div>'
+          + '<div style="height:6px;background:var(--surface);border-radius:3px;overflow:hidden">'
+          + '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;transition:.4s"></div>'
+          + '</div>'
+          + '</span></div>';
+      }).join('')
+    : '<p class="form-note">Немає даних про тренування за цей період.</p>';
+
+  const now2 = new Date();
+  const pad2 = n => String(n).padStart(2,'0');
+  const todayStr       = `${now2.getFullYear()}-${pad2(now2.getMonth()+1)}-${pad2(now2.getDate())}`;
+  const weekAgo        = new Date(now2 - 6*86400000);
+  const weekAgoStr     = `${weekAgo.getFullYear()}-${pad2(weekAgo.getMonth()+1)}-${pad2(weekAgo.getDate())}`;
+  const monthStart     = `${now2.getFullYear()}-${pad2(now2.getMonth()+1)}-01`;
+  const yearStart      = `${now2.getFullYear()}-01-01`;
 
   panel.innerHTML = `
-    <div class="manager-page-head">
-      <div>
-        <h2>Аналітика</h2>
-        <p>Фінансові показники, ефективність тренерів та рентабельність абонементів.</p>
-      </div>
-      <div class="manager-period">
-        <input type="date" data-manager-start value="${report.period.start}">
-        <input type="date" data-manager-end value="${report.period.end}">
-        <button class="primary-btn" data-refresh-manager>Показати</button>
+    <div style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <!-- Чіпи -->
+        <div class="ana-chips-row" style="flex-shrink:0;margin:0">
+          <button class="chip ana-chip${_anaActiveChip==='today'?' active':''}" data-chip="today" data-s="${todayStr}"  data-e="${todayStr}">Сьогодні</button>
+          <button class="chip ana-chip${_anaActiveChip==='week'?' active':''}"  data-chip="week"  data-s="${weekAgoStr}" data-e="${todayStr}">Тиждень</button>
+          <button class="chip ana-chip${_anaActiveChip==='month'?' active':''}" data-chip="month" data-s="${monthStart}" data-e="${todayStr}">Місяць</button>
+          <button class="chip ana-chip${_anaActiveChip==='year'?' active':''}"  data-chip="year"  data-s="${yearStart}"  data-e="${todayStr}">Рік</button>
+        </div>
+        <!-- Розділювач -->
+        <div style="width:1px;height:24px;background:var(--line);flex-shrink:0"></div>
+        <!-- Дати -->
+        <input type="date" data-manager-start value="${report.period.start}" style="flex:1;min-width:120px;max-width:160px">
+        <span style="color:var(--muted);font-size:13px;flex-shrink:0">—</span>
+        <input type="date" data-manager-end value="${report.period.end}" style="flex:1;min-width:120px;max-width:160px">
+        <!-- Кнопки -->
+        <button class="primary-btn" data-refresh-manager style="flex-shrink:0">Показати</button>
+        <button class="ghost-btn" id="analytics-pdf-btn" style="white-space:nowrap;flex-shrink:0">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span class="pdf-btn-label">PDF</span>
+        </button>
       </div>
     </div>
 
-    <!-- 6 фінансових KPI -->
+    <!-- KPI картки з трендами -->
     <div class="manager-stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
       <article>
         <span>Дохід за період</span>
         <strong>${money(totalRev)}</strong>
+        ${trend(totalRev, prevPeriod.revenue)}
       </article>
-      <article class="manager-click-card" data-open-payments style="cursor:pointer">
+      <article class="manager-click-card" data-open-payments style="cursor:pointer;position:relative">
         <span>Кількість оплат</span>
         <strong>${number(summary.payments_count)}</strong>
-        <small style="color:var(--accent);font-size:11px;font-weight:700">↗ переглянути</small>
+        ${trend(summary.payments_count, prevPeriod.payments_count)}
+        <svg style="position:absolute;top:10px;right:10px;opacity:.4" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg>
       </article>
       <article>
         <span>Середній платіж</span>
@@ -535,10 +804,12 @@ async function renderManagerAnalytics() {
       <article>
         <span>Відвідувань</span>
         <strong>${number(summary.visits_count)}</strong>
+        ${trend(summary.visits_count, prevPeriod.visits_count)}
       </article>
       <article>
-        <span>Дохід на відвідування</span>
-        <strong>${money(revPerVisit)}</strong>
+        <span>Актуальних клієнтів</span>
+        <strong>${number(summary.total_clients)}</strong>
+        ${trend(summary.total_clients, prevPeriod.total_clients)}
       </article>
       <article>
         <span>Активних абонементів</span>
@@ -546,7 +817,7 @@ async function renderManagerAnalytics() {
       </article>
     </div>
 
-    <!-- Два графіки поруч -->
+    <!-- Два графіки -->
     <div class="manager-two-columns" style="margin-top:16px">
       <section class="panel">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -556,10 +827,9 @@ async function renderManagerAnalytics() {
         <div class="finance-line-chart" style="min-height:180px">
           <div class="chart-grid"></div>
           ${svgAreaChart(revenueByDay, 'revenue', { W: 500, H: 160 })}
-          ${chartDateLabels(revenueByDay, 6)}
+          ${chartDateLabels(revenueByDay, 6, 'revenue')}
         </div>
       </section>
-
       <section class="panel">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <h3 style="margin:0">Відвідуваність</h3>
@@ -568,45 +838,62 @@ async function renderManagerAnalytics() {
         <div class="visit-line-chart" style="min-height:180px">
           <div class="chart-grid"></div>
           ${svgAreaChart(visitsByDay, 'visits_count', { areaClass: 'chart-area', lineClass: 'chart-line', dotsClass: 'chart-points', W: 500, H: 160 })}
-          ${chartDateLabels(visitsByDay, 6)}
+          ${chartDateLabels(visitsByDay, 6, 'visits_count')}
         </div>
       </section>
     </div>
+
+    <!-- Аналітика популярності тренувань -->
+    <section class="panel" style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="margin:0">Популярність тренувань</h3>
+        ${workoutStats.length ? '<span style="color:var(--muted);font-size:12px">' + workoutStats.length + ' типів · ' + number(totalBookings) + ' записів</span>' : ''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">${workoutPopularityHtml}</div>
+    </section>
 
     <!-- Ефективність тренерів -->
     <section class="panel" style="margin-top:16px">
       <h3>Ефективність тренерів</h3>
       <div class="manager-table manager-table--5col">
         <div class="manager-table-head">
-          <span>Тренер</span>
-          <span>Занять</span>
-          <span>Записів</span>
-          <span>Клієнтів на заняття</span>
-          <span>Заповненість</span>
+          <span>Тренер</span><span>Занять</span><span>Записів</span><span>Кл/заняття</span><span>Заповненість</span>
         </div>
         ${trainerLoad.length
           ? trainerLoad.map(t => {
-              const eff        = t.sessions_count
-                ? Math.round((t.bookings_count / t.sessions_count) * 10) / 10
-                : 0;
-              const cap        = t.average_capacity || 0;
-              const fillPct    = cap > 0 ? Math.min(100, Math.round((eff / cap) * 100)) : 0;
-              const fillColor  = fillPct >= 80
-                ? '#39d98a'
-                : fillPct >= 50 ? '#ffce45' : 'var(--muted)';
-              return `
-                <div class="manager-table-row">
-                  <span>${esc(t.trainer_name)}</span>
-                  <span>${number(t.sessions_count)}</span>
-                  <span>${number(t.bookings_count)}</span>
-                  <span>${eff}</span>
-                  <span>
-                    <span class="fill-bar">
-                      <span style="width:${fillPct}%;background:${fillColor}"></span>
-                    </span>
-                    <em style="font-size:11px;color:${fillColor}">${fillPct}%</em>
+              const eff       = t.sessions_count ? Math.round((t.bookings_count / t.sessions_count) * 10) / 10 : 0;
+              const cap       = t.average_capacity || 0;
+              const fillPct   = cap > 0 ? Math.min(100, Math.round((eff / cap) * 100)) : 0;
+              const fillColor = fillPct >= 80 ? '#39d98a' : fillPct >= 50 ? '#ffce45' : 'var(--muted)';
+              const hue       = [...t.trainer_name].reduce((n, c) => n + c.charCodeAt(0), 0) % 360;
+              const tInit     = initials(t.trainer_name);
+              const detailsPayload = JSON.stringify({
+                name:     t.trainer_name,
+                email:    t.trainer_email || '—',
+                phone:    t.trainer_phone || '—',
+                sessions: t.sessions_count,
+                bookings: t.bookings_count,
+                fill:     fillPct,
+              }).replace(/"/g, '&quot;');
+              return `<div class="manager-table-row">
+                <span style="display:flex;align-items:center;gap:8px">
+                  <span style="width:32px;height:32px;border-radius:50%;background:hsl(${hue},45%,38%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">${esc(tInit)}</span>
+                  <span style="display:flex;flex-direction:column">
+                    <strong style="font-size:13px">${esc(t.trainer_name)}</strong>
+                    ${t.trainer_email ? `<span style="font-size:11px;color:var(--muted)">${esc(t.trainer_email)}</span>` : ''}
                   </span>
-                </div>`;
+                </span>
+                <span>${number(t.sessions_count)}</span>
+                <span>${number(t.bookings_count)}</span>
+                <span>${eff}</span>
+                <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span style="display:flex;align-items:center;gap:6px;flex:1;min-width:80px">
+                    <span class="fill-bar" style="flex:1"><span style="width:${fillPct}%;background:${fillColor}"></span></span>
+                    <em style="font-size:11px;color:${fillColor};min-width:28px">${fillPct}%</em>
+                  </span>
+                  <button class="ghost-btn trainer-details-btn" style="font-size:11px;padding:3px 8px;flex-shrink:0" data-trainer="${detailsPayload}">Деталі</button>
+                </span>
+              </div>`;
             }).join('')
           : '<p class="form-note">Немає даних.</p>'}
       </div>
@@ -614,41 +901,173 @@ async function renderManagerAnalytics() {
 
     <!-- Рентабельність тарифів -->
     <section class="panel" style="margin-top:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-        <h3 style="margin:0">Рентабельність тарифів</h3>
-        ${topPlan ? `<span style="font-size:12px;color:var(--muted)">Лідер: <strong style="color:var(--text)">${esc(topPlan.plan_name)}</strong> (${topPlanShare}% доходу)</span>` : ''}
-      </div>
+      <h3 style="margin:0 0 14px">Рентабельність тарифів</h3>
       <div class="manager-table manager-table--5col">
         <div class="manager-table-head">
-          <span>Тариф</span>
-          <span>Ціна</span>
-          <span>Абонементів</span>
-          <span>Оплат</span>
-          <span>Дохід / частка</span>
+          <span>Тариф</span><span>Ціна</span><span>Абонем.</span><span>Оплат</span><span>Дохід</span>
         </div>
         ${planStats.length
-          ? planStats.map(p => {
+          ? planStats.map((p, idx) => {
               const share = totalRev > 0 ? Math.round((p.revenue / totalRev) * 100) : 0;
-              return `
-                <div class="manager-table-row">
-                  <span>${esc(p.plan_name)}</span>
-                  <span>${money(p.price)}</span>
-                  <span>${number(p.subscriptions_count)}</span>
-                  <span>${number(p.payments_count)}</span>
-                  <span>
-                    ${money(p.revenue)}
-                    <em style="font-size:11px;color:var(--muted);margin-left:4px">${share}%</em>
-                  </span>
-                </div>`;
+              const isLeader = idx === 0 && p.revenue > 0;
+              const rowStyle = isLeader ? 'background:rgba(var(--accent-rgb,233,83,34),.07);border-left:3px solid var(--accent);padding-left:13px' : '';
+              return '<div class="manager-table-row" style="' + rowStyle + '">'
+                + '<span style="display:flex;align-items:center;gap:6px">'
+                + (isLeader ? '<span style="font-size:14px" title="Лідер">🏆</span>' : '')
+                + '<span style="' + (isLeader ? 'font-weight:600' : '') + '">' + esc(p.plan_name) + '</span>'
+                + '</span>'
+                + '<span>' + money(p.price) + '</span>'
+                + '<span>' + number(p.subscriptions_count) + '</span>'
+                + '<span>' + number(p.payments_count) + '</span>'
+                + '<span style="display:flex;flex-direction:column;gap:4px;min-width:120px">'
+                + '<span style="font-weight:600">' + money(p.revenue) + '</span>'
+                + '<span style="display:flex;align-items:center;gap:6px">'
+                + '<span style="flex:1;height:4px;background:var(--surface);border-radius:2px;overflow:hidden;min-width:40px">'
+                + '<span style="display:block;height:100%;width:' + share + '%;background:var(--accent);border-radius:2px"></span>'
+                + '</span>'
+                + '<em style="font-size:11px;color:var(--muted);flex-shrink:0">' + share + '%</em>'
+                + '</span>'
+                + '</span>'
+                + '</div>';
             }).join('')
           : '<p class="form-note">Немає даних.</p>'}
       </div>
     </section>
   `;
+
+  // Відкривати календар по кліку на весь інпут (не тільки на іконку)
+  panel.querySelectorAll('[data-manager-start],[data-manager-end]').forEach(input => {
+    input.addEventListener('click', () => {
+      try { input.showPicker(); } catch {}
+    });
+  });
+
+  // Tooltips при наведенні на графіки
+  initChartTooltips(panel);
 }
 
 const ROLE_LABEL = { client: 'Клієнт', trainer: 'Тренер', admin: 'Адміністратор', manager: 'Керівник' };
 const ROLE_FILTER_MAP = { all: null, clients: 'client', trainers: 'trainer', admins: 'admin' };
+
+// Module-level filter state — persists across re-renders
+let _anaActiveChip = 'month'; // поточний активний чіп аналітики
+let _muActiveFilter = null;
+let _muSearch = '';
+
+function _muApplyFilters() {
+  const rows = document.querySelectorAll('#users-table-body .mu-row');
+  const feedback = document.querySelector('#users-feedback');
+  let visible = 0;
+  rows.forEach((row) => {
+    const matchesSearch = !_muSearch || (row.dataset.userSearch || '').includes(_muSearch);
+    const matchesRole   = !_muActiveFilter || row.dataset.userRole === _muActiveFilter;
+    const show = matchesSearch && matchesRole;
+    // Use class instead of inline style — CSS `!important` beats element.style
+    row.classList.toggle('mu-hidden', !show);
+    if (show) visible++;
+  });
+  if (feedback) feedback.textContent = visible === 0 ? 'Користувача не знайдено.' : '';
+}
+
+// AbortController — скасовує старі слухачі кнопок фільтру при кожному ре-рендері
+let _muAbort = null;
+function _muRebindFilters() {
+  if (_muAbort) _muAbort.abort();
+  _muAbort = new AbortController();
+  const signal = _muAbort.signal;
+
+  // Кнопки фільтру ролей
+  document.querySelectorAll('.cseg-btn[data-user-filter]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.cseg-btn[data-user-filter]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _muActiveFilter = ROLE_FILTER_MAP[btn.dataset.userFilter] ?? null;
+      _muApplyFilters();
+    }, { signal });
+  });
+
+  // Пошук
+  const searchInput = document.querySelector('#users-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      _muSearch = searchInput.value.trim().toLowerCase();
+      _muApplyFilters();
+    }, { signal });
+  }
+}
+
+// Кастомний confirm у стилі сайту — повертає Promise<boolean>
+function muConfirm(title, text) {
+  return new Promise((resolve) => {
+    const backdrop = document.getElementById('manager-modal');
+    const elTitle  = document.getElementById('modal-title');
+    const elText   = document.getElementById('modal-text');
+    const btnOk    = document.getElementById('modal-confirm');
+    const btnCancel= document.getElementById('modal-cancel');
+    if (!backdrop || !btnOk || !btnCancel) { resolve(window.confirm(text)); return; }
+
+    if (elTitle) elTitle.textContent = title;
+    if (elText)  elText.textContent  = text;
+    backdrop.classList.add('active');
+
+    const finish = (result) => {
+      backdrop.classList.remove('active');
+      btnOk.removeEventListener('click', onOk);
+      btnCancel.removeEventListener('click', onCancel);
+      backdrop.removeEventListener('click', onBackdrop);
+      resolve(result);
+    };
+    const onOk       = () => finish(true);
+    const onCancel   = () => finish(false);
+    const onBackdrop = (e) => { if (e.target === backdrop) finish(false); };
+
+    btnOk.addEventListener('click', onOk);
+    btnCancel.addEventListener('click', onCancel);
+    backdrop.addEventListener('click', onBackdrop);
+  });
+}
+
+// Зміна ролі + dropdown — лише один раз (event delegation на document)
+let _muRoleDelegated = false;
+function _muBindRoleOnce() {
+  if (_muRoleDelegated) return;
+  _muRoleDelegated = true;
+  const ROLE_LABEL_UA = { client: 'Клієнт', trainer: 'Тренер', admin: 'Адміністратор' };
+
+  document.addEventListener('click', async (e) => {
+    // Відкрити/закрити dropdown
+    const ddBtn = e.target.closest('.mu-role-dd-btn');
+    if (ddBtn) {
+      e.stopPropagation();
+      // Закрити всі інші
+      document.querySelectorAll('.mu-role-dd.open').forEach(d => {
+        if (d !== ddBtn.closest('.mu-role-dd')) d.classList.remove('open');
+      });
+      ddBtn.closest('.mu-role-dd').classList.toggle('open');
+      return;
+    }
+
+    // Закрити dropdown при кліку поза ним
+    if (!e.target.closest('.mu-role-dd')) {
+      document.querySelectorAll('.mu-role-dd.open').forEach(d => d.classList.remove('open'));
+    }
+
+    // Вибрати нову роль
+    const option = e.target.closest('.mu-role-option');
+    if (!option) return;
+    const userId  = option.dataset.userId;
+    const newRole = option.dataset.newRole;
+    const label   = ROLE_LABEL_UA[newRole] || newRole;
+    const row     = option.closest('.mu-row');
+    const name    = row?.querySelector('strong')?.textContent || '';
+    option.closest('.mu-role-dd')?.classList.remove('open');
+    const ok = await muConfirm('Зміна ролі', `Змінити роль «${name}» на ${label}?`);
+    if (!ok) return;
+    apiFetch(`/users/${userId}`, { method: 'PUT', body: JSON.stringify({ role: newRole }) })
+      .then(() => renderManagerUsers())
+      .catch(() => alert('Помилка зміни ролі'));
+  });
+}
 
 function initials(name) {
   if (!name) return '??';
@@ -681,7 +1100,13 @@ async function renderManagerUsers() {
     return;
   }
 
-  tbody.innerHTML = users.map((user) => {
+  // Сортування: адміни → тренери → клієнти
+  const ROLE_ORDER = { admin: 0, manager: 1, trainer: 2, client: 3 };
+  const sorted = [...users].sort((a, b) =>
+    (ROLE_ORDER[a.role] ?? 9) - (ROLE_ORDER[b.role] ?? 9)
+  );
+
+  tbody.innerHTML = sorted.map((user) => {
     const roleKey = user.role || 'client';
     const roleLabel = ROLE_LABEL[roleKey] || roleKey;
     const phone = user.phone || '—';
@@ -690,9 +1115,40 @@ async function renderManagerUsers() {
     const avatarClass = roleKey === 'trainer' ? 'trainer' : roleKey === 'admin' ? 'admin' : roleKey === 'manager' ? 'admin' : 'client';
     const sub = `${roleLabel}${user.phone ? ' · ' + user.phone : ''}`;
 
-    const actionBtn = roleKey === 'admin'
-      ? `<button class="danger-btn mu-demote-btn" data-user-id="${user.id}">Забрати адміна</button>`
-      : '';
+    // Кнопка вибору ролі (dropdown)
+    const roleOptions = {
+      client:  [{ role: 'trainer', label: 'Тренер' }, { role: 'admin', label: 'Адміністратор' }],
+      trainer: [{ role: 'client', label: 'Клієнт' }, { role: 'admin', label: 'Адміністратор' }],
+      admin:   [{ role: 'client', label: 'Клієнт' }, { role: 'trainer', label: 'Тренер' }],
+      manager: [],
+    };
+    const options = roleOptions[roleKey] || [];
+    let roleActions = '';
+    if (options.length) {
+      const optHTML = options.map(o =>
+        `<button class="mu-role-option" data-user-id="${user.id}" data-new-role="${o.role}">${o.label}</button>`
+      ).join('');
+      roleActions = `
+        <div class="mu-role-dd">
+          <button class="mu-role-dd-btn" data-user-id="${user.id}">Роль ▾</button>
+          <div class="mu-role-dd-menu">${optHTML}</div>
+        </div>
+      `;
+    }
+
+    // Деталі-дата для модального вікна
+    const createdAt = user.created_at
+      ? new Date(user.created_at).toLocaleDateString('uk-UA', { day:'2-digit', month:'long', year:'numeric' })
+      : 'невідомо';
+
+    const detailsData = JSON.stringify({
+      name:  user.name || '—',
+      email: user.email || '—',
+      phone: user.phone || '—',
+      role:  roleLabel,
+      id:    user.id,
+      created: createdAt,
+    }).replace(/"/g, '&quot;');
 
     return `
       <div class="mu-row" data-user-role="${roleKey}" data-user-search="${esc(searchText)}">
@@ -707,73 +1163,19 @@ async function renderManagerUsers() {
         <span class="mu-email">${esc(email)}</span>
         <span class="mu-role">${esc(roleLabel)}</span>
         <span class="mu-status"><span class="status active">Активний</span></span>
-        <span class="mu-actions">${actionBtn}</span>
+        <span class="mu-actions">
+          <button class="ghost-btn mu-details-btn" data-user-details="${detailsData}">Деталі</button>
+          ${roleActions}
+        </span>
       </div>
     `;
   }).join('');
 
-  bindManagerUsersPanel(panel);
+  _muRebindFilters();  // прив'язуємо фільтр-кнопки до свіжих елементів
+  _muBindRoleOnce();   // зміна ролі — лише одна делегація
+  _muApplyFilters();   // відновлюємо активний фільтр
 }
 
-function bindManagerUsersPanel(panel) {
-  // Search
-  const searchInput = panel.querySelector('#users-search');
-  const filterBtns = panel.querySelectorAll('.cseg-btn[data-user-filter]');
-  const feedback = panel.querySelector('#users-feedback');
-
-  let activeRoleFilter = null;
-  let searchValue = '';
-
-  function applyFilters() {
-    const rows = panel.querySelectorAll('#users-table-body .mu-row');
-    let visible = 0;
-    rows.forEach((row) => {
-      const matchesSearch = !searchValue || (row.dataset.userSearch || '').includes(searchValue);
-      const matchesRole = !activeRoleFilter || row.dataset.userRole === activeRoleFilter;
-      const show = matchesSearch && matchesRole;
-      row.style.display = show ? '' : 'none';
-      if (show) visible++;
-    });
-    if (feedback) {
-      feedback.textContent = visible === 0 ? 'Користувача не знайдено.' : '';
-    }
-  }
-
-  if (searchInput) {
-    searchInput.addEventListener('input', () => {
-      searchValue = searchInput.value.trim().toLowerCase();
-      applyFilters();
-    });
-  }
-
-  filterBtns.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      filterBtns.forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      activeRoleFilter = ROLE_FILTER_MAP[btn.dataset.userFilter] ?? null;
-      applyFilters();
-    });
-  });
-
-  // Demote admin → client
-  const tbody = panel.querySelector('#users-table-body');
-  if (tbody) {
-    tbody.addEventListener('click', async (e) => {
-      const btn = e.target.closest('.mu-demote-btn');
-      if (!btn) return;
-      const userId = btn.dataset.userId;
-      btn.disabled = true;
-      btn.textContent = '...';
-      try {
-        await apiFetch(`/users/${userId}`, { method: 'PUT', body: JSON.stringify({ role: 'client' }) });
-        await renderManagerUsers();
-      } catch {
-        btn.disabled = false;
-        btn.textContent = 'Забрати адміна';
-      }
-    });
-  }
-}
 
 const sheet = document.querySelector('#sheet');
 const sheetTitle = document.querySelector('#sheet-title');
@@ -794,26 +1196,50 @@ async function openPaymentsList() {
   try {
     const payments = await apiFetch('/reports/payments-list');
 
+    const cardsHtml = payments.length
+      ? payments.map((p) => `
+          <article class="manager-payment-card" data-pay-search="${esc((p.client_name + ' ' + (p.client_email || '')).toLowerCase())}" style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--surface)">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;min-width:0">
+              <div style="min-width:0;flex:1">
+                <strong style="font-size:14px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.client_name || 'Невідомий клієнт')}</strong>
+                <div style="color:var(--muted);font-size:12px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.client_email || '—')}</div>
+              </div>
+              <strong style="color:var(--accent);white-space:nowrap;font-size:15px;flex-shrink:0">${money(p.amount)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:12px;color:var(--muted)">
+              <span>${formatDate(p.date)}</span>
+              <span style="background:var(--surface2,#eee);padding:2px 8px;border-radius:999px">${esc(p.status || '—')}</span>
+            </div>
+          </article>
+        `).join('')
+      : '<p style="color:var(--muted);text-align:center;padding:24px 0">Оплат ще немає.</p>';
+
     openSheet(
       'Список оплат',
-      `
-        <div class="manager-payments-list">
-          ${
-            payments.length
-              ? payments.map((payment) => `
-                <article class="manager-payment-card">
-                  <h3>${esc(payment.client_name || 'Невідомий клієнт')}</h3>
-                  <p><b>Email:</b> ${esc(payment.client_email || 'не вказано')}</p>
-                  <p><b>Сума:</b> ${money(payment.amount)}</p>
-                  <p><b>Дата і час:</b> ${formatDate(payment.date)}</p>
-                  <p><b>Статус:</b> ${esc(payment.status || 'невідомо')}</p>
-                </article>
-              `).join('')
-              : '<p>Оплат ще немає.</p>'
-          }
-        </div>
-      `
+      `<div style="display:flex;flex-direction:column;gap:10px">
+        <input id="pay-search" type="text" placeholder="Пошук клієнта…" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px">
+        <div id="pay-list" class="manager-payments-list" style="display:flex;flex-direction:column;gap:8px">${cardsHtml}</div>
+        <p id="pay-empty" style="display:none;color:var(--muted);text-align:center;padding:12px 0;font-size:13px">Нічого не знайдено</p>
+      </div>`
     );
+
+    // Пошук у списку оплат
+    setTimeout(() => {
+      const inp = document.getElementById('pay-search');
+      if (!inp) return;
+      inp.addEventListener('input', () => {
+        const q = inp.value.trim().toLowerCase();
+        const cards = document.querySelectorAll('#pay-list .manager-payment-card');
+        let found = 0;
+        cards.forEach(c => {
+          const match = !q || (c.dataset.paySearch || '').includes(q);
+          c.style.display = match ? '' : 'none';
+          if (match) found++;
+        });
+        document.getElementById('pay-empty').style.display = found === 0 ? '' : 'none';
+      });
+    }, 50);
+
   } catch (error) {
     alert(error.message);
   }
@@ -832,6 +1258,106 @@ if (paymentCard) {
   return;
 }
 
+    const pdfBtn = target.closest('#analytics-pdf-btn');
+    if (pdfBtn) {
+      // Show period-choice modal
+      const start = document.querySelector('[data-manager-start]')?.value || '';
+      const end   = document.querySelector('[data-manager-end]')?.value || '';
+      const startFmt = start ? start.split('-').reverse().join('.') : '';
+      const endFmt   = end   ? end.split('-').reverse().join('.')   : '';
+      const filterLabel = startFmt && endFmt ? `${startFmt} — ${endFmt}` : 'поточний фільтр';
+
+      // Remove any existing modal
+      document.getElementById('pdf-choice-modal')?.remove();
+      const modal = document.createElement('div');
+      modal.id = 'pdf-choice-modal';
+      modal.innerHTML = `
+        <div class="pdf-modal-backdrop"></div>
+        <div class="pdf-modal-box">
+          <p style="font-weight:700;font-size:14px;margin:0 0 6px">Завантажити PDF</p>
+          <p style="color:var(--muted);font-size:12px;margin:0 0 16px">Оберіть діапазон даних</p>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button class="primary-btn" id="pdf-choice-filter" style="text-align:left;padding:10px 14px">
+              <strong style="display:block;font-size:13px">Поточний фільтр</strong>
+              <span style="font-size:11px;font-weight:400;opacity:.8">${filterLabel}</span>
+            </button>
+            <button class="ghost-btn" id="pdf-choice-all" style="text-align:left;padding:10px 14px">
+              <strong style="display:block;font-size:13px">За весь час</strong>
+              <span style="font-size:11px;opacity:.8">без обмеження дат</span>
+            </button>
+          </div>
+          <button class="ghost-btn" id="pdf-choice-cancel" style="width:100%;margin-top:10px;font-size:12px">Скасувати</button>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const closeModal = () => modal.remove();
+      modal.querySelector('.pdf-modal-backdrop').addEventListener('click', closeModal);
+      modal.querySelector('#pdf-choice-cancel').addEventListener('click', closeModal);
+
+      const triggerPdf = async (useFilter) => {
+        closeModal();
+        const origHTML = pdfBtn.innerHTML;
+        pdfBtn.disabled = true;
+        pdfBtn.textContent = 'Формуємо…';
+        try {
+          const { token } = getAuth();
+          const params = new URLSearchParams();
+          if (useFilter) {
+            if (start) params.set('start', start);
+            if (end)   params.set('end', end);
+          }
+          const qs = params.toString() ? `?${params}` : '';
+          const res = await fetch(`/api/reports/pdf${qs}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          });
+          if (!res.ok) {
+            let detail = `HTTP ${res.status}`;
+            try { const j = await res.json(); detail += ': ' + (j.detail || j.error || ''); } catch {}
+            throw new Error(detail);
+          }
+          const blob = await res.blob();
+          if (blob.size === 0) throw new Error('PDF порожній (розмір 0)');
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          const now2 = new Date();
+          const pad2 = n => String(n).padStart(2,'0');
+          const dateStr = `${now2.getFullYear()}-${pad2(now2.getMonth()+1)}-${pad2(now2.getDate())}`;
+          a.download = `olimp-analytics-${dateStr}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (err) {
+          alert('Помилка при формуванні PDF: ' + err.message);
+        } finally {
+          pdfBtn.disabled = false;
+          pdfBtn.innerHTML = origHTML;
+        }
+      };
+
+      modal.querySelector('#pdf-choice-filter').addEventListener('click', () => triggerPdf(true));
+      modal.querySelector('#pdf-choice-all').addEventListener('click', () => triggerPdf(false));
+      return;
+    }
+
+    // Чіпи швидкого вибору діапазону
+    const chip = target.closest('.ana-chip');
+    if (chip) {
+      _anaActiveChip = chip.dataset.chip;
+      document.querySelectorAll('.ana-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      const s = chip.dataset.s;
+      const e = chip.dataset.e;
+      const si = document.querySelector('[data-manager-start]');
+      const ei = document.querySelector('[data-manager-end]');
+      if (si) si.value = s;
+      if (ei) ei.value = e;
+      await renderManagerAnalytics();
+      return;
+    }
+
     if (target.dataset.refreshManager !== undefined) {
       if (currentPath.includes('/analytics.html')) {
         await renderManagerAnalytics();
@@ -844,25 +1370,79 @@ if (paymentCard) {
       await renderManagerUsers();
     }
 
-    if (target.dataset.userDetails) {
-      const userId = target.dataset.userDetails;
-      const row = target.closest('.manager-table-row');
-
-      if (!row) return;
-
-      const name = row.children[0]?.textContent || '';
-      const email = row.children[1]?.textContent || '';
-      const role = row.querySelector('select')?.value || '';
-
+    const detailsBtn = target.closest('.mu-details-btn');
+    if (detailsBtn && detailsBtn.dataset.userDetails) {
+      let u = {};
+      try { u = JSON.parse(detailsBtn.dataset.userDetails.replace(/&quot;/g, '"')); } catch {}
       openSheet(
         'Деталі користувача',
-        `
-          <p><b>Ім'я:</b> ${esc(name)}</p>
-          <p><b>Email:</b> ${esc(email)}</p>
-          <p><b>Поточна роль:</b> ${roleText(role)}</p>
-          <p><b>ID користувача:</b> ${esc(userId)}</p>
-        `
+        `<div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+            <span style="width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0">${esc(initials(u.name))}</span>
+            <div><strong style="font-size:16px">${esc(u.name)}</strong><br><span style="color:var(--muted);font-size:12px">${esc(u.role)}</span></div>
+          </div>
+          <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+              <span style="color:var(--muted);font-size:13px">Email</span>
+              <strong style="font-size:13px">${esc(u.email)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+              <span style="color:var(--muted);font-size:13px">Телефон</span>
+              <strong style="font-size:13px">${esc(u.phone)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px">
+              <span style="color:var(--muted);font-size:13px">Роль</span>
+              <strong style="font-size:13px">${esc(u.role)}</strong>
+            </div>
+          </div>
+        </div>`
       );
+    }
+
+    // Деталі тренера
+    const trainerBtn = target.closest('.trainer-details-btn');
+    if (trainerBtn && trainerBtn.dataset.trainer) {
+      let t = {};
+      try { t = JSON.parse(trainerBtn.dataset.trainer.replace(/&quot;/g, '"')); } catch {}
+      const fillColor = t.fill >= 80 ? '#39d98a' : t.fill >= 50 ? '#ffce45' : 'var(--muted)';
+      const hue = [...(t.name || '')].reduce((n, c) => n + c.charCodeAt(0), 0) % 360;
+      openSheet(
+        'Тренер',
+        `<div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+            <span style="width:52px;height:52px;border-radius:50%;background:hsl(${hue},45%,38%);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0">${esc(initials(t.name))}</span>
+            <div><strong style="font-size:16px">${esc(t.name)}</strong><br><span style="color:var(--muted);font-size:12px">Тренер</span></div>
+          </div>
+          <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+              <span style="color:var(--muted);font-size:13px">Email</span>
+              <strong style="font-size:13px">${esc(t.email)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+              <span style="color:var(--muted);font-size:13px">Телефон</span>
+              <strong style="font-size:13px">${esc(t.phone)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+              <span style="color:var(--muted);font-size:13px">Занять за період</span>
+              <strong style="font-size:13px">${number(t.sessions)}</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)">
+              <span style="color:var(--muted);font-size:13px">Записів клієнтів</span>
+              <strong style="font-size:13px">${number(t.bookings)}</strong>
+            </div>
+            <div style="padding:10px 14px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <span style="color:var(--muted);font-size:13px">Заповненість</span>
+                <strong style="font-size:13px;color:${fillColor}">${t.fill}%</strong>
+              </div>
+              <div style="height:6px;background:var(--surface);border-radius:3px;overflow:hidden">
+                <div style="height:100%;width:${t.fill}%;background:${fillColor};border-radius:3px;transition:.3s"></div>
+              </div>
+            </div>
+          </div>
+        </div>`
+      );
+      return;
     }
 
     if (target.dataset.saveRole) {

@@ -33,6 +33,7 @@ import aiRoutes from './routes/ai.js';
 
 import { DEFAULT_HTTP_PORT, HTTP_SERVER_ERROR } from './utils/constants.js';
 import { logError } from './utils/logger.js';
+import { authLimiter } from './middleware/rateLimit.js';
 import { runMigrations } from './migrate.js';
 console.log('SERVER INDEX JS STARTED');
 dotenv.config();
@@ -77,7 +78,8 @@ app.get('/api/health', (req, res) => {
 });
 
 // ─── Реєстрація доменних маршрутів ────────────────────────────────────────────
-app.use('/api/auth', authRoutes);
+// Вхід та коди підтвердження — під захистом rate limiter (антиперебір).
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/trainers', trainersRoutes);

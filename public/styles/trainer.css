@@ -1,5 +1,18 @@
 @import url("./client.css");
 
+.trainer-shell {
+    background:
+        radial-gradient(ellipse 90% 70% at 0% 100%, rgba(232, 80, 2, 0.14) 0%, rgba(193, 8, 1, 0.05) 40%, transparent 60%),
+        radial-gradient(ellipse 70% 55% at 100% 0%, rgba(232, 80, 2, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse 110% 45% at 50% 100%, rgba(193, 8, 1, 0.16) 0%, transparent 55%),
+        #050505;
+    background-attachment: fixed;
+}
+
+[data-theme="light"] .trainer-shell {
+    background: var(--bg);
+}
+
 .trainer-shell .bottom-nav {
     grid-template-columns: repeat(3, 1fr);
 }
@@ -20,7 +33,7 @@
     bottom: -28px;
     width: 110px;
     height: 110px;
-    border: 16px solid rgba(255, 100, 36, 0.18);
+    border: 16px solid var(--accent-soft);
     border-radius: 50%;
     content: "";
 }
@@ -153,8 +166,8 @@
 }
 
 .trainer-schedule-header span {
-  background: #ff6b2c;
-  color: #111;
+  background: var(--accent);
+  color: #fff;
   padding: 6px 12px;
   border-radius: 999px;
   font-weight: 700;
@@ -397,6 +410,37 @@
   margin: 8px 0;
 }
 
+
+/* Нотатки інших тренерів */
+.trainer-other-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.trainer-other-note {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.trainer-other-note-author {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0;
+}
+.trainer-other-note-text {
+  font-size: 12px;
+  color: var(--text);
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 /* ══════════════════════════════════════════════════
    СВІТЛА ТЕМА
 ══════════════════════════════════════════════════ */
@@ -409,6 +453,8 @@
    МОБІЛЬНА АДАПТАЦІЯ (≤ 719px)
 ══════════════════════════════════════════════════ */
 @media (max-width: 719px) {
+    .trainer-today-panel { display: none; }
+
     .trainer-app {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
@@ -473,5 +519,56 @@
 .custom-confirm-actions .ghost-btn,
 .custom-confirm-actions .primary-btn {
     flex: 1;
+}
+
+/* ── Trainer schedule page — no page scroll, list scrolls inside ── */
+.trainer-app--schedule {
+    height: calc(100dvh - 58px);
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 14px;
+    gap: 10px;
+}
+
+.trainer-app--schedule .screen.active {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.trainer-app--schedule .schedule-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    gap: 8px;
+    box-shadow: none;
+}
+
+.trainer-app--schedule .sched-day-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 12px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(232,80,2,.25) transparent;
+}
+
+.trainer-app--schedule .tabs { flex-shrink: 0; }
+.trainer-app--schedule .sched-date-strip { flex-shrink: 0; }
+.trainer-app--schedule #trainer-schedule-feedback { flex-shrink: 0; }
+
+@media (min-width: 900px) {
+    .trainer-app.trainer-app--schedule {
+        height: calc(100dvh - 72px);
+        min-height: 0;
+        padding: 13px 16px 0 16px;
+        gap: 8px;
+    }
 }
 

@@ -8,6 +8,11 @@
     <link rel="stylesheet" href="../../styles/client.css">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#111111">
+    <style>
+        @media (min-width: 900px) {
+            html, body { overflow: hidden; height: 100%; }
+        }
+    </style>
 </head>
 <body>
     <div class="app-shell">
@@ -47,7 +52,10 @@
                     <!-- Ліва колонка: форма -->
                     <div class="panel anthro-form-panel">
                         <button class="back-btn" data-screen-link="profile">Назад</button>
-                        <h2>Новий вимір</h2>
+                        <div class="anthro-form-header">
+                            <h2>Новий вимір</h2>
+                            <button class="ghost-btn anthro-history-btn" id="anthro-history-open" type="button">Історія вимірів</button>
+                        </div>
 
                         <div class="anthro-date-row">
                             <span class="anthro-label">Дата виміру</span>
@@ -100,7 +108,6 @@
                         <!-- Прогрес -->
                         <div class="panel anthro-progress-panel" id="anthro-progress-wrap" style="display:none">
                             <h3 class="anthro-section-title">Прогрес</h3>
-                            <p class="anthro-progress-hint">Перший вимір → останній</p>
                             <div id="anthro-progress"></div>
                         </div>
 
@@ -123,6 +130,41 @@
         </nav>
     </div>
 
+    <!-- Мобільна модалка: Історія вимірів -->
+    <div class="anthro-history-modal" id="anthro-history-modal" aria-hidden="true">
+        <div class="anthro-history-modal__inner">
+            <div class="anthro-history-modal__head">
+                <h3>Історія вимірів</h3>
+                <button class="icon-btn" id="anthro-history-close" aria-label="Закрити">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="anthro-history-modal__body" id="anthro-history-modal-body"></div>
+        </div>
+    </div>
+
     <script type="module" src="../../js/client.js"></script>
+    <script>
+        // Мобільна модалка «Історія вимірів»
+        const openBtn  = document.getElementById('anthro-history-open');
+        const closeBtn = document.getElementById('anthro-history-close');
+        const modal    = document.getElementById('anthro-history-modal');
+        const modalBody = document.getElementById('anthro-history-modal-body');
+
+        function openHistory() {
+            const src = document.getElementById('anthro-history');
+            if (src) modalBody.innerHTML = src.innerHTML;
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeHistory() {
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        if (openBtn)  openBtn.addEventListener('click', openHistory);
+        if (closeBtn) closeBtn.addEventListener('click', closeHistory);
+        if (modal)    modal.addEventListener('click', e => { if (e.target === modal) closeHistory(); });
+    </script>
 </body>
 </html>

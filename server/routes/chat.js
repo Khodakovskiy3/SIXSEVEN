@@ -24,14 +24,27 @@
  * атомарно закріплює діалог за собою; відповіді інших блокуються, доки
  * діалог не повернуто в чергу.
  *
- * Реалтайм реалізовано через polling на боці клієнта — стек суто REST,
- * websocket свідомо не вводимо.
+ * Реалтайм: основний канал — Server-Sent Events (SSE, пуш про зміни), а
+ * polling лишається запобіжником на боці клієнта. Авторизація SSE — через
+ * одноразовий квиток (EventSource не вміє слати Bearer-токен). Websocket
+ * свідомо не вводимо: SSE достатньо для односпрямованих сповіщень.
+ *   GET /api/chat/guest/stream?token=…            — SSE для гостя
+ *   GET /api/chat/client/stream-ticket            — квиток для SSE клієнта
+ *   GET /api/chat/admin/stream-ticket             — квиток для SSE адміна
+ *   GET /api/chat/stream?ticket=…                 — SSE (клієнт/адмін)
  */
 
 import { Router } from 'express';
 
 import { query, withClient } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
+import {
+  subscribeToConversation,
+  subscribeToConversations,
+  publishMessage,
+  publishConversationsChange,
+} from '../utils/chat-events.js';
+import { issueTicket, redeemTicket } from '../utils/stream-ticket.js';
 import {
   HTTP_BAD_REQUEST,
   HTTP_CONFLICT,
@@ -232,7 +245,28 @@ router.post('/guest/messages', async (req, res) => {
     [conversation.id]
   );
 
+  publishMessage(conversationId);
   return res.status(HTTP_CREATED).json(message.rows[0]);
+});
+
+// SSE-стрім гостя: пуш-сповіщення про нові повідомлення діалогу.
+// Токен діалогу — випадковий (не персональні дані), тож допустимо у query.
+// Публічний маршрут (до жодного auth-префіксу не належить).
+router.get('/guest/stream', async (req, res) => {
+  const token = normalizeToken(req.query.token);
+  if (!token) {
+    return res.status(HTTP_BAD_REQUEST).end();
+  }
+  const conv = await query(
+    'select id from chat_conversations where guest_token = $1',
+    [token]
+  );
+  if (conv.rows.length === 0) {
+    // Діалогу ще немає (гість нічого не писав) — нема на що підписуватись.
+    // Клієнт лишиться на polling, доки не надішле перше повідомлення.
+    return res.status(HTTP_NOT_FOUND).end();
+  }
+  return subscribeToConversation(conv.rows[0].id, req, res);
 });
 
 router.get('/guest/messages', async (req, res) => {
@@ -303,7 +337,14 @@ router.post('/client/messages', async (req, res) => {
     [conversation.id]
   );
 
+  publishMessage(conversationId);
   return res.status(HTTP_CREATED).json(message.rows[0]);
+});
+
+// Квиток для SSE-стріму клієнта (EventSource не вміє слати Bearer-токен).
+// Викликається звичайним авторизованим запитом; квиток одноразовий.
+router.get('/client/stream-ticket', (req, res) => {
+  return res.json({ ticket: issueTicket(req.user) });
 });
 
 router.get('/client/messages', async (req, res) => {
@@ -414,6 +455,8 @@ router.post('/admin/conversations/:id/claim', async (req, res) => {
       .json({ error: 'Діалог уже взяв інший адміністратор' });
   }
 
+  publishConversationsChange();
+  publishMessage(Number(id));
   return res.json({ id: Number(id), assignedAdminId: req.user.id });
 });
 
@@ -445,6 +488,8 @@ router.post('/admin/conversations/:id/release', async (req, res) => {
     [id]
   );
 
+  publishConversationsChange();
+  publishMessage(Number(id));
   return res.json({ id: Number(id), assignedAdminId: null });
 });
 
@@ -483,6 +528,8 @@ router.post('/admin/conversations/:id/close', async (req, res) => {
     [id, `Діалог завершено адміністратором ${req.user.name}`]
   );
 
+  publishConversationsChange();
+  publishMessage(Number(id));
   return res.json({ id: Number(id), closed: true });
 });
 
@@ -565,7 +612,38 @@ router.post('/admin/conversations/:id/messages', async (req, res) => {
 
   await query('update chat_conversations set updated_at = now() where id = $1', [id]);
 
+  publishMessage(Number(id));
   return res.status(HTTP_CREATED).json(message.rows[0]);
+});
+
+// Квиток для SSE-стріму адміністратора.
+router.get('/admin/stream-ticket', (req, res) => {
+  return res.json({ ticket: issueTicket(req.user) });
+});
+
+// ─── SSE-стрім для авторизованих (клієнт / адміністратор) ────────────────────
+// Поза auth-префіксами /client та /admin, бо EventSource не шле Bearer-токен.
+// Авторизація — через одноразовий квиток у query (не містить персональних даних).
+router.get('/stream', async (req, res) => {
+  const user = redeemTicket(req.query.ticket);
+  if (!user) {
+    return res.status(HTTP_FORBIDDEN).end();
+  }
+
+  // Адміністратор слухає зміни списку діалогів; клієнт — свій діалог.
+  if (user.role === 'admin') {
+    return subscribeToConversations(req, res);
+  }
+
+  const token = `${CLIENT_TOKEN_PREFIX}${user.userId}`;
+  const conv = await query(
+    'select id from chat_conversations where guest_token = $1',
+    [token]
+  );
+  if (conv.rows.length === 0) {
+    return res.status(HTTP_NOT_FOUND).end();
+  }
+  return subscribeToConversation(conv.rows[0].id, req, res);
 });
 
 export default router;

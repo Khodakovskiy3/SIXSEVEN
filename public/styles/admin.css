@@ -24,7 +24,8 @@
 
     .admin-app {
         min-height: 0 !important;       /* скидаємо min-height з client.css */
-        max-height: calc(100dvh - 72px); /* 32px зверху + 40px знизу від app-shell */
+        height: calc(100dvh - 72px);    /* 32px зверху + 40px знизу від app-shell */
+        max-height: calc(100dvh - 72px);
         overflow-y: auto;
         overflow-x: hidden;
         padding-bottom: 24px; /* відступ знизу — заокруглення панелі не обрізається */
@@ -701,6 +702,18 @@
     text-overflow: ellipsis;
 }
 
+/* На десктопі під іменем НЕ показуємо дублюючі підрядки (телефон·email та
+   абонемент/спеціалізація) — ця інформація вже є в окремих колонках таблиці.
+   Підрядки лишаються тільки в мобільному вигляді (картки, де колонок немає). */
+@media (min-width: 720px) {
+    #clients-table .cc-sub,
+    #clients-table .cc-plan-mobile,
+    #trainers-table .cc-sub,
+    #trainers-table .cc-plan-mobile {
+        display: none;
+    }
+}
+
 /* ── Іконки-кнопки дій ── */
 .icon-action-btn {
     display: inline-flex;
@@ -789,8 +802,8 @@
     #trainers-table .tc-phone,
     #trainers-table .tc-email,
     #trainers-table .tc-spec { display: none; }
-    #trainers-table .cc-sub { display: block; }
-    #trainers-table .cc-plan-mobile { display: block; }
+    #trainers-table .cc-sub { display: none; }
+    #trainers-table .cc-plan-mobile { display: none; }
     #trainers-table .cc-avatar-name { flex: 1; min-width: 0; }
     #trainers-table .tc-status { flex-shrink: 0; }
     #trainers-table .cc-actions { flex-shrink: 0; gap: 3px; }
@@ -926,8 +939,8 @@
     #clients-table .cc-email,
     #clients-table .cc-plan,
     #clients-table .cc-date { display: none; }
-    #clients-table .cc-sub { display: block; }
-    #clients-table .cc-plan-mobile { display: block; }
+    #clients-table .cc-sub { display: none; }
+    #clients-table .cc-plan-mobile { display: none; }
     #clients-table .cc-avatar-name { flex: 1; min-width: 0; }
     #clients-table .cc-status { flex-shrink: 0; }
     #clients-table .cc-actions { flex-shrink: 0; gap: 3px; }
@@ -2200,10 +2213,12 @@
     /* Без скролу — фіксована висота екрана */
     .admin-app--dashboard {
         height: 100dvh;
+        box-sizing: border-box;   /* padding входить у 100dvh, не виходить за екран */
         overflow: hidden;
         display: flex;
         flex-direction: column;
         min-height: unset;
+        padding: 12px 14px 35px;
     }
     .admin-app--dashboard [data-screen-panel="dashboard"] {
         display: flex !important;
@@ -2282,25 +2297,30 @@
     /* Середня секція: тільки "Потребує уваги", розклад — прихований */
     .dash-mid-row .dash-schedule-card { display: none !important; }
     .dash-mid-row {
-        display: block;
+        display: flex;
+        flex-direction: column;
         flex: 1;
         min-height: 0;
         overflow: hidden;
     }
     .dash-mid-row .panel {
+        flex: 1;
         display: flex;
         flex-direction: column;
         overflow: hidden;
         padding: 12px;
-        height: 100%;
+        min-height: 0;
     }
     .attention-list {
         flex: 1;
+        display: flex;
+        flex-direction: column;
         overflow-y: auto;
         scrollbar-width: none;
         gap: 8px;
     }
     .attention-list::-webkit-scrollbar { display: none; }
+    .attention-list .attention-item { flex: 1; }
 
     /* Attention компактніший */
     .attention-item { padding: 10px 12px; gap: 10px; border-radius: 12px; }
@@ -2446,6 +2466,51 @@
     .admin-app {
         padding-bottom: 0;
         min-height: unset;
+    }
+
+    /* ── Dashboard: no page scroll, panels scroll internally ── */
+    .admin-app--dashboard {
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    .admin-app--dashboard .screen.active[data-screen-panel="dashboard"] {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        min-height: 0;
+        gap: 12px;
+    }
+    /* Fixed-height elements — do not shrink */
+    .admin-app--dashboard .topbar,
+    .admin-app--dashboard .dash-header-row,
+    .admin-app--dashboard .dash-hero-cards {
+        flex-shrink: 0;
+    }
+    /* Mid-row fills remaining height */
+    .admin-app--dashboard .dash-mid-row {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        align-items: stretch;
+        margin-top: 0;
+    }
+    /* Each panel in mid-row becomes a flex column */
+    .admin-app--dashboard .dash-mid-row .panel {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        min-height: 0;
+    }
+    /* The lists inside scroll */
+    .admin-app--dashboard #dashboard-today-list,
+    .admin-app--dashboard #dashboard-attention {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(232,80,2,.2) transparent;
     }
 
     .table-row {

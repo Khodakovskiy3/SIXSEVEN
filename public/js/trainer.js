@@ -9,6 +9,7 @@
  */
 
 import { apiFetch, clearAuth, formatDate, requireFreshAuth } from './api.js';
+import { escapeHtml } from './utils.js';
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
 import { initSidebar } from './sidebar.js';
@@ -117,15 +118,6 @@ document.querySelectorAll('[data-mode-tab]').forEach((button) => {
 
 // ─── Допоміжні функції ─────────────────────────────────────────────────────────
 
-function escapeHtml(value = '') {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-}
-
 function formatTime(value = '') {
   return String(value).slice(0, 5);
 }
@@ -135,7 +127,7 @@ function todayIso() {
 }
 
 function formatPillDate(value) {
-  return new Date(value).toLocaleDateString('uk-UA', { day: '2-digit', month: 'short' });
+  return new Date(value).toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' });
 }
 
 function formatWeekday(value) {
@@ -244,10 +236,10 @@ function buildScheduleCard(item, mode) {
       <div class="sched-card-time"><span>${formatTime(item.time)}</span></div>
       <div class="sched-card-body">
         <div class="sched-card-title">${escapeHtml(item.workout_name || '—')}</div>
-        <div class="sched-card-meta">${meta}</div>
+        ${meta ? `<div class="sched-card-meta">${meta}</div>` : ''}
         <div class="sched-capacity">
           <div class="sched-capacity-bar"><div class="sched-capacity-fill${isFull ? ' full' : ''}" style="width:${fillPct}%"></div></div>
-          <span class="sched-capacity-label${isFull ? ' full' : ''}">${isFull ? 'місць немає' : `вільно ${avail}`}</span>
+          ${mode !== 'mine' ? `<span class="sched-capacity-label${isFull ? ' full' : ''}">${booked}/${max}${isFull ? ' · повно' : ''}</span>` : ''}
         </div>
       </div>
       <div class="sched-card-actions">${actions}</div>
@@ -312,7 +304,7 @@ async function openScheduleClients(scheduleId) {
   sheet.classList.add('active');
 
   try {
-    const [clients, allNotes] = await Promise.all([
+    const [clients, myNotes] = await Promise.all([
       apiFetch(`/trainers/me/schedule/${scheduleId}/clients`),
       apiFetch('/trainers/me/client-notes').catch(() => []),
     ]);
@@ -323,9 +315,16 @@ async function openScheduleClients(scheduleId) {
       return;
     }
 
-    // Build notes map by client_id
-    const notesMap = {};
-    (allNotes || []).forEach((n) => { notesMap[n.client_id] = { note: n.note || '', exercises: n.exercises || '' }; });
+    // Власні нотатки
+    const myNotesMap = {};
+    (myNotes || []).forEach((n) => { myNotesMap[n.client_id] = { note: n.note || '', exercises: n.exercises || '' }; });
+
+    // Нотатки всіх тренерів для кожного клієнта
+    const allNotesResults = await Promise.all(
+      active.map((c) => apiFetch(`/trainers/client-notes-all/${c.client_id}`).catch(() => []))
+    );
+    const allNotesMap = {};
+    active.forEach((c, i) => { allNotesMap[c.client_id] = allNotesResults[i] || []; });
 
     // Fetch anthropometry for all active clients in parallel
     const anthropoResults = await Promise.all(
@@ -348,7 +347,7 @@ async function openScheduleClients(scheduleId) {
       if (!entries || entries.length === 0) {
         return `<p class="trainer-anthro-empty">Антропометрія не заповнена</p>`;
       }
-      return entries.map((a, idx) => {
+      const renderEntry = (a, idx) => {
         const chips = ANTHRO_FIELDS
           .filter((f) => a[f.key] != null)
           .map((f) => `<span class="trainer-anthro-chip"><b>${a[f.key]}</b> ${f.unit} <span>${f.label}</span></span>`)
@@ -365,7 +364,21 @@ async function openScheduleClients(scheduleId) {
             ${a.note ? `<p class="trainer-anthro-note">${escapeHtml(a.note)}</p>` : ''}
           </div>
         `;
-      }).join('<hr class="trainer-anthro-divider">');
+      };
+      const visible = entries.slice(0, 3);
+      const hidden = entries.slice(3);
+      const visibleHtml = visible.map((a, i) => renderEntry(a, i)).join('<hr class="trainer-anthro-divider">');
+      if (!hidden.length) return visibleHtml;
+      const hiddenId = `anthro-more-${Math.random().toString(36).slice(2)}`;
+      const hiddenHtml = hidden.map((a, i) => renderEntry(a, i + 3)).join('<hr class="trainer-anthro-divider">');
+      return `${visibleHtml}
+        <div class="trainer-anthro-more" id="${hiddenId}" style="display:none">
+          <hr class="trainer-anthro-divider">
+          ${hiddenHtml}
+        </div>
+        <button class="ghost-btn trainer-anthro-show-more" data-target="${hiddenId}" style="font-size:12px;margin-top:4px">
+          Показати ще ${hidden.length} вимір${hidden.length > 4 ? 'ів' : hidden.length > 1 ? 'и' : ''}
+        </button>`;
     }
 
     sheetDetails.innerHTML = `<div class="trainer-client-list">${
@@ -373,7 +386,7 @@ async function openScheduleClients(scheduleId) {
         const initials = escapeHtml(
           (client.client_name || '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
         );
-        const entry = notesMap[client.client_id] || { note: '', exercises: '' };
+        const entry = myNotesMap[client.client_id] || { note: '', exercises: '' };
         const { note, exercises } = entry;
         const hasData = note || exercises;
         const noteId = `note-${client.client_id}`;
@@ -381,6 +394,16 @@ async function openScheduleClients(scheduleId) {
         const areaId = `area-${client.client_id}`;
         const anthro = anthropoMap[client.client_id];
         const anthroId = `anthro-${client.client_id}`;
+        const allClientNotes = allNotesMap[client.client_id] || [];
+        const otherNotes = allClientNotes.filter((n) => !n.is_mine && (n.note || n.exercises));
+        const otherNotesHtml = otherNotes.length
+          ? otherNotes.map((n) => `
+              <div class="trainer-other-note">
+                <p class="trainer-other-note-author">🧑‍🏫 ${escapeHtml(n.trainer_name)}</p>
+                ${n.note ? `<p class="trainer-other-note-text">${escapeHtml(n.note)}</p>` : ''}
+                ${n.exercises ? `<p class="trainer-other-note-text"><b>Вправи:</b> ${escapeHtml(n.exercises)}</p>` : ''}
+              </div>`).join('')
+          : '';
         return `
           <div class="trainer-client-card" data-client-id="${client.client_id}">
             <div class="trainer-client-card-header">
@@ -390,24 +413,25 @@ async function openScheduleClients(scheduleId) {
                 <p>${escapeHtml(client.client_phone || client.client_email || '—')}</p>
               </div>
               <div style="display:flex;gap:6px;flex-shrink:0">
-                <button class="ghost-btn anthro-toggle-btn" data-area="${anthroId}" style="white-space:nowrap;font-size:12px" aria-label="Антропометрія">📏</button>
-                <button class="ghost-btn note-toggle-btn" data-area="${areaId}" style="white-space:nowrap;font-size:12px">
+                <button class="ghost-btn anthro-toggle-btn" data-anthro="${anthroId}" data-note="${areaId}" style="white-space:nowrap;font-size:12px" aria-label="Антропометрія">📏</button>
+                <button class="ghost-btn note-toggle-btn" data-note="${areaId}" data-anthro="${anthroId}" style="white-space:nowrap;font-size:12px">
                   ${hasData ? '✏️ Картка' : '+ Картка'}
                 </button>
               </div>
             </div>
 
-            <!-- Антропометрія (read-only) -->
+            <!-- Антропометрія (read-only, max 3 видимих) -->
             <div class="trainer-note-area" id="${anthroId}">
               <label class="trainer-note-label">Антропометрія клієнта</label>
               ${renderAnthroBlock(anthro)}
             </div>
 
-            <!-- Картка тренера (редагована) -->
+            <!-- Картка тренера + нотатки інших тренерів -->
             <div class="trainer-note-area${hasData ? ' open' : ''}" id="${areaId}">
-              <label class="trainer-note-label">Характеристика</label>
+              ${otherNotesHtml ? `<div class="trainer-other-notes-list">${otherNotesHtml}</div>` : ''}
+              <label class="trainer-note-label">Моя характеристика</label>
               <textarea id="${noteId}" placeholder="Коротка характеристика клієнта, протипоказання…">${escapeHtml(note)}</textarea>
-              <label class="trainer-note-label">Вправи</label>
+              <label class="trainer-note-label">Мої вправи</label>
               <textarea id="${exId}" placeholder="Вправи, які можна виконувати…">${escapeHtml(exercises)}</textarea>
               <div class="trainer-note-actions">
                 <button class="primary-btn save-note-btn" style="font-size:12px;padding:7px 14px"
@@ -518,22 +542,34 @@ document.addEventListener('click', async (event) => {
     return;
   }
 
-  // Розкрити/закрити антропометрію
-  const anthroToggle = event.target.closest('.anthro-toggle-btn');
-  if (anthroToggle) {
-    const area = document.getElementById(anthroToggle.dataset.area);
-    if (area) area.classList.toggle('open');
+  // "Показати ще" в антропометрії
+  const showMoreBtn = event.target.closest('.trainer-anthro-show-more');
+  if (showMoreBtn) {
+    const target = document.getElementById(showMoreBtn.dataset.target);
+    if (target) {
+      target.style.display = 'block';
+      showMoreBtn.style.display = 'none';
+    }
     return;
   }
 
-  // Розкрити/закрити область нотатки
+  // Антропометрія — відкрити, закрити картку
+  const anthroToggle = event.target.closest('.anthro-toggle-btn');
+  if (anthroToggle) {
+    const anthroArea = document.getElementById(anthroToggle.dataset.anthro);
+    const noteArea = document.getElementById(anthroToggle.dataset.note);
+    if (anthroArea) anthroArea.classList.toggle('open');
+    if (noteArea) noteArea.classList.remove('open');
+    return;
+  }
+
+  // Картка — відкрити, закрити антропометрію
   const noteToggle = event.target.closest('.note-toggle-btn');
   if (noteToggle) {
-    const areaId = noteToggle.dataset.area;
-    const area = document.getElementById(areaId);
-    if (area) {
-      area.classList.toggle('open');
-    }
+    const noteArea = document.getElementById(noteToggle.dataset.note);
+    const anthroArea = document.getElementById(noteToggle.dataset.anthro);
+    if (noteArea) noteArea.classList.toggle('open');
+    if (anthroArea) anthroArea.classList.remove('open');
     return;
   }
 

@@ -61,7 +61,10 @@ function canAssignRole(actorRole, targetRole) {
 }
 
 function canManagerChangeRole(currentRole, targetRole) {
-  return currentRole === ROLE.ADMIN && targetRole === ROLE.CLIENT;
+  // Менеджер не може чіпати інших менеджерів і не може призначати роль менеджера
+  if (currentRole === ROLE.MANAGER || targetRole === ROLE.MANAGER) return false;
+  // Будь-які інші переходи між client / trainer / admin — дозволено
+  return true;
 }
 
 async function ensureDomainRecord(client, userId, role) {
@@ -154,7 +157,8 @@ router.put('/:id', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   }
 
   if (normalizedRole && !canAssignRole(req.user.role, normalizedRole)) {
-    if (req.user.role !== ROLE.MANAGER || normalizedRole !== ROLE.CLIENT) {
+    // Менеджер може змінювати будь-яку роль крім manager
+    if (req.user.role !== ROLE.MANAGER || normalizedRole === ROLE.MANAGER) {
       return res.status(HTTP_FORBIDDEN).json({ error: 'Forbidden' });
     }
   }

@@ -51,6 +51,12 @@ button {
     min-height: 100vh;
 }
 
+.app-shell--locked {
+    height: 100dvh;
+    min-height: unset;
+    overflow: hidden;
+}
+
 .client-app {
     min-height: 100dvh;
     padding: 12px 14px 72px;
@@ -411,30 +417,18 @@ p {
 
 .subscription-card {
     cursor: pointer;
-    justify-content: space-between;
-    transition: border-color 0.22s ease, box-shadow 0.22s ease;
-}
-
-.subscription-card:hover {
-    border-color: rgba(232,80,2,0.28);
-    box-shadow: var(--shadow), 0 0 0 1px rgba(232,80,2,0.07);
-}
-
-.subscription-card:hover .chevron {
-    transform: translateX(4px);
-}
-
-/* Chevron slide animation */
-.chevron {
-    color: var(--accent);
-    font-size: 28px;
-    flex-shrink: 0;
-    transition: transform 0.22s ease;
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    overflow: hidden;
+    width: 100%;
 }
 
 #client-subscription-summary {
-    flex: 1;
-    align-items: flex-start;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
 .section-label {
@@ -463,16 +457,8 @@ p {
     margin-bottom: 6px;
 }
 
-.subscription-card h2 {
-    font-size: 18px;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    margin-bottom: 6px;
-}
-
 /* Muted paragraph text in panels */
 .next-training p,
-.subscription-card p,
 .today-schedule p {
     color: var(--muted);
     font-size: 13px;
@@ -756,6 +742,109 @@ p {
     color: var(--accent);
 }
 
+/* ── Активний абонемент: картка ── */
+.sub-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: var(--accent-soft);
+    border-radius: 16px;
+    padding: 14px 14px 14px 16px;
+    overflow: hidden;
+    width: 100%;
+    box-sizing: border-box;
+}
+.sub-card__content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+.sub-card__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 4px 11px 4px 8px;
+    width: fit-content;
+}
+.sub-card__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #4cde80;
+    flex-shrink: 0;
+}
+.sub-card__name {
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text);
+    margin: 0;
+    line-height: 1.2;
+}
+.sub-card__usage {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent-soft);
+    border: 1px solid rgba(232,80,2,0.18);
+    border-radius: 999px;
+    padding: 3px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    width: fit-content;
+}
+.sub-dates {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.sub-date-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(232,80,2,0.12);
+}
+.sub-date-row:last-child { border-bottom: none; }
+.sub-date-icon {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    background: var(--accent-soft);
+    border-radius: 7px;
+    color: var(--accent);
+    flex-shrink: 0;
+}
+.sub-date-label {
+    font-size: 12px;
+    color: var(--muted);
+    flex-shrink: 0;
+}
+.sub-date-divider {
+    flex: 1;
+    height: 1px;
+    background: rgba(232,80,2,0.15);
+}
+.sub-date-val {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    flex-shrink: 0;
+}
+.sub-card__illo {
+    flex-shrink: 0;
+    opacity: 0.9;
+}
+
 .date-pill {
     flex: 0 0 76px;
     min-height: 78px;
@@ -775,11 +864,88 @@ p {
     font-size: 12px;
 }
 
+/* ── Search wrap (schedule page) ── */
+.clients-search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+.clients-search-icon {
+    position: absolute;
+    left: 12px;
+    width: 15px;
+    height: 15px;
+    color: var(--muted);
+    pointer-events: none;
+    flex-shrink: 0;
+}
+.clients-search-wrap input[type="search"] {
+    width: 100%;
+    padding: 0 12px 0 38px;
+    height: 38px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 13px;
+    transition: border-color .15s, background .15s;
+}
+.clients-search-wrap input[type="search"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: rgba(232,80,2,0.04);
+}
+.clients-search-wrap input[type="search"]::placeholder { color: var(--muted); }
+.clients-search-wrap input[type="search"]::-webkit-search-cancel-button { display: none; }
+
+/* ── Schedule page — scroll inside, like admin ── */
+.client-app--schedule {
+    height: calc(100dvh - 58px);
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 14px;
+    gap: 10px;
+}
+
+.client-app--schedule .screen.active {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
 .schedule-panel {
     display: flex;
     flex-direction: column;
     gap: 10px;
 }
+
+.client-app--schedule .schedule-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+    gap: 8px;
+    box-shadow: none;
+}
+
+.client-app--schedule .sched-day-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 12px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(232,80,2,.25) transparent;
+}
+
+.client-app--schedule .chip-row { flex-shrink: 0; }
+.client-app--schedule #schedule-feedback { flex-shrink: 0; }
+
 
 .class-card,
 .record-card,
@@ -850,7 +1016,7 @@ p {
 
 .primary-btn {
     background: var(--accent);
-    color: #111;
+    color: #fff;
     cursor: pointer;
     transition: filter 0.18s ease, transform 0.18s ease;
 }
@@ -1006,6 +1172,13 @@ p {
     color: var(--muted);
     font-size: 13px;
     padding: 6px 0;
+}
+
+/* Список занять на сьогодні — 3 пункти видно, далі скрол всередині */
+#client-today-list {
+    max-height: 220px;
+    overflow-y: auto;
+    scrollbar-width: none;
 }
 
 /* ── Record list ── */
@@ -1487,17 +1660,17 @@ input:disabled {
     scroll-snap-type: x mandatory;
     -webkit-overflow-scrolling: touch;
     padding-bottom: 8px;
+    scrollbar-width: none;
+    background: var(--surface);
+}
+.plans-grid::-webkit-scrollbar {
+    display: none;
 }
 
 .current-plan {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-    border: 1px solid var(--accent);
-    border-radius: var(--radius);
-    background: var(--accent-soft);
-    padding: 14px;
+    gap: 0;
 }
 
 /* ══ manage-card (скопійовано з admin, для карток тарифів) ══ */
@@ -1515,15 +1688,15 @@ input:disabled {
 .manage-card:hover {
     transform: translateY(-4px);
     border-color: rgba(232,80,2,0.22);
-    box-shadow: 0 20px 48px rgba(0,0,0,.55), 0 0 32px rgba(232,80,2,0.09);
+    box-shadow: none;
 }
 .manage-card.featured {
     border-color: rgba(232,80,2,0.30);
-    box-shadow: 0 14px 40px rgba(0,0,0,.45), 0 0 26px rgba(232,80,2,0.10);
+    box-shadow: none;
 }
 .manage-card.featured:hover {
     border-color: rgba(232,80,2,0.45);
-    box-shadow: 0 22px 52px rgba(0,0,0,.60), 0 0 40px rgba(232,80,2,0.16);
+    box-shadow: none;
 }
 .manage-card__topline {
     display: flex;
@@ -1544,11 +1717,14 @@ input:disabled {
     padding: 4px 11px;
 }
 .manage-card__dark {
-    background: linear-gradient(175deg, #150800 0%, #0a0300 100%);
+    background: transparent;
     padding: 24px 22px 20px;
     display: flex;
     flex-direction: column;
     flex: 1;
+}
+.manage-card {
+    background: var(--surface-2);
 }
 .manage-card h3 {
     font-size: 19px;
@@ -1613,11 +1789,11 @@ input:disabled {
     box-shadow: 0 6px 32px rgba(232,80,2,0.65);
 }
 .manage-card__light {
-    background: #2a1508;
+    background: transparent;
     flex: 0 0 auto;
     display: flex;
     flex-direction: column;
-    border-top: 1px solid rgba(232,80,2,0.18);
+    border-top: 1px solid var(--line);
 }
 .manage-card__features {
     list-style: none;
@@ -1642,21 +1818,21 @@ input:disabled {
 
 /* ══ manage-card light theme overrides ══ */
 [data-theme="light"] .manage-card {
-    border-color: var(--line);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-}
-[data-theme="light"] .manage-card:hover {
-    box-shadow: 0 10px 32px rgba(0,0,0,0.12), 0 0 20px rgba(232,80,2,0.07);
-}
-[data-theme="light"] .manage-card.featured {
-    box-shadow: 0 6px 24px rgba(0,0,0,0.10), 0 0 16px rgba(232,80,2,0.08);
-}
-[data-theme="light"] .manage-card__dark {
+    border-color: rgba(232,80,2,0.30);
+    box-shadow: none;
     background: var(--surface);
 }
+[data-theme="light"] .manage-card:hover {
+    box-shadow: none;
+}
+[data-theme="light"] .manage-card.featured {
+    box-shadow: none;
+}
+[data-theme="light"] .manage-card__dark {
+    background: transparent;
+}
 [data-theme="light"] .manage-card__light {
-    background: var(--surface-2);
-    border-top: 1px solid var(--line);
+    background: transparent;
 }
 [data-theme="light"] .manage-card__features li {
     color: var(--text);
@@ -1848,6 +2024,13 @@ dd {
         background: var(--bg);
         padding: 32px 0 40px 32px;
         gap: 12px;
+    }
+
+    /* Schedule page: lock the shell to exactly 100dvh so nothing overflows */
+    .app-shell--locked {
+        height: 100dvh;
+        min-height: unset;
+        overflow: hidden;
     }
 
     /* ── Sidebar ── */
@@ -2073,29 +2256,32 @@ dd {
         padding: 24px;
         display: flex;
         flex-direction: column;
-        min-height: calc(100dvh - 20px);
+        height: calc(100dvh - 72px); /* app-shell: padding-top 32px + padding-bottom 40px */
+        overflow: hidden;
     }
 
-    /* Home screen fills the remaining viewport */
-    [data-screen-panel="home"].screen.active {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
+    /* Schedule page on desktop — match sidebar bottom edge */
+    .client-app.client-app--schedule {
+        height: calc(100dvh - 72px);
+        min-height: 0;
+        padding: 13px 16px 0 16px;
+        gap: 8px;
     }
+
 
     [data-screen-panel="home"] .dashboard-grid {
-        flex: 1;
-        grid-template-columns: 1fr 1fr 1fr;
-        grid-template-rows: auto 1fr;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto auto;
         grid-template-areas:
-            "next  next  next"
-            "sub   anth  sched";
+            "next   next"
+            "sub    sub"
+            "anth   sched";
     }
 
-    .next-training     { grid-area: next;  flex-direction: row; align-items: center; gap: 20px; padding: 18px 24px; min-height: 96px; }
-    .subscription-card { grid-area: sub;   }
+    .next-training     { grid-area: next;  flex-direction: row; align-items: center; gap: 20px; padding: 14px 22px; }
+    .subscription-card { grid-area: sub;   align-self: start; }
     .anthro-card       { grid-area: anth;  align-self: start; }
-    .today-schedule    { grid-area: sched; }
+    .today-schedule    { grid-area: sched; align-self: start; }
 
     /* Next-training як горизонтальний банер */
     .next-training .section-label {
@@ -2107,7 +2293,7 @@ dd {
         display: flex;
         align-items: center;
         gap: 20px;
-        justify-content: space-between;
+        justify-content: center;
     }
 
     .next-training h2 {
@@ -2158,6 +2344,15 @@ dd {
         gap: 14px;
     }
 
+    .plans-grid {
+        overflow-x: visible;
+    }
+    .plans-grid .manage-card {
+        flex: 1 1 0;
+        width: auto;
+        min-width: 0;
+    }
+
     .panel {
         padding: 20px;
     }
@@ -2200,17 +2395,19 @@ dd {
         margin-top: 11px;
     }
 
-    /* next-training: займає всю висоту лівої колонки */
+    /* next-training: горизонтальна лінія по центру */
     .next-training #client-next-training {
         flex: 1;
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
+        align-items: center;
         justify-content: center;
+        gap: 20px;
     }
 
-    /* today-schedule: займає всю висоту */
+    /* today-schedule: фіксована висота списку, скрол всередині */
     .today-schedule #client-today-list {
-        flex: 1;
+        max-height: 260px;
         overflow-y: auto;
         scrollbar-width: none;
     }
@@ -2393,33 +2590,33 @@ dd {
     }
 }
 
-/* ── Мобільний: next-training вертикальний ── */
+/* ── Мобільний: next-training горизонтальний ── */
 @media (max-width: 579px) {
     .next-training {
         flex-direction: column;
-        align-items: flex-start;
+        align-items: stretch;
+        padding: 14px 16px;
     }
 
     .next-training #client-next-training {
         width: 100%;
         display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .next-training .training-main,
-    .next-time-badge {
-        width: 100%;
-    }
-
-    .next-time-badge {
         flex-direction: row;
-        justify-content: flex-start;
-        gap: 10px;
-        padding: 10px 14px;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
     }
 
-    .next-hour { font-size: 22px; }
+    .next-time-badge {
+        flex-shrink: 0;
+    }
+
+    .next-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .next-hour { font-size: 18px; }
 }
 
 /* ── Розклад: нові картки (стиль адміна) ────────────────────────────────── */
@@ -2505,7 +2702,15 @@ dd {
     font-weight: 800;
     color: var(--accent);
     line-height: 1.1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
 }
+
+/* На десктопі тривалість лише в заголовку */
+.sched-duration--time { display: none; }
+.sched-duration--title { display: inline; }
 
 .sched-card-body {
     flex: 1;
@@ -2520,6 +2725,31 @@ dd {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.sched-duration {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface-2);
+    border-radius: 5px;
+    padding: 1px 6px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+.client-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    font-size: 8px;
 }
 .sched-card-meta {
     display: flex;
@@ -2559,10 +2789,12 @@ dd {
     flex-shrink: 0;
 }
 .sched-card-actions .ghost-btn,
-.sched-card-actions .primary-btn {
+.sched-card-actions .primary-btn,
+.sched-card-actions .danger-btn {
     padding: 8px 14px;
     font-size: 12px;
     white-space: nowrap;
+    text-align: center;
 }
 
 @media (min-width: 720px) {
@@ -2573,6 +2805,15 @@ dd {
     .sched-card { padding: 14px 20px; }
     .sched-capacity-bar { max-width: 160px; }
     .sched-card-actions { flex-direction: row; }
+    /* Десктоп: тривалість у заголовку, не під часом */
+    .sched-duration--time { display: none; }
+    .sched-duration--title { display: inline; }
+}
+
+@media (max-width: 719px) {
+    /* Мобільний: тривалість під часом, не в заголовку */
+    .sched-duration--time { display: inline; }
+    .sched-duration--title { display: none; }
 }
 
 /* ══════════════════════════════════════════════════
@@ -2665,7 +2906,7 @@ dd {
 
 .anthro-form-panel h2 {
     margin: 0;
-    font-size: 20px;
+    font-size: 17px;
     color: var(--text);
 }
 
@@ -2878,8 +3119,124 @@ dd {
         min-width: 0;
     }
 
+    #anthro-history {
+        max-height: 360px;
+        overflow-y: auto;
+        padding-right: 4px;
+        scrollbar-width: none;
+    }
+
+    #anthro-history::-webkit-scrollbar {
+        display: none;
+    }
+
     .anthro-grid {
         grid-template-columns: repeat(3, 1fr);
     }
+}
+
+/* Заголовок форми з кнопкою */
+.anthro-form-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.anthro-form-header h2 {
+    margin: 0;
+    text-align: left;
+}
+.anthro-history-btn {
+    font-size: 12px;
+    padding: 5px 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Модалка «Історія вимірів» — тільки мобільна */
+.anthro-history-modal {
+    display: none;
+}
+@media (max-width: 899px) {
+    .anthro-history-btn { display: inline-flex; }
+
+    .anthro-history-modal {
+        display: flex;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,.55);
+        z-index: 500;
+        align-items: flex-end;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .2s;
+    }
+    .anthro-history-modal.active {
+        opacity: 1;
+        pointer-events: all;
+    }
+    .anthro-history-modal__inner {
+        width: 100%;
+        max-height: 80dvh;
+        background: var(--surface);
+        border-radius: 18px 18px 0 0;
+        display: flex;
+        flex-direction: column;
+        transform: translateY(100%);
+        transition: transform .25s cubic-bezier(.32,0,.67,0);
+    }
+    .anthro-history-modal.active .anthro-history-modal__inner {
+        transform: translateY(0);
+    }
+    .anthro-history-modal__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 16px 10px;
+        border-bottom: 1px solid var(--line);
+        flex-shrink: 0;
+    }
+    .anthro-history-modal__head h3 {
+        margin: 0;
+        font-size: 15px;
+    }
+    .anthro-history-modal__body {
+        overflow-y: auto;
+        max-height: 420px;
+        padding: 12px 16px 24px;
+        scrollbar-width: none;
+    }
+    .anthro-history-modal__body::-webkit-scrollbar { display: none; }
+
+    /* Права колонка: показуємо прогрес, ховаємо тільки панель історії */
+    .anthro-right-col .anthro-history-panel { display: none !important; }
+}
+@media (min-width: 900px) {
+    .anthro-history-btn { display: none; }
+}
+
+/* Mobile: компактна антропометрія */
+@media (max-width: 899px) {
+    .anthro-page-wrap       { gap: 8px; }
+    .anthro-form-panel      { gap: 8px; }
+    .anthro-form-panel h2   { font-size: 17px; }
+    .anthro-right-col       { gap: 8px; }
+
+    .anthro-grid            { gap: 7px; }
+    .anthro-field           { gap: 3px; }
+    .anthro-label           { font-size: 10px; }
+    .anthro-input           { font-size: 13px; padding: 7px 9px; }
+    .anthro-date-input      { font-size: 12px; padding: 6px 9px; }
+    .anthro-date-row        { gap: 8px; }
+
+    .anthro-section-title   { font-size: 11px; }
+    .anthro-progress-hint   { font-size: 11px; margin: -2px 0 2px; }
+    .anthro-progress-row    { padding: 6px 0; gap: 8px; }
+    .anthro-progress-label  { font-size: 12px; }
+    .anthro-progress-val    { font-size: 13px; }
+    .anthro-delta           { font-size: 11px; padding: 1px 6px; }
+
+    .anthro-progress-panel,
+    .anthro-history-panel   { gap: 6px; }
 }
 

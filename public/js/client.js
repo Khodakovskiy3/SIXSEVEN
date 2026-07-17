@@ -1,4 +1,5 @@
 import { apiFetch, clearAuth, formatDate, requireFreshAuth, setAuth } from './api.js';
+import { escapeHtml, getInitials, getAvatarColor, AVATAR_PALETTE, formatMoney } from './utils.js';
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE, STORAGE_KEY } from './constants.js';
 import { initSidebar } from './sidebar.js';
@@ -47,6 +48,34 @@ const accessTypeLabels = {
  * @param {string} [okLabel] Підпис кнопки підтвердження (дія не завжди «Видалити»).
  * @returns {Promise<boolean>}
  */
+/**
+ * Гнучкий діалог підтвердження з кастомним текстом кнопки.
+ * @param {string} message
+ * @param {string} okLabel  — текст кнопки підтвердження
+ * @param {string} okClass  — CSS-клас кнопки ('primary-btn' або 'danger-btn')
+ * @returns {Promise<boolean>}
+ */
+function showActionConfirm(message, okLabel = 'Підтвердити', okClass = 'primary-btn') {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'custom-confirm-overlay';
+    overlay.innerHTML = `
+      <div class="custom-confirm-box">
+        <p class="custom-confirm-msg">${escapeHtml(message)}</p>
+        <div class="custom-confirm-actions">
+          <button class="ghost-btn custom-confirm-cancel">Назад</button>
+          <button class="${okClass} custom-confirm-ok">${escapeHtml(okLabel)}</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const cleanup = (result) => { overlay.remove(); resolve(result); };
+    overlay.querySelector('.custom-confirm-ok').addEventListener('click', () => cleanup(true));
+    overlay.querySelector('.custom-confirm-cancel').addEventListener('click', () => cleanup(false));
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(false); });
+  });
+}
+
 function showConfirm(message, okLabel = 'Видалити') {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
@@ -96,19 +125,12 @@ function showLogoutConfirm() {
   });
 }
 
-function escapeHtml(value = '') {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+function fmtLocalDate(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  return d.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function formatMoney(value) {
-  const amount = Number(value || 0);
-  return `${amount.toLocaleString('uk-UA', { maximumFractionDigits: 0 })} грн`;
-}
 
 function describePlan(plan) {
   const access = accessTypeLabels[plan.access_type] || plan.access_type || 'Доступ';
@@ -260,13 +282,57 @@ function renderCurrentSubscription(subscriptions = []) {
     return;
   }
 
+  const isSubscription = activeSubscription.plan_type === 'subscription';
+  const usageLabel = isSubscription
+    ? `${activeSubscription.duration_days || 30} днів`
+    : `${activeSubscription.usage_count || 1} відвідування`;
+
   container.innerHTML = `
-    <span class="chip active">Активний</span>
-    <h3>${escapeHtml(activeSubscription.type || activeSubscription.plan_name || 'Абонемент')}</h3>
-    <p>Початок: ${formatDate(activeSubscription.start_date)}</p>
-    <p>Діє до: ${formatDate(activeSubscription.end_date)}</p>
-    <p class="form-note">Щоб придбати інший тариф, спершу скасуйте поточний абонемент.</p>
-    <button class="danger-btn" data-cancel-subscription>Скасувати абонемент</button>
+    <div class="sub-card">
+      <div class="sub-card__content">
+        <div class="sub-card__badge">
+          <span class="sub-card__dot"></span>Активний
+        </div>
+        <h3 class="sub-card__name">${escapeHtml(activeSubscription.type || activeSubscription.plan_name || 'Абонемент')}</h3>
+        <div class="sub-card__usage">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          ${escapeHtml(usageLabel)}
+        </div>
+        <div class="sub-dates">
+          <div class="sub-date-row">
+            <span class="sub-date-icon">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </span>
+            <span class="sub-date-label">Початок</span>
+            <span class="sub-date-divider"></span>
+            <span class="sub-date-val">${fmtLocalDate(activeSubscription.start_date)}</span>
+          </div>
+          <div class="sub-date-row">
+            <span class="sub-date-icon">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </span>
+            <span class="sub-date-label">Діє до</span>
+            <span class="sub-date-divider"></span>
+            <span class="sub-date-val">${fmtLocalDate(activeSubscription.end_date)}</span>
+          </div>
+        </div>
+        <p class="form-note">Щоб придбати інший тариф, спершу скасуйте поточний абонемент.</p>
+        <button class="danger-btn" data-cancel-subscription>Скасувати абонемент</button>
+      </div>
+      <div class="sub-card__illo" aria-hidden="true">
+        <svg viewBox="0 0 120 100" width="90" height="76" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="18" width="95" height="64" rx="14" fill="rgba(232,80,2,0.10)"/>
+          <rect x="4" y="28" width="6" height="20" rx="3" fill="rgba(232,80,2,0.15)"/>
+          <rect x="105" y="28" width="6" height="20" rx="3" fill="rgba(232,80,2,0.15)"/>
+          <circle cx="60" cy="50" r="22" fill="rgba(232,80,2,0.10)"/>
+          <rect x="34" y="46" width="12" height="8" rx="2" fill="rgba(232,80,2,0.5)"/>
+          <rect x="74" y="46" width="12" height="8" rx="2" fill="rgba(232,80,2,0.5)"/>
+          <rect x="44" y="48" width="32" height="4" rx="2" fill="rgba(232,80,2,0.5)"/>
+          <rect x="32" y="44" width="6" height="12" rx="3" fill="rgba(232,80,2,0.6)"/>
+          <rect x="82" y="44" width="6" height="12" rx="3" fill="rgba(232,80,2,0.6)"/>
+        </svg>
+      </div>
+    </div>
   `;
 }
 
@@ -383,11 +449,16 @@ function renderScheduleList() {
   const list = document.querySelector('#client-schedule-list');
   if (!list) return;
 
+  const searchQuery = (document.querySelector('#client-schedule-search')?.value || '').trim().toLowerCase();
+
   const visibleSchedules = schedules.filter((item) => {
     const date = formatDate(item.date);
     const matchesDate = date === selectedScheduleDate;
     const matchesFilter = selectedWorkoutFilter === 'all' || item.workout_name === selectedWorkoutFilter;
-    return matchesDate && matchesFilter;
+    const matchesSearch = !searchQuery
+      || (item.workout_name || '').toLowerCase().includes(searchQuery)
+      || (item.trainer_name || '').toLowerCase().includes(searchQuery);
+    return matchesDate && matchesFilter && matchesSearch;
   });
 
   if (visibleSchedules.length === 0) {
@@ -410,19 +481,31 @@ function renderScheduleList() {
     const isFull = available <= 0 && maxClients > 0;
     const disabled = isFull && !booked;
 
+    const trainerInitials = getInitials(item.trainer_name || '?');
+    const trainerColor = getAvatarColor(item.trainer_name || '');
+
     const actionBtn = booked
       ? `<button class="danger-btn" data-cancel-booking="${bookingId}">Скасувати</button>`
       : `<button class="${available > 0 ? 'primary-btn' : 'ghost-btn'}" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${available > 0 ? 'Записатися' : 'Лист очікування'}</button>`;
 
     return `
       <div class="sched-card${isFull && !booked ? ' sched-card--full' : ''}">
-        <div class="sched-card-time"><span>${formatTime(item.time)}</span></div>
+        <div class="sched-card-time">
+          <span>${formatTime(item.time)}</span>
+          ${item.duration_minutes ? `<span class="sched-duration sched-duration--time">${item.duration_minutes} хв</span>` : ''}
+        </div>
         <div class="sched-card-body">
-          <div class="sched-card-title">${escapeHtml(item.workout_name)}</div>
-          <div class="sched-card-meta"><span>${escapeHtml(item.trainer_name || 'Тренер не призначений')}</span></div>
+          <div class="sched-card-title">
+            ${escapeHtml(item.workout_name)}
+            ${item.duration_minutes ? `<span class="sched-duration sched-duration--title">${item.duration_minutes} хв</span>` : ''}
+          </div>
+          <div class="sched-card-meta">
+            <div class="client-avatar" style="background:${trainerColor};width:20px;height:20px;font-size:8px;flex-shrink:0">${escapeHtml(trainerInitials)}</div>
+            <span>${escapeHtml(item.trainer_name || 'Тренер не призначений')}</span>
+          </div>
           <div class="sched-capacity">
             <div class="sched-capacity-bar"><div class="sched-capacity-fill${isFull ? ' full' : ''}" style="width:${fillPct}%"></div></div>
-            <span class="sched-capacity-label${isFull ? ' full' : ''}">${available > 0 ? `вільно ${available}` : 'місць немає'}</span>
+            <span class="sched-capacity-label${isFull ? ' full' : ''}">${bookedCount}/${maxClients}${isFull ? ' · повно' : ''}</span>
           </div>
         </div>
         <div class="sched-card-actions">
@@ -437,14 +520,19 @@ function renderScheduleList() {
 async function loadSchedulePage() {
   if (!document.querySelector('#client-schedule-list')) return;
 
+  // Підключаємо пошук
+  const searchInput = document.querySelector('#client-schedule-search');
+  if (searchInput && !searchInput.dataset.bound) {
+    searchInput.dataset.bound = '1';
+    searchInput.addEventListener('input', () => renderScheduleList());
+  }
+
   try {
     setScheduleFeedback('Завантаження розкладу...');
     [schedules, bookings] = await Promise.all([
       apiFetch('/schedules'),
       apiFetch('/bookings/me'),
     ]);
-    // На першому завантаженні починаємо з найближчого дня із заняттями,
-    // а після запису зберігаємо вже обраний день, якщо він ще доступний.
     const dates = getScheduleDates();
     if (!selectedScheduleDate || !dates.includes(selectedScheduleDate)) {
       selectedScheduleDate = pickDefaultScheduleDate(dates);
@@ -475,14 +563,21 @@ function openScheduleDetails(scheduleId) {
 }
 
 async function bookSchedule(scheduleId) {
+  const schedule = schedules.find(s => String(s.id) === String(scheduleId));
+  const name = schedule ? escapeHtml(schedule.workout_name) : 'тренування';
+  const time = schedule ? formatTime(schedule.time) : '';
+  const confirmed = await showActionConfirm(
+    `Записатися на ${name}${time ? ` о ${time}` : ''}?`,
+    'Записатися',
+    'primary-btn'
+  );
+  if (!confirmed) return;
   try {
     await apiFetch('/bookings', {
       method: 'POST',
       body: JSON.stringify({ schedule_id: Number(scheduleId) }),
     });
     setScheduleFeedback('Запис створено', 'success');
-    // Оновлюємо ту сторінку, що відкрита: розклад або головну
-    // (кожна функція сама нічого не робить, якщо її блоків немає в DOM).
     await Promise.all([loadSchedulePage(), loadHomePage()]);
   } catch (error) {
     setScheduleFeedback(`Не вдалося записатися: ${error.message}`, 'error');
@@ -577,9 +672,16 @@ async function loadRecordsPage() {
 }
 
 async function cancelBooking(bookingId) {
+  const booking = bookings.find(b => String(b.id) === String(bookingId));
+  const name = booking ? escapeHtml(booking.workout_name || 'тренування') : 'тренування';
+  const confirmed = await showActionConfirm(
+    `Скасувати запис на ${name}?`,
+    'Скасувати запис',
+    'danger-btn'
+  );
+  if (!confirmed) return;
   try {
     await apiFetch(`/bookings/${bookingId}`, { method: 'DELETE' });
-    // Оновлюємо bookings і всі сторінки що від них залежать
     bookings = await apiFetch('/bookings/me').catch(() => bookings);
     await Promise.all([loadRecordsPage(), loadSchedulePage(), loadHomePage()]);
   } catch {
@@ -676,12 +778,55 @@ function renderHomeSubscription(subscriptions = []) {
     return;
   }
 
+  const isSubscription = activeSubscription.plan_type === 'subscription';
+  const usageLabel = isSubscription
+    ? `${activeSubscription.duration_days || 30} днів`
+    : `${activeSubscription.usage_count || 1} відвідування`;
+
   container.innerHTML = `
-    <div>
-      <h2>${escapeHtml(activeSubscription.type || 'Абонемент')}</h2>
-      <p><span class="status-dot"></span>Активний · до ${formatDate(activeSubscription.end_date)}</p>
+    <div class="sub-card">
+      <div class="sub-card__content">
+        <div class="sub-card__badge">
+          <span class="sub-card__dot"></span>Активний
+        </div>
+        <h3 class="sub-card__name">${escapeHtml(activeSubscription.type || activeSubscription.plan_name || 'Абонемент')}</h3>
+        <div class="sub-card__usage">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          ${escapeHtml(usageLabel)}
+        </div>
+        <div class="sub-dates">
+          <div class="sub-date-row">
+            <span class="sub-date-icon">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </span>
+            <span class="sub-date-label">Початок</span>
+            <span class="sub-date-divider"></span>
+            <span class="sub-date-val">${fmtLocalDate(activeSubscription.start_date)}</span>
+          </div>
+          <div class="sub-date-row">
+            <span class="sub-date-icon">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </span>
+            <span class="sub-date-label">Діє до</span>
+            <span class="sub-date-divider"></span>
+            <span class="sub-date-val">${fmtLocalDate(activeSubscription.end_date)}</span>
+          </div>
+        </div>
+      </div>
+      <div class="sub-card__illo" aria-hidden="true">
+        <svg viewBox="0 0 120 100" width="90" height="76" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="10" y="18" width="95" height="64" rx="14" fill="rgba(232,80,2,0.10)"/>
+          <rect x="4" y="28" width="6" height="20" rx="3" fill="rgba(232,80,2,0.15)"/>
+          <rect x="105" y="28" width="6" height="20" rx="3" fill="rgba(232,80,2,0.15)"/>
+          <circle cx="60" cy="50" r="22" fill="rgba(232,80,2,0.10)"/>
+          <rect x="34" y="46" width="12" height="8" rx="2" fill="rgba(232,80,2,0.5)"/>
+          <rect x="74" y="46" width="12" height="8" rx="2" fill="rgba(232,80,2,0.5)"/>
+          <rect x="44" y="48" width="32" height="4" rx="2" fill="rgba(232,80,2,0.5)"/>
+          <rect x="32" y="44" width="6" height="12" rx="3" fill="rgba(232,80,2,0.6)"/>
+          <rect x="82" y="44" width="6" height="12" rx="3" fill="rgba(232,80,2,0.6)"/>
+        </svg>
+      </div>
     </div>
-    <span class="chevron">›</span>
   `;
 }
 
@@ -1107,7 +1252,7 @@ async function loadSubscriptionPage() {
     activePlans = plans;
     renderCurrentSubscription(subscriptions);
     renderAvailablePlans();
-    setSubscriptionFeedback(`Доступно тарифів: ${activePlans.length}`, 'success');
+    setSubscriptionFeedback('', '');
   } catch (error) {
     setSubscriptionFeedback(`Не вдалося завантажити абонементи: ${error.message}`, 'error');
     const grid = document.querySelector('#client-plans-grid');
@@ -1346,12 +1491,21 @@ async function saveClientProfile(form) {
   const formData = new FormData(form);
   const feedback = document.querySelector('#profile-feedback');
 
+  const phone = formData.get('phone')?.trim();
+  if (phone && phone !== '+380') {
+    // Повний номер: +380 + 9 цифр = 13 символів
+    if (!/^\+380\d{9}$/.test(phone)) {
+      setFormNote(feedback, 'Невірний номер телефону. Введіть у форматі +380XXXXXXXXX (9 цифр після +380)', 'error');
+      return;
+    }
+  }
+
   try {
     const data = await apiFetch('/auth/profile', {
       method: 'PUT',
       body: JSON.stringify({
         name: formData.get('name')?.trim(),
-        phone: formData.get('phone')?.trim(),
+        phone: (phone && phone !== '+380') ? phone : '',
       }),
     });
     // Оновлюємо токен і кеш користувача, бо ім'я могло змінитися.

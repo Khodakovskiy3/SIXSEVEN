@@ -4,6 +4,7 @@
     padding-bottom: 72px;
 }
 
+
 .manager-bottom-nav {
     grid-template-columns: repeat(4, 1fr);
 }
@@ -18,6 +19,54 @@
 
 .manager-period {
     margin-bottom: 10px;
+}
+
+/* Швидкі чіпи діапазону дат */
+.ana-chip {
+    padding: 9px 20px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+    white-space: nowrap;
+}
+.ana-chip:hover {
+    color: var(--accent);
+}
+.ana-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+/* PDF period-choice modal */
+#pdf-choice-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.pdf-modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    backdrop-filter: blur(2px);
+}
+.pdf-modal-box {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border, #333);
+    border-radius: 14px;
+    padding: 22px 22px 18px;
+    width: 320px;
+    max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,.4);
 }
 
 .manager-period > span {
@@ -76,11 +125,12 @@
     min-height: 210px;
 }
 
-.finance-line-chart svg {
+.finance-line-chart svg,
+.visit-line-chart svg {
     position: relative;
     display: block;
     width: 100%;
-    height: 198px;
+    height: 180px;
     overflow: visible;
 }
 
@@ -89,22 +139,21 @@
 }
 
 .finance-area {
-    fill: rgba(255, 191, 23, 0.13);
+    fill: rgba(245, 158, 11, 0.15);
 }
 
 .finance-line {
     fill: none;
-    stroke: #ffbf17;
+    stroke: #F59E0B;
     stroke-linecap: round;
     stroke-linejoin: round;
-    stroke-width: 5;
-    filter: drop-shadow(0 0 10px rgba(255, 191, 23, 0.3));
+    stroke-width: 2.5;
 }
 
 .finance-points circle {
-    fill: var(--accent);
-    stroke: #111;
-    stroke-width: 3;
+    fill: #F59E0B;
+    stroke: var(--bg, #fff);
+    stroke-width: 2;
 }
 
 .finance-breakdown {
@@ -242,7 +291,7 @@
 }
 
 .chart-area {
-    fill: rgba(255, 100, 36, 0.14);
+    fill: rgba(232, 80, 2, 0.14);
 }
 
 .chart-line {
@@ -250,26 +299,58 @@
     stroke: var(--accent);
     stroke-linecap: round;
     stroke-linejoin: round;
-    stroke-width: 5;
-    filter: drop-shadow(0 0 10px rgba(255, 100, 36, 0.35));
+    stroke-width: 2.5;
 }
 
 .chart-points circle {
-    fill: #ffbf17;
-    stroke: #111;
-    stroke-width: 3;
+    fill: var(--accent);
+    stroke: var(--bg, #fff);
+    stroke-width: 2;
+}
+
+/* Chart SVG */
+.chart-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+/* Tooltip */
+.chart-tooltip {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    background: var(--surface);
+    border: 1px solid var(--border, #333);
+    border-radius: 10px;
+    padding: 8px 14px;
+    pointer-events: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,.28);
+    white-space: nowrap;
+    line-height: 1.5;
+}
+.chart-tooltip .ct-date {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 2px;
+}
+.chart-tooltip .ct-val {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
 }
 
 .chart-labels {
     position: relative;
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-    margin-top: 2px;
+    height: 16px;
+    margin-top: 6px;
     color: var(--muted);
     font-size: 11px;
-    font-weight: 800;
-    text-align: center;
+    font-weight: 700;
+    user-select: none;
 }
 
 .chart-summary {
@@ -398,6 +479,8 @@
 }
 
 @media (min-width: 900px) {
+    .manager-app--users .mu-head { display: grid !important; }
+
     .manager-app {
         padding-bottom: 24px;
     }
@@ -722,6 +805,67 @@
 }
 
 /* ═══════════════════════════════════════════════════════
+   SKELETON LOADER
+═══════════════════════════════════════════════════════ */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+.skel {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--line) 25%, var(--surface-2) 50%, var(--line) 75%);
+  background-size: 800px 100%;
+  animation: skeleton-shimmer 1.4s infinite linear;
+}
+.skel-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.skel-kpi-card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  min-height: 90px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.skel-week {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.skel-chart {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.skel-bars {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.skel-bar-card {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ═══════════════════════════════════════════════════════
    DASHBOARD REVENUE CHART
 ═══════════════════════════════════════════════════════ */
 .dash-chart-panel {
@@ -996,18 +1140,24 @@
   }
 
   .dbar-item {
-    grid-template-columns: 28px 1fr 80px;
+    grid-template-columns: 26px 1fr auto;
+    grid-template-rows: auto 6px;
+    grid-template-areas:
+      "ico name val"
+      "ico bar  bar";
+    gap: 2px 8px;
   }
 
-  .dbar-name {
-    grid-column: 2;
-  }
+  .dbar-icon,
+  .dbar-avatar { grid-area: ico; align-self: center; }
 
-  .dbar-track {
-    grid-column: 2 / -1;
-  }
+  .dbar-name   { grid-area: name; font-size: 12px; }
+
+  .dbar-val    { grid-area: val;  font-size: 11px; align-self: center; }
+
+  .dbar-track  { grid-area: bar; height: 5px; align-self: center; }
 }
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   /* KPI-картки: прибираємо іконку і міні-графік, дозволяємо тексту переноситись */
   .dash-kpi-card {
     padding: 12px 10px;
@@ -1039,6 +1189,61 @@
   }
   .dash-chart-wrap {
     height: 160px;
+  }
+
+  #analytics-pdf-btn .pdf-btn-label {
+    display: none;
+  }
+  #analytics-pdf-btn svg {
+    margin-right: 0;
+  }
+
+  .analytics-date-row {
+    width: 100%;
+  }
+  .analytics-date-row input[type="date"] {
+    flex: 1;
+    min-width: 0;
+    max-width: calc(50% - 3px);
+    font-size: 13px;
+    padding: 8px 8px;
+  }
+  .analytics-date-row .primary-btn {
+    flex: 1;
+  }
+
+  /* Chips — full width */
+  .ana-chips-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    width: 100%;
+  }
+  .ana-chips-row .ana-chip {
+    text-align: center;
+    padding: 8px 4px;
+  }
+
+  /* Gap between date row and KPI cards */
+  .analytics-date-row {
+    margin-bottom: 6px;
+  }
+  .manager-stats-grid {
+    margin-top: 10px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .manager-stats-grid article {
+    padding: 12px 14px;
+    border-radius: 12px;
+  }
+  .manager-stats-grid span {
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .manager-stats-grid strong {
+    font-size: 20px;
   }
 }
 
@@ -1276,6 +1481,9 @@
     text-transform: uppercase;
     border-radius: var(--radius) var(--radius) 0 0;
 }
+@media (max-width: 899px) {
+    .manager-app--users .mu-row.mu-head { display: none !important; }
+}
 #users-table-body {
     display: flex;
     flex-direction: column;
@@ -1308,6 +1516,67 @@
 .mu-row .danger-btn {
     padding: 7px 8px;
     font-size: 11px;
+}
+
+/* Role dropdown button */
+.mu-role-dd {
+    position: relative;
+}
+.mu-role-dd-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 999px;
+    border: 1.5px solid var(--line);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s;
+    white-space: nowrap;
+}
+.mu-role-dd-btn:hover,
+.mu-role-dd.open .mu-role-dd-btn {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.mu-role-dd-menu {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 4px;
+    min-width: 140px;
+    z-index: 200;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+.mu-role-dd.open .mu-role-dd-menu { display: flex; flex-direction: column; gap: 2px; }
+.mu-role-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    background: none;
+    border: none;
+    border-radius: 7px;
+    color: var(--text);
+    cursor: pointer;
+    transition: background .12s;
+}
+.mu-role-option:hover { background: rgba(255,255,255,0.07); }
+
+.mu-actions {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    flex-wrap: wrap;
 }
 
 /* Avatar + name block */
@@ -1350,7 +1619,7 @@
 }
 .mu-sub {
     display: none;
-    font-size: 11px;
+    font-size: 13px;
     color: var(--muted);
     white-space: nowrap;
     overflow: hidden;
@@ -1470,31 +1739,47 @@
         padding-top: 4px;
     }
     .manager-app--users .mu-row {
-        display: flex !important;
+        display: grid !important;
+        grid-template-areas:
+            "info status"
+            "info actions";
+        grid-template-columns: 1fr auto;
         min-width: unset !important;
-        align-items: center;
-        gap: 10px;
+        gap: 4px 10px;
         padding: 10px 12px;
         background: rgba(255,255,255,0.025);
     }
+    .manager-app--users .mu-head { display: none; }
     .manager-app--users .mu-phone,
     .manager-app--users .mu-email,
     .manager-app--users .mu-role { display: none; }
     .manager-app--users .mu-sub { display: block; }
-    .manager-app--users .mu-avatar-name { flex: 1; min-width: 0; }
-    .manager-app--users .mu-status { flex-shrink: 0; }
-    .manager-app--users .mu-actions {
-        flex-shrink: 0;
-        display: flex;
-        gap: 4px;
+    .manager-app--users .mu-avatar-name {
+        grid-area: info;
+        min-width: 0;
+        align-self: center;
     }
-    .manager-app--users .mu-actions .ghost-btn,
-    .manager-app--users .mu-actions .primary-btn,
-    .manager-app--users .mu-actions .danger-btn {
-        padding: 6px 8px;
+    .manager-app--users .mu-status {
+        grid-area: status;
+        align-self: end;
+        justify-self: end;
+    }
+    .manager-app--users .mu-actions {
+        grid-area: actions;
+        flex-wrap: wrap;
+        gap: 5px;
+        justify-content: flex-end;
+        align-self: start;
+    }
+    .manager-app--users .mu-actions .ghost-btn {
+        padding: 6px 10px;
         font-size: 11px;
     }
+    /* !important needed to beat display:grid !important above */
+    .manager-app--users .mu-row.mu-hidden { display: none !important; }
 }
+/* Global: hide filtered rows on all screen sizes */
+.mu-row.mu-hidden { display: none !important; }
 
 /* ── Analytics: compact on mobile (no scroll) ── */
 @media (max-width: 719px) {

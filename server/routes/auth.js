@@ -17,6 +17,16 @@ import bcrypt from 'bcryptjs';
 import { query, withClient } from '../db.js';
 import { logError } from '../utils/logger.js';
 import { authRequired, signToken } from '../middleware/auth.js';
+import { validateBody } from '../middleware/validate.js';
+import {
+  loginSchema,
+  loginVerifySchema,
+  registerSchema,
+  registerVerifySchema,
+  registerResendSchema,
+  profileUpdateSchema,
+  passwordChangeSchema,
+} from '../schemas/auth.js';
 import { issueCode, verifyCode, getResendWaitSeconds, generateCode } from '../utils/otp.js';
 import { sendOtpEmail, isMailConfigured } from '../utils/mailer.js';
 import {
@@ -173,7 +183,7 @@ router.get('/profile', authRequired, async (req, res) => {
   res.json({ user });
 });
 
-router.put('/profile', authRequired, async (req, res) => {
+router.put('/profile', authRequired, validateBody(profileUpdateSchema), async (req, res) => {
   const { name, phone, specialization } = req.body;
 
   await query(
@@ -216,12 +226,8 @@ router.put('/profile', authRequired, async (req, res) => {
   res.json({ token, user });
 });
 
-router.put('/password', authRequired, async (req, res) => {
+router.put('/password', authRequired, validateBody(passwordChangeSchema), async (req, res) => {
   const { currentPassword, newPassword } = req.body;
-
-  if (!currentPassword || !newPassword || newPassword.length < 6) {
-    return res.status(400).json({ error: 'Пароль має бути мінімум 6 символів' });
-  }
 
   const result = await query(
     `select password from users where id = $1`,
@@ -244,7 +250,7 @@ router.put('/password', authRequired, async (req, res) => {
   res.json({ ok: true });
 });
 
-router.post('/register', async (req, res) => {
+router.post('/register', validateBody(registerSchema), async (req, res) => {
   const { name, email, password, phone } = req.body || {};
   if (!name || !email || !password || !phone) {
     return res.status(HTTP_BAD_REQUEST).json({ error: "Заповніть усі обов'язкові поля" });
@@ -302,7 +308,7 @@ router.post('/register', async (req, res) => {
 
 // Другий крок реєстрації: підтвердження email-коду. Лише ПІСЛЯ успішної
 // перевірки створюємо користувача (з увімкненою 2FA) і видаємо токен.
-router.post('/register/verify', async (req, res) => {
+router.post('/register/verify', validateBody(registerVerifySchema), async (req, res) => {
   const { email, code } = req.body || {};
   if (!email || !code) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Вкажіть email і код' });
@@ -354,7 +360,7 @@ router.post('/register/verify', async (req, res) => {
 });
 
 // Повторне надсилання коду підтвердження реєстрації (антиспам).
-router.post('/register/resend', async (req, res) => {
+router.post('/register/resend', validateBody(registerResendSchema), async (req, res) => {
   const { email } = req.body || {};
   if (!email) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Вкажіть email' });
@@ -396,7 +402,7 @@ router.post('/register/resend', async (req, res) => {
   });
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', validateBody(loginSchema), async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing email or password' });
@@ -451,7 +457,7 @@ router.post('/login', async (req, res) => {
 });
 
 // Другий крок входу за увімкненої 2FA: перевірка email-коду.
-router.post('/login/verify', async (req, res) => {
+router.post('/login/verify', validateBody(loginVerifySchema), async (req, res) => {
   const { email, code } = req.body || {};
   if (!email || !code) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Вкажіть email і код' });

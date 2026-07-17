@@ -48,7 +48,7 @@
                     <h2>Особисті дані</h2>
                     <form id="client-profile-form">
                         <label>Ім’я<input type="text" name="name" data-account-field="name"></label>
-                        <label>Телефон<input type="text" name="phone" data-account-field="phone" placeholder="+380XXXXXXXXX"></label>
+                        <label>Телефон<input type="tel" name="phone" id="phone-input" data-account-field="phone" placeholder="+380XXXXXXXXX" maxlength="13" inputmode="numeric"></label>
                         <label>Email<input type="email" data-account-field="email" disabled></label>
                         <p class="form-note" id="profile-feedback" role="status"></p>
                         <div class="form-actions">
@@ -99,6 +99,51 @@
     </div>
 
     <script type="module" src="../../js/client.js"></script>
+    <script>
+        (function () {
+            const PREFIX = '+380';
+            const MAX = 13; // +380XXXXXXXXX
+            const input = document.getElementById('phone-input');
+            if (!input) return;
+
+            function enforce(val) {
+                // Видаляємо все крім цифр і +
+                let digits = val.replace(/[^0-9]/g, '');
+                // Формуємо рядок: +380 + решта цифр, але не більше 9 після +380
+                let result = PREFIX + digits.slice(0, MAX - PREFIX.length);
+                return result;
+            }
+
+            input.addEventListener('focus', function () {
+                if (!this.value || this.value === '') {
+                    this.value = PREFIX;
+                }
+            });
+
+            input.addEventListener('input', function () {
+                const pos = this.selectionStart;
+                const raw = this.value;
+                // Якщо користувач видалив префікс — відновлюємо
+                if (!raw.startsWith(PREFIX)) {
+                    const digits = raw.replace(/[^0-9]/g, '');
+                    this.value = PREFIX + digits.slice(0, MAX - PREFIX.length);
+                } else {
+                    const after = raw.slice(PREFIX.length).replace(/[^0-9]/g, '');
+                    this.value = PREFIX + after.slice(0, MAX - PREFIX.length);
+                }
+            });
+
+            input.addEventListener('keydown', function (e) {
+                // Не дати видалити префікс +380
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                if ((e.key === 'Backspace' && start <= PREFIX.length && start === end) ||
+                    (e.key === 'Delete'    && start < PREFIX.length)) {
+                    e.preventDefault();
+                }
+            });
+        })();
+    </script>
     <script src="../../js/chat-widget.js"></script>
     <script type="module" src="../../js/pwa.js"></script>
 </body>

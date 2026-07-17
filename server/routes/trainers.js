@@ -621,4 +621,48 @@ router.put('/me/client-notes/:clientId', requireRole(ROLE.TRAINER), async (req, 
   }
 });
 
+// ======================================================
+// GET /api/trainers/client-notes-all/:clientId
+// Нотатки тренерів, з якими клієнт має спільні бронювання.
+// Повертає is_mine=true для нотатки поточного тренера.
+// ======================================================
+
+router.get('/client-notes-all/:clientId', requireRole(ROLE.TRAINER), async (req, res) => {
+  const clientId = Number(req.params.clientId);
+  if (!clientId) return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid clientId' });
+  try {
+    // Отримуємо ID поточного тренера
+    const meRow = await query('select id from trainers where user_id = $1', [req.user.id]);
+    if (!meRow.rows.length) return res.status(HTTP_NOT_FOUND).json({ error: 'Trainer not found' });
+    const myTrainerId = meRow.rows[0].id;
+
+    const result = await query(
+      `select tcn.trainer_id,
+              tcn.note,
+              tcn.exercises,
+              tcn.updated_at,
+              u.name as trainer_name,
+              (tcn.trainer_id = $2) as is_mine
+       from trainer_client_notes tcn
+       join trainers t on t.id = tcn.trainer_id
+       join users u on u.id = t.user_id
+       where tcn.client_id = $1
+         and (tcn.note <> '' or tcn.exercises <> '')
+         and tcn.trainer_id in (
+           /* тільки тренери, з якими клієнт має бронювання */
+           select distinct s.trainer_id
+           from bookings b
+           join schedules s on s.id = b.schedule_id
+           where b.client_id = $1
+         )
+       order by is_mine desc, tcn.updated_at desc`,
+      [clientId, myTrainerId]
+    );
+    return res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    return res.status(HTTP_SERVER_ERROR).json({ error: 'Failed to load notes' });
+  }
+});
+
 export default router;

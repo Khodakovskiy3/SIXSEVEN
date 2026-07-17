@@ -13,6 +13,7 @@ import { Router } from 'express';
 import { query, withClient } from '../db.js';
 import { logError } from '../utils/logger.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
+import { hasAvailableSlot } from '../utils/booking-logic.js';
 import { getClientIdByUserId } from '../utils/identity.js';
 import { notifyUsers } from '../utils/notify.js';
 import {
@@ -194,7 +195,7 @@ router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
       }
 
       const { max_clients: maxClients, booked } = scheduleInfo.rows[0];
-      if (Number(booked) >= Number(maxClients)) {
+      if (!hasAvailableSlot(booked, maxClients)) {
         await client.query('rollback');
         return { error: 'No available slots' };
       }
