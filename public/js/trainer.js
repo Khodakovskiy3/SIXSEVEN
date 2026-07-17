@@ -233,7 +233,10 @@ function buildScheduleCard(item, mode) {
 
   return `
     <div class="sched-card${isFull ? ' sched-card--full' : ''}">
-      <div class="sched-card-time"><span>${formatTime(item.time)}</span></div>
+      <div class="sched-card-time">
+        <span>${formatTime(item.time)}</span>
+        ${item.duration_minutes ? `<span class="sched-duration sched-duration--time">${item.duration_minutes} хв</span>` : ''}
+      </div>
       <div class="sched-card-body">
         <div class="sched-card-title">${escapeHtml(item.workout_name || '—')}</div>
         ${meta ? `<div class="sched-card-meta">${meta}</div>` : ''}
@@ -697,9 +700,41 @@ function attachPhoneMasks(root = document) {
   });
 }
 
+async function savePersonalData() {
+  const nameInput = document.querySelector('[data-account-field="name"]');
+  const phoneInput = document.querySelector('[data-account-field="phone"]');
+  const saveBtn = document.querySelector('#trainer-personal-save');
+  if (!nameInput || !saveBtn) return;
+
+  const name = nameInput.value.trim();
+  const phone = phoneInput ? phoneInput.value.trim() : '';
+  if (!name) {
+    saveBtn.textContent = 'Ім\'я не може бути порожнім';
+    setTimeout(() => { saveBtn.textContent = 'Зберегти'; }, 2000);
+    return;
+  }
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Збереження…';
+  try {
+    await apiFetch('/trainers/me', {
+      method: 'PUT',
+      body: JSON.stringify({ name, phone }),
+    });
+    saveBtn.textContent = 'Збережено ✓';
+  } catch (err) {
+    saveBtn.textContent = 'Помилка';
+  } finally {
+    saveBtn.disabled = false;
+    setTimeout(() => { saveBtn.textContent = 'Зберегти'; }, 2000);
+  }
+}
+
 const currentUser = await requireFreshAuth([ROLE.TRAINER]);
 if (currentUser) {
   hydrateAccount({ role: ROLE.TRAINER });
   loadTrainerData();
   attachPhoneMasks(document);
+
+  document.querySelector('#trainer-personal-save')?.addEventListener('click', savePersonalData);
 }

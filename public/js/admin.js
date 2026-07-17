@@ -453,11 +453,12 @@ function renderScheduleDayList() {
       <div class="sched-card">
         <div class="sched-card-time">
           <span>${formatTime(schedule.time)}</span>
+          ${schedule.duration_minutes ? `<span class="sched-duration sched-duration--time">${schedule.duration_minutes} хв</span>` : ''}
         </div>
         <div class="sched-card-body">
           <div class="sched-card-title">
             ${escapeHtml(schedule.workout_name || '—')}
-            ${schedule.duration_minutes ? `<span class="sched-duration">${schedule.duration_minutes} хв</span>` : ''}
+            ${schedule.duration_minutes ? `<span class="sched-duration sched-duration--title">${schedule.duration_minutes} хв</span>` : ''}
           </div>
           <div class="sched-card-meta">
             <div class="client-avatar" style="background:${trainerColor};width:20px;height:20px;font-size:8px;flex-shrink:0">${escapeHtml(trainerInitials)}</div>
@@ -1559,6 +1560,7 @@ function renderScheduleForm(schedule = null) {
           <div class="cmf-input-wrap">
             <label class="cmf-label" for="sf-date">Дата</label>
             <input id="sf-date" name="date" type="date" class="cmf-input" required
+              ${isEdit ? '' : `min="${todayIso()}"`}
               value="${formatDate(schedule?.date) || todayIso()}">
           </div>
         </div>
@@ -1735,9 +1737,6 @@ async function openClientDetails(clientId) {
     const data = await apiFetch(`/clients/${clientId}`);
     const { client, visits } = data;
     const status = client.status || 'inactive';
-    const visitItems = visits.length
-      ? visits.map((visit) => `<li>${formatDate(visit.visit_time)} · ${escapeHtml(visit.workout_name || 'Відвідування залу')}</li>`).join('')
-      : '<li>Відвідувань ще немає</li>';
 
     sheetTitle.textContent = client.name;
     sheetBody.innerHTML = `
@@ -1748,13 +1747,85 @@ async function openClientDetails(clientId) {
         <div><dt>Статус</dt><dd>${statusLabels[status] || status}</dd></div>
         <div><dt>Діє до</dt><dd>${formatDate(client.subscription_end_date) || '—'}</dd></div>
       </dl>
-      <h3>Історія відвідувань</h3>
-      <ul>${visitItems}</ul>
+      <button class="ghost-btn" style="width:100%;margin-top:8px" data-open-client-history="${clientId}">Історія</button>
     `;
     sheet.classList.add('active');
+
+    sheetBody.querySelector('[data-open-client-history]')?.addEventListener('click', () => {
+      openClientHistory(clientId, visits);
+    });
   } catch (error) {
     setFeedback(`Не вдалося відкрити деталі: ${error.message}`, 'error');
   }
+}
+
+function buildVisitItems(visits) {
+  return visits.length
+    ? visits.map((v) => `<li>${formatDate(v.visit_time)} · ${escapeHtml(v.workout_name || 'Відвідування залу')}</li>`).join('')
+    : '<li style="color:var(--muted)">Відвідувань ще немає</li>';
+}
+
+function buildSubItems(subs) {
+  const subStatusLabels = { active: 'Активний', expired: 'Завершений', cancelled: 'Скасований', inactive: 'Неактивний' };
+  return subs.length
+    ? subs.map((s) => `
+        <li style="display:flex;flex-direction:column;gap:2px;padding:8px 0;border-bottom:1px solid var(--line)">
+          <span style="font-weight:600">${escapeHtml(s.plan_name || 'Абонемент')}</span>
+          <span style="font-size:12px;color:var(--muted)">${formatDate(s.start_date)} — ${s.end_date ? formatDate(s.end_date) : '∞'}</span>
+          <span style="font-size:11px;color:${s.status === 'active' ? 'var(--accent)' : 'var(--muted)'}">${subStatusLabels[s.status] || s.status}</span>
+        </li>`).join('')
+    : '<li style="color:var(--muted)">Абонементів ще немає</li>';
+}
+
+async function openClientHistory(clientId, visits) {
+  const overlay = document.createElement('div');
+  overlay.className = 'custom-confirm-overlay';
+  overlay.style.cssText = 'align-items:flex-end;z-index:9999';
+  overlay.innerHTML = `
+    <div class="custom-confirm-box" style="width:100%;max-width:520px;border-radius:20px 20px 0 0;max-height:78vh;overflow:hidden;display:flex;flex-direction:column">
+      <h3 style="margin:0 0 10px;font-size:17px">Історія</h3>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="chip active" id="hist-tab-visits">Відвідування</button>
+        <button class="chip" id="hist-tab-subs">Абонементи</button>
+      </div>
+      <div style="overflow-y:auto;flex:1">
+        <ul id="hist-panel-visits" style="list-style:none;padding:0;margin:0">${buildVisitItems(visits)}</ul>
+        <ul id="hist-panel-subs" style="list-style:none;padding:0;margin:0;display:none"><li style="color:var(--muted);padding:8px 0">Завантаження…</li></ul>
+      </div>
+      <button class="primary-btn" style="margin-top:14px;width:100%;flex-shrink:0" id="hist-close">Закрити</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const tabVisits = overlay.querySelector('#hist-tab-visits');
+  const tabSubs = overlay.querySelector('#hist-tab-subs');
+  const panelVisits = overlay.querySelector('#hist-panel-visits');
+  const panelSubs = overlay.querySelector('#hist-panel-subs');
+
+  let subsLoaded = false;
+
+  tabVisits.addEventListener('click', () => {
+    tabVisits.classList.add('active'); tabSubs.classList.remove('active');
+    panelVisits.style.display = ''; panelSubs.style.display = 'none';
+  });
+
+  tabSubs.addEventListener('click', async () => {
+    tabSubs.classList.add('active'); tabVisits.classList.remove('active');
+    panelSubs.style.display = ''; panelVisits.style.display = 'none';
+    if (!subsLoaded) {
+      subsLoaded = true;
+      try {
+        const subs = await apiFetch(`/subscriptions/client/${clientId}`);
+        panelSubs.innerHTML = buildSubItems(subs);
+      } catch {
+        panelSubs.innerHTML = '<li style="color:var(--muted)">Не вдалося завантажити</li>';
+      }
+    }
+  });
+
+  const close = () => overlay.remove();
+  overlay.querySelector('#hist-close').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 }
 
 async function openTrainerDetails(trainerId) {
@@ -1934,6 +2005,16 @@ async function saveSchedule(form) {
   if (!payload.workout_id || !payload.date || !payload.time) {
     setModalError('Оберіть послугу, дату та час заняття');
     return;
+  }
+
+  // Дзеркало серверного правила для миттєвого фідбеку: нове заняття не може
+  // починатися в минулому. Остаточну перевірку робить сервер у зоні клубу.
+  if (!scheduleId) {
+    const slot = new Date(`${payload.date}T${payload.time}`);
+    if (!Number.isNaN(slot.getTime()) && slot.getTime() < Date.now()) {
+      setModalError('Не можна створити заняття на час, що вже минув');
+      return;
+    }
   }
 
   if (payload.trainer_id) {

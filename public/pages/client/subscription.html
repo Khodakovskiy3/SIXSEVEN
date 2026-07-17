@@ -45,7 +45,10 @@
             <section class="screen active detail-screen" data-screen-panel="subscription">
                 <div class="panel">
                     <button class="back-btn" data-screen-link="profile">Назад</button>
-                    <h2>Абонемент</h2>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                        <h2 style="margin:0">Абонемент</h2>
+                        <button class="ghost-btn" id="subscription-history-btn" hidden style="flex-shrink:0;font-size:13px">Історія</button>
+                    </div>
                     <div class="subscription-detail">
                         <div class="current-plan" id="current-subscription">
                             <span class="chip active">Завантаження</span>

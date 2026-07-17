@@ -546,8 +546,9 @@ async function loadHomeData() {
                          !document.querySelector('#services-grid, #plans-grid');
   if (isSchedulePage) {
     try {
+      const todayStr = new Date().toISOString().slice(0, 10);
       const schedules = await fetchJson('/public/schedules');
-      renderSchedule(schedules);
+      renderSchedule(schedules.filter((s) => String(s.date).slice(0, 10) === todayStr));
     } catch (err) {
       console.error('[schedules]', err);
     }

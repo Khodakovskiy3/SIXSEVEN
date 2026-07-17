@@ -101,6 +101,20 @@ async function refreshSubscriptionStatuses() {
   );
 }
 
+router.get('/client/:clientId', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
+  await refreshSubscriptionStatuses();
+  const result = await query(
+    `select s.id, s.plan_id, s.type, s.start_date, s.end_date, s.status,
+            sp.name as plan_name, sp.plan_type, sp.access_type, sp.price as plan_price
+     from subscriptions s
+     left join subscription_plans sp on sp.id = s.plan_id
+     where s.client_id = $1
+     order by s.start_date desc`,
+    [req.params.clientId]
+  );
+  return res.json(result.rows);
+});
+
 router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   await refreshSubscriptionStatuses();
   const result = await query(

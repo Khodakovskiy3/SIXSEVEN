@@ -339,6 +339,17 @@
   text-overflow: ellipsis;
 }
 
+/* Телефон прихований за замовчуванням — видно лише коли відкрита картка/антропометрія */
+.trainer-client-phone {
+  display: none;
+}
+.trainer-client-phone.show {
+  display: block;
+  margin-top: 2px;
+  white-space: normal;
+  word-break: break-all;
+}
+
 .trainer-note-area {
   margin-top: 10px;
   display: none;
@@ -530,14 +541,7 @@
         text-overflow: clip;
     }
 
-    .trainer-client-phone {
-        display: none;
-    }
-
-    .trainer-client-phone.show {
-        display: block;
-        margin-top: 2px;
-    }
+    /* .trainer-client-phone вже прихований глобально */
 }
 
 /* ── Діалог підтвердження виходу ── */

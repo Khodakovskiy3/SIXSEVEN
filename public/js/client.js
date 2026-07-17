@@ -20,6 +20,7 @@ const titles = {
 };
 
 let activePlans = [];
+let allClientSubscriptions = [];
 // Чинний абонемент блокує купівлю нового: спершу його треба скасувати.
 let hasActiveSubscription = false;
 let currentPlanForPurchase = null;
@@ -1240,6 +1241,54 @@ function loadSettingsPage() {
   });
 }
 
+const SUBSCRIPTION_STATUS_LABELS = {
+  active: 'Активний',
+  expired: 'Завершений',
+  cancelled: 'Скасований',
+  inactive: 'Неактивний',
+};
+
+function renderSubscriptionHistoryBtn(subscriptions) {
+  const btn = document.querySelector('#subscription-history-btn');
+  if (!btn) return;
+  const hasPast = subscriptions.some((s) => s.status !== 'active' || new Date(s.end_date) < new Date());
+  if (hasPast || subscriptions.length > 0) {
+    btn.hidden = false;
+    btn.onclick = () => openSubscriptionHistory(subscriptions);
+  }
+}
+
+function openSubscriptionHistory(subscriptions) {
+  const overlay = document.createElement('div');
+  overlay.className = 'custom-confirm-overlay';
+  overlay.style.alignItems = 'flex-end';
+
+  const statusLabel = (s) => SUBSCRIPTION_STATUS_LABELS[s.status] || s.status;
+  const rows = subscriptions.length
+    ? subscriptions.map((s) => `
+        <div class="sub-history-row">
+          <div class="sub-history-name">${escapeHtml(s.type || s.plan_name || 'Абонемент')}</div>
+          <div class="sub-history-meta">
+            ${fmtLocalDate(s.start_date)} — ${s.end_date ? fmtLocalDate(s.end_date) : '∞'}
+          </div>
+          <span class="chip ${s.status === 'active' ? 'active' : ''}" style="font-size:11px">${statusLabel(s)}</span>
+        </div>
+      `).join('')
+    : '<p style="color:var(--muted);text-align:center;padding:16px">Історії немає</p>';
+
+  overlay.innerHTML = `
+    <div class="custom-confirm-box" style="width:100%;max-width:480px;border-radius:20px 20px 0 0;max-height:75vh;overflow-y:auto">
+      <h3 style="margin:0 0 14px;font-size:17px">Історія абонементів</h3>
+      <div class="sub-history-list">${rows}</div>
+      <button class="primary-btn" style="margin-top:14px;width:100%" id="sub-hist-close">Закрити</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('#sub-hist-close').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+}
+
 async function loadSubscriptionPage() {
   if (!document.querySelector('#client-plans-grid')) return;
 
@@ -1250,8 +1299,10 @@ async function loadSubscriptionPage() {
       apiFetch('/subscriptions/me'),
     ]);
     activePlans = plans;
+    allClientSubscriptions = subscriptions;
     renderCurrentSubscription(subscriptions);
     renderAvailablePlans();
+    renderSubscriptionHistoryBtn(subscriptions);
     setSubscriptionFeedback('', '');
   } catch (error) {
     setSubscriptionFeedback(`Не вдалося завантажити абонементи: ${error.message}`, 'error');

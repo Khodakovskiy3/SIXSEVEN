@@ -56,6 +56,18 @@ router.get('/me', requireRole(ROLE.TRAINER), async (req, res) => {
   return res.json(result.rows[0]);
 });
 
+router.put('/me', requireRole(ROLE.TRAINER), async (req, res) => {
+  const { name, phone } = req.body || {};
+  if (!name || !String(name).trim()) {
+    return res.status(400).json({ error: 'Ім\'я не може бути порожнім' });
+  }
+  await query(
+    `update users set name = $1, phone = $2 where id = $3`,
+    [String(name).trim(), phone || null, req.user.id]
+  );
+  return res.json({ ok: true });
+});
+
 router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const result = await query(
     `select t.id, u.id as user_id, u.name, u.email, u.phone, t.specialization,

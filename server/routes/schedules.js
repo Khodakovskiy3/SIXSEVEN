@@ -21,6 +21,7 @@ import { authRequired, requireRole } from '../middleware/auth.js';
 import { notifyUsers } from '../utils/notify.js';
 import {
   BOOKING_STATUS,
+  CLUB_TIMEZONE,
   HTTP_BAD_REQUEST,
   HTTP_CONFLICT,
   HTTP_CREATED,
@@ -154,6 +155,24 @@ router.get('/', async (req, res) => {
   return res.json(rows);
 });
 
+/**
+ * Перевіряє, чи момент початку заняття вже минув. Настінний час заняття
+ * (date + time) інтерпретуємо в зоні клубу й порівнюємо з поточним моментом —
+ * так не можна поставити заняття на годину, що вже пройшла сьогодні.
+ *
+ * @param {string} date Дата заняття (YYYY-MM-DD).
+ * @param {string} time Час початку (HH:MM або HH:MM:SS).
+ * @returns {Promise<boolean>} true, якщо час у минулому.
+ */
+async function isSlotInPast(date, time) {
+  if (!date || !time) return false;
+  const result = await query(
+    `select ($1::date + $2::time) at time zone $3 < now() as past`,
+    [date, time, CLUB_TIMEZONE]
+  );
+  return result.rows[0]?.past === true;
+}
+
 router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
   const {
     workout_id: workoutId,
@@ -164,6 +183,12 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
 
   if (!workoutId || !date || !time) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
+  }
+
+  if (await isSlotInPast(date, time)) {
+    return res.status(HTTP_BAD_REQUEST).json({
+      error: 'Не можна створити заняття на час, що вже минув',
+    });
   }
 
   if (!(await trainerCanTeachWorkout(trainerId, workoutId))) {
@@ -244,6 +269,15 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   // Фактичні дата й час після оновлення (якщо не передані — лишаються поточні).
   const effectiveDate = date || existing.date;
   const effectiveTime = time || existing.time;
+
+  // Перенесення в минуле блокуємо лише коли дату/час реально змінюють:
+  // існуючі заняття, які вже минули, можна редагувати (напр. змінити тренера).
+  if ((date || time) && await isSlotInPast(effectiveDate, effectiveTime)) {
+    return res.status(HTTP_BAD_REQUEST).json({
+      error: 'Не можна перенести заняття на час, що вже минув',
+    });
+  }
+
   if (await trainerHasTimeConflict(trainerId, effectiveDate, effectiveTime, targetWorkoutId, id)) {
     return res.status(HTTP_CONFLICT).json({
       error: 'Тренер вже проводить інше заняття в цей проміжок часу',
