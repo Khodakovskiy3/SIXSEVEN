@@ -64,6 +64,19 @@ const OTP_ERRORS = {
   invalid: 'Невірний код',
 };
 
+/**
+ * Повертає devCode для відповіді API, коли код можна показувати в інтерфейсі:
+ * SMTP не налаштовано (лист однаково не піде) або явно увімкнено
+ * діагностичний режим DEBUG_OTP=1. В інших випадках — порожній об'єкт.
+ *
+ * @param {string} code — щойно згенерований OTP-код.
+ * @returns {{devCode: string}|{}}
+ */
+function devCodePayload(code) {
+  const shouldExposeCode = !isMailConfigured || process.env.DEBUG_OTP === '1';
+  return shouldExposeCode ? { devCode: code } : {};
+}
+
 // ─── Непідтверджені реєстрації (pending_registrations) ───────────────────────
 // Дані нового користувача тримаємо тут до підтвердження кодом. Запис у users
 // створюється лише після успішної перевірки, тож недопідтверджені реєстрації
@@ -297,8 +310,8 @@ router.post('/register', validateBody(registerSchema), async (req, res) => {
       twofaRequired: true,
       email: emailLc,
       resendIn: OTP_RESEND_COOLDOWN_SEC,
-      // У dev-режимі без SMTP повертаємо код, щоб можна було протестувати.
-      ...(isMailConfigured ? {} : { devCode: code }),
+      // У dev-режимі без SMTP (або з DEBUG_OTP=1) повертаємо код для тестування.
+      ...devCodePayload(code),
     });
   } catch (error) {
     logError('Помилка реєстрації користувача', error, { email: emailLc });
@@ -398,7 +411,7 @@ router.post('/register/resend', validateBody(registerResendSchema), async (req, 
     ok: true,
     email: emailLc,
     resendIn: OTP_RESEND_COOLDOWN_SEC,
-    ...(isMailConfigured ? {} : { devCode: code }),
+    ...devCodePayload(code),
   });
 });
 
@@ -448,8 +461,8 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
       twofaRequired: true,
       email: user.email,
       resendIn: OTP_RESEND_COOLDOWN_SEC,
-      // У dev-режимі без SMTP повертаємо код, щоб можна було протестувати.
-      ...(isMailConfigured ? {} : { devCode: code }),
+      // У dev-режимі без SMTP (або з DEBUG_OTP=1) повертаємо код для тестування.
+      ...devCodePayload(code),
     });
   }
 
@@ -503,7 +516,7 @@ router.post('/2fa/request', authRequired, async (req, res) => {
     ok: true,
     sentTo: req.user.email,
     resendIn: OTP_RESEND_COOLDOWN_SEC,
-    ...(isMailConfigured ? {} : { devCode: code }),
+    ...devCodePayload(code),
   });
 });
 

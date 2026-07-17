@@ -1,15 +1,21 @@
 {
   "name": "sports-club-system",
   "version": "1.0.0",
+  "description": "Система обліку спортивного клубу OLIMP",
+  "author": "OLIMP",
   "private": true,
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "start": "node server/index.js",
     "predev": "node scripts/ensure-ollama.js",
     "dev": "nodemon server/index.js",
     "db:migrate": "node scripts/db-migrate.js",
     "db:seed": "node scripts/db-seed.js",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "electron": "electron .",
+    "electron:build": "electron-builder --mac",
+    "electron:build:win": "electron-builder --win"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -23,6 +29,45 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
     "nodemon": "^3.1.14"
+  },
+  "build": {
+    "appId": "ua.olimp.sportsclub",
+    "productName": "OLIMP",
+    "asar": false,
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "**/*",
+      "!tests/**/*",
+      "!logs/**/*",
+      "!docs/**/*",
+      "!dist-electron/**/*",
+      "!*.docx",
+      "!README.MD",
+      "!AGENTS.md"
+    ],
+    "extraResources": [
+      { "from": ".env", "to": "app/.env" }
+    ],
+    "mac": {
+      "icon": "public/assets/icons/icon-512.png",
+      "target": "dir",
+      "category": "public.app-category.healthcare-fitness",
+      "identity": null
+    },
+    "win": {
+      "icon": "public/assets/icons/icon-512.png",
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

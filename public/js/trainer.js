@@ -408,9 +408,9 @@ async function openScheduleClients(scheduleId) {
           <div class="trainer-client-card" data-client-id="${client.client_id}">
             <div class="trainer-client-card-header">
               <span>${initials}</span>
-              <div>
+              <div class="trainer-client-info">
                 <h3>${escapeHtml(client.client_name)}</h3>
-                <p>${escapeHtml(client.client_phone || client.client_email || '—')}</p>
+                <p class="trainer-client-phone" id="phone-${client.client_id}">${escapeHtml(client.client_phone || client.client_email || '—')}</p>
               </div>
               <div style="display:flex;gap:6px;flex-shrink:0">
                 <button class="ghost-btn anthro-toggle-btn" data-anthro="${anthroId}" data-note="${areaId}" style="white-space:nowrap;font-size:12px" aria-label="Антропометрія">📏</button>
@@ -519,6 +519,22 @@ function renderTrainerHome() {
   }
 }
 
+/**
+ * На вузьких екранах номер телефону клієнта прихований, щоб повністю
+ * влазило ім'я — показуємо його лише поки відкрита антропометрія або картка.
+ *
+ * @param {HTMLElement} toggleBtn — кнопка, що викликала перемикання.
+ * @param {HTMLElement|null} anthroArea
+ * @param {HTMLElement|null} noteArea
+ */
+function updateClientPhoneVisibility(toggleBtn, anthroArea, noteArea) {
+  const card = toggleBtn.closest('.trainer-client-card');
+  const phone = card?.querySelector('.trainer-client-phone');
+  if (!phone) return;
+  const isOpen = Boolean(anthroArea?.classList.contains('open') || noteArea?.classList.contains('open'));
+  phone.classList.toggle('show', isOpen);
+}
+
 // ─── Делегування кліків (динамічні кнопки) ──────────────────────────────────────
 
 document.addEventListener('click', async (event) => {
@@ -560,6 +576,7 @@ document.addEventListener('click', async (event) => {
     const noteArea = document.getElementById(anthroToggle.dataset.note);
     if (anthroArea) anthroArea.classList.toggle('open');
     if (noteArea) noteArea.classList.remove('open');
+    updateClientPhoneVisibility(anthroToggle, anthroArea, noteArea);
     return;
   }
 
@@ -570,6 +587,7 @@ document.addEventListener('click', async (event) => {
     const anthroArea = document.getElementById(noteToggle.dataset.anthro);
     if (noteArea) noteArea.classList.toggle('open');
     if (anthroArea) anthroArea.classList.remove('open');
+    updateClientPhoneVisibility(noteToggle, anthroArea, noteArea);
     return;
   }
 

@@ -1305,6 +1305,28 @@ p {
     flex-shrink: 0;
 }
 
+/* На вузьких екранах дві кнопки в ряд «з'їдають» ширину назви заняття —
+   ставимо їх одна над одною, а назву дозволяємо переноситись замість обрізання. */
+@media (max-width: 579px) {
+    .rc-title {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    .rc-actions {
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .rc-actions .ghost-btn,
+    .rc-actions .danger-btn {
+        padding: 7px 12px;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+}
+
 /* ── Records empty states ── */
 .records-empty {
     display: flex;
@@ -2617,6 +2639,116 @@ dd {
     }
 
     .next-hour { font-size: 18px; }
+}
+
+/* ── Головна: компактні картки, щоб дашборд уміщався на екран телефона ── */
+@media (max-width: 579px) {
+    .client-app--home h1 {
+        margin-top: 2px;
+    }
+
+    .client-app--home .dashboard-grid {
+        gap: 7px;
+    }
+
+    .client-app--home .next-training {
+        padding: 10px 14px;
+    }
+
+    .client-app--home .subscription-card {
+        padding: 8px;
+    }
+
+    .client-app--home .sub-card {
+        padding: 8px 12px;
+    }
+
+    .client-app--home .sub-card__content {
+        gap: 4px;
+    }
+
+    .client-app--home .sub-card__illo svg {
+        width: 64px;
+        height: 54px;
+    }
+
+    .client-app--home .sub-date-row {
+        padding: 3px 0;
+    }
+
+    .client-app--home .anthro-home-empty {
+        padding: 4px 12px;
+        gap: 6px;
+    }
+
+    .client-app--home .anthro-home-empty svg {
+        width: 28px;
+        height: 28px;
+    }
+
+    .client-app--home .anthro-add-btn {
+        margin-top: 6px;
+    }
+
+    .client-app--home .tl-count-badge {
+        padding: 2px 0 6px;
+    }
+
+    .client-app--home .tl-count-num {
+        font-size: 22px;
+    }
+
+    .client-app--home .tl-item {
+        padding: 6px 0;
+    }
+}
+
+/* ── Головна: без прокручування сторінки — той самий підхід, що й на
+   сторінці розкладу (.client-app--schedule). Замикаємо лише на достатньо
+   високих екранах, бо на низьких контент фізично не вміщається і чесний
+   скрол кращий за обрізані картки. ── */
+@media (max-width: 579px) and (min-height: 700px) {
+    .client-app--home {
+        height: calc(100dvh - 58px);
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        padding: 10px 14px;
+    }
+
+    .client-app--home .topbar {
+        flex-shrink: 0;
+        margin-bottom: 8px;
+    }
+
+    .client-app--home .screen.active,
+    .client-app--home .dashboard-grid {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .client-app--home .next-training,
+    .client-app--home .subscription-card,
+    .client-app--home .anthro-card {
+        flex-shrink: 0;
+    }
+
+    .client-app--home .today-schedule {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .client-app--home .today-schedule .class-list {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(232, 80, 2, .25) transparent;
+    }
 }
 
 /* ── Розклад: нові картки (стиль адміна) ────────────────────────────────── */

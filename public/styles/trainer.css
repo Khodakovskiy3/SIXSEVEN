@@ -283,6 +283,16 @@
   place-items: center;
 }
 
+/* client.css задає всім вкладеним у <dl> div'ам "display:flex;
+   justify-content:space-between" (для рядків dt/dd) — тут це стискає
+   ім'я й телефон в один рядок і обрізає обидва. Повертаємо звичайний
+   вертикальний блок. */
+.trainer-client-card-header .trainer-client-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .trainer-client-card h3 {
   margin: 0 0 2px;
   color: var(--accent);
@@ -483,6 +493,23 @@
     .trainer-modal-box h2 {
         font-size: 20px;
         padding-right: 40px;
+    }
+
+    /* Ім'я клієнта важливіше за телефон — телефон ховаємо, показуємо лише
+       поки відкрита антропометрія чи картка (див. updateClientPhoneVisibility). */
+    .trainer-client-card h3 {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+    }
+
+    .trainer-client-phone {
+        display: none;
+    }
+
+    .trainer-client-phone.show {
+        display: block;
+        margin-top: 2px;
     }
 }
 

@@ -13,3 +13,4 @@ graphify-out/
 docx
 .graphifyignore
 AGENTS.md
+dist-electron/
