@@ -125,12 +125,16 @@ docker compose up -d          # db + app + db-backup
 (macOS/Linux): запускається вручну або через launchd
 (`scripts/com.olimp.db-backup.plist`, інструкція в коментарі файлу) чи cron.
 
-Відновлення з копії:
+Відновлення з копії (дампи створюються з `--clean --if-exists`, тому команда
+працює і в непорожню базу — старі об'єкти видаляються й створюються заново):
 
 ```bash
 gunzip -c backups/sports_club_db_<дата>.sql.gz \
-  | docker exec -i 67-db-1 psql -U postgres sports_club_db
+  | docker exec -i 67-db-1 psql -q -U postgres sports_club_db
 ```
+
+Примітка: копії, створені до 2026-07-18, зроблені без `--clean` — їх можна
+відновити лише в порожню базу (або спершу видалити схему вручну).
 
 ## Структура проєкту
 

@@ -56,14 +56,15 @@ fi
 
 if [[ -n "$DOCKER_CONTAINER" ]]; then
   log "Знайдено Docker-контейнер: $DOCKER_CONTAINER"
+  # --clean --if-exists: відновлення працює і в непорожню базу
   docker exec -e PGPASSWORD="$PGPASSWORD" "$DOCKER_CONTAINER" \
-    pg_dump -U "$PGUSER" "$PGDATABASE" \
+    pg_dump --clean --if-exists -U "$PGUSER" "$PGDATABASE" \
     | gzip > "$BACKUP_FILE" \
     || die "pg_dump через Docker завершився з помилкою"
 else
   log "Docker-контейнер не знайдено — підключення напряму до $PGHOST:$PGPORT"
   command -v pg_dump &>/dev/null || die "pg_dump не встановлено"
-  PGPASSWORD="$PGPASSWORD" pg_dump \
+  PGPASSWORD="$PGPASSWORD" pg_dump --clean --if-exists \
     -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" "$PGDATABASE" \
     | gzip > "$BACKUP_FILE" \
     || die "pg_dump завершився з помилкою"

@@ -27,8 +27,11 @@ die() {
 mkdir -p "$BACKUP_DIR"
 log "Початок резервного копіювання бази $PGDATABASE (хост $PGHOST)"
 
-# PGPASSWORD передається через середовище контейнера
-pg_dump -h "$PGHOST" -U "$PGUSER" "$PGDATABASE" | gzip > "$BACKUP_FILE" \
+# PGPASSWORD передається через середовище контейнера.
+# --clean --if-exists: дамп сам видаляє наявні об'єкти перед створенням,
+# тому відновлення працює і в непорожню базу (без «already exists»).
+pg_dump --clean --if-exists -h "$PGHOST" -U "$PGUSER" "$PGDATABASE" \
+  | gzip > "$BACKUP_FILE" \
   || { rm -f "$BACKUP_FILE"; die "pg_dump завершився з помилкою"; }
 
 # Обірваний дамп — теж валідний gzip, тому перевіряємо фінальний маркер pg_dump
