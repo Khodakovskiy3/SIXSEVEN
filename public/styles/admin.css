@@ -40,7 +40,7 @@
 }
 
 .admin-bottom-nav {
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
 }
 
 /* ── Дашборд: привітання ── */
@@ -2208,6 +2208,33 @@
     color: var(--muted);
 }
 
+.schedule-attendee-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 0;
+}
+
+.attendee-remove-btn {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 2px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    opacity: 0.5;
+    transition: opacity 0.15s, color 0.15s;
+}
+
+.attendee-remove-btn:hover {
+    opacity: 1;
+    color: var(--danger, #e53e3e);
+}
+
 /* ── Мобільний дашборд ── */
 @media (max-width: 719px) {
 
@@ -2373,7 +2400,14 @@
     .sched-duration--time { display: block; font-size: 10px; background: none; padding: 0; }
     .sched-duration--title { display: none; }
     .sched-card-body { flex: 1; min-width: 0; }
-    .sched-card-title { font-size: 13px; white-space: normal; }
+    .sched-card-title {
+        font-size: 13px;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+    }
+    .sched-duration--time { display: inline; }
+    .sched-duration--title { display: none; }
     .sched-card-meta { font-size: 11px; }
     .sched-capacity-bar { max-width: 70px; }
     .sched-capacity-label { font-size: 10px; }
@@ -2801,6 +2835,10 @@
     font-weight: 800;
     color: var(--accent);
     line-height: 1.1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
 }
 
 .sched-card-body {
@@ -2820,6 +2858,9 @@
     align-items: center;
     gap: 7px;
 }
+
+.sched-duration--time { display: inline; }
+.sched-duration--title { display: none; }
 
 .sched-duration {
     font-size: 11px;
@@ -2883,6 +2924,7 @@
     .sched-card { padding: 14px 20px; }
     .sched-card-title { font-size: 15px; }
     .sched-capacity-bar { max-width: 160px; }
+
 }
 
 /* ── Image upload field ───────────────────────────────────────────────── */
@@ -3488,6 +3530,33 @@
     /* Список повідомлень займає весь залишок після заголовка і форми */
     .msg-chat-messages {
         min-height: 0;
+    }
+    /* На мобільному — тільки іконки, текст кнопок прихований */
+    .msg-chat-topbar .btn-label,
+    .msg-chat-reply .btn-label {
+        display: none;
+    }
+    .msg-chat-topbar .clients-add-btn,
+    .msg-chat-topbar .msg-chat-close-btn {
+        padding: 0 10px;
+        min-width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .msg-chat-send-btn {
+        flex-shrink: 0;
+        height: 44px;
+        width: 44px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .msg-chat-send-icon {
+        width: 22px;
+        height: 22px;
     }
 }
 

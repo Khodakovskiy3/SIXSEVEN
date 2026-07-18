@@ -1212,32 +1212,83 @@ async function loadAnthropometryPage() {
 }
 
 /**
- * Налаштування клієнта: відновлює збережені перемикачі сповіщень і зберігає
- * зміни у localStorage (окремого серверного сховища налаштувань немає).
+ * Налаштування клієнта: завантажує налаштування з сервера,
+ * обробляє зміни і підписку на Web Push.
  */
-function loadSettingsPage() {
+async function loadSettingsPage() {
   const settingsList = document.querySelector('#client-settings-list');
-  if (!settingsList) {
-    return;
+  if (!settingsList) return;
+
+  const feedback = document.querySelector('#settings-feedback');
+
+  // Динамічно імпортуємо push-модуль
+  let pushModule = null;
+  try {
+    pushModule = await import('./push.js');
+  } catch {}
+
+  // ── Завантажити налаштування з сервера ──
+  try {
+    const prefs = await apiFetch('/push/prefs');
+    if (prefs) {
+      const trainingEl = settingsList.querySelector('[data-setting="trainingNotifications"]');
+      const hourEl     = settingsList.querySelector('[data-setting="hourReminder"]');
+      const pushEl     = settingsList.querySelector('[data-setting="pushNotifications"]');
+      if (trainingEl) trainingEl.checked = Boolean(prefs.notif_training);
+      if (hourEl)     hourEl.checked     = Boolean(prefs.notif_hour_reminder);
+
+      // Push: перевірити реальний стан підписки в браузері
+      if (pushEl && pushModule) {
+        pushEl.checked = await pushModule.getPushStatus();
+      } else if (pushEl) {
+        pushEl.checked = Boolean(prefs.notif_push);
+      }
+    }
+  } catch {
+    // fallback: нічого не робимо, залишаємо defaults з HTML
   }
 
-  const savedSettings = JSON.parse(localStorage.getItem(STORAGE_KEY.SETTINGS) || '{}');
-  settingsList.querySelectorAll('[data-setting]').forEach((input) => {
-    const key = input.dataset.setting;
-    if (key in savedSettings) {
-      input.checked = Boolean(savedSettings[key]);
-    }
-  });
-
-  settingsList.addEventListener('change', (event) => {
+  // ── Обробка змін ──
+  settingsList.addEventListener('change', async (event) => {
     const input = event.target.closest('[data-setting]');
-    if (!input) {
-      return;
+    if (!input) return;
+
+    const key     = input.dataset.setting;
+    const checked = input.checked;
+
+    try {
+      if (key === 'pushNotifications') {
+        if (!pushModule) {
+          setFormNote(feedback, 'Push не підтримується в цьому браузері', 'error');
+          input.checked = !checked;
+          return;
+        }
+        if (checked) {
+          const result = await pushModule.subscribePush();
+          if (!result.ok) {
+            setFormNote(feedback, result.error || 'Не вдалось підписатись', 'error');
+            input.checked = false;
+            return;
+          }
+        } else {
+          await pushModule.unsubscribePush();
+        }
+        setFormNote(feedback, checked ? 'Push-сповіщення увімкнено' : 'Push-сповіщення вимкнено', 'success');
+      } else {
+        // trainingNotifications / hourReminder → сервер
+        await apiFetch('/push/prefs', {
+          method: 'PUT',
+          body: JSON.stringify({
+            notif_training:      key === 'trainingNotifications' ? checked : undefined,
+            notif_hour_reminder: key === 'hourReminder'          ? checked : undefined,
+          }),
+        });
+        setFormNote(feedback, 'Налаштування збережено', 'success');
+      }
+    } catch (e) {
+      setFormNote(feedback, 'Помилка збереження: ' + e.message, 'error');
+      input.checked = !checked; // відкотити UI
     }
-    const current = JSON.parse(localStorage.getItem(STORAGE_KEY.SETTINGS) || '{}');
-    current[input.dataset.setting] = input.checked;
-    localStorage.setItem(STORAGE_KEY.SETTINGS, JSON.stringify(current));
-    setFormNote(document.querySelector('#settings-feedback'), 'Налаштування збережено', 'success');
   });
 }
 

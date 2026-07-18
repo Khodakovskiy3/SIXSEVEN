@@ -247,6 +247,18 @@ function formatSlot(date, time) {
   return `${new Date(date).toLocaleDateString('uk-UA')} о ${String(time).slice(0, 5)}`;
 }
 
+async function getTrainerUserId(scheduleId) {
+  const result = await query(
+    `select u.id
+     from schedules s
+     join trainers t on t.id = s.trainer_id
+     join users u on u.id = t.user_id
+     where s.id = $1`,
+    [scheduleId]
+  );
+  return result.rows[0]?.id || null;
+}
+
 router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
   const {
@@ -287,6 +299,7 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   // Аудиторію збираємо ДО оновлення, а порівнюємо дату/час ПІСЛЯ —
   // сповіщаємо лише тоді, коли заняття реально перенесено.
   const audience = await getBookedAudience(id);
+  const trainerUserId = await getTrainerUserId(id);
 
   const result = await query(
     `update schedules
@@ -306,13 +319,16 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const updated = result.rows[0];
   const wasSlotChanged = formatSlot(existing.date, existing.time)
     !== formatSlot(updated.date, updated.time);
-  if (wasSlotChanged && audience.userIds.length > 0) {
-    await notifyUsers(
-      audience.userIds,
-      `Заняття «${audience.workoutName}» перенесено`,
-      `Було: ${formatSlot(existing.date, existing.time)}.\n`
-        + `Нові дата і час: ${formatSlot(updated.date, updated.time)}.`
-    );
+  if (wasSlotChanged) {
+    const notifyIds = [...new Set([...audience.userIds, trainerUserId].filter(Boolean))];
+    if (notifyIds.length > 0) {
+      notifyUsers(
+        notifyIds,
+        `Заняття «${audience.workoutName}» перенесено`,
+        `Було: ${formatSlot(existing.date, existing.time)}.\n`
+          + `Нові дата і час: ${formatSlot(updated.date, updated.time)}.`
+      ).catch(() => {});
+    }
   }
 
   return res.json(updated);
@@ -325,16 +341,20 @@ router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   // і бронювання, і сам запис розкладу.
   const existing = await getScheduleById(id);
   const audience = await getBookedAudience(id);
+  const trainerUserId = await getTrainerUserId(id);
 
   await query('delete from schedules where id = $1', [id]);
 
-  if (existing && audience.userIds.length > 0) {
-    await notifyUsers(
-      audience.userIds,
-      `Заняття «${audience.workoutName}» скасовано`,
-      `Заняття ${formatSlot(existing.date, existing.time)} не відбудеться. `
-        + 'Перепрошуємо за незручності.'
-    );
+  if (existing) {
+    const notifyIds = [...new Set([...audience.userIds, trainerUserId].filter(Boolean))];
+    if (notifyIds.length > 0) {
+      notifyUsers(
+        notifyIds,
+        `Заняття «${audience.workoutName}» скасовано`,
+        `Заняття ${formatSlot(existing.date, existing.time)} не відбудеться. `
+          + 'Перепрошуємо за незручності.'
+      ).catch(() => {});
+    }
   }
 
   return res.json({ ok: true });

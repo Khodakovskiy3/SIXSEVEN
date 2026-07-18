@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sports-club-v5';
+const CACHE_NAME = 'sports-club-v6';
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -28,6 +28,36 @@ self.addEventListener('activate', (event) => {
     ).then(() => self.clients.claim())
   );
 });
+
+// ── Web Push ──────────────────────────────────────────────────────────────────
+
+self.addEventListener('push', (event) => {
+  let data = { title: 'OLIMP', body: '' };
+  try { data = event.data?.json() ?? data; } catch {}
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'OLIMP', {
+      body: data.body || '',
+      icon: '/assets/icons/icon-192.png',
+      badge: '/assets/icons/icon-192.png',
+      tag: 'olimp-notification',
+      renotify: true,
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const existing = list.find((c) => c.url.includes('/pages/'));
+      if (existing) return existing.focus();
+      return clients.openWindow('/');
+    })
+  );
+});
+
+// ── Fetch cache ───────────────────────────────────────────────────────────────
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;

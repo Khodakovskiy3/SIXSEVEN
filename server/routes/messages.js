@@ -11,6 +11,7 @@ import { Router } from 'express';
 
 import { query } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
+import { sendPush } from '../utils/notify.js';
 import {
   HTTP_BAD_REQUEST,
   HTTP_CREATED,
@@ -59,6 +60,34 @@ async function replaceRecipients(messageId, recipientIds) {
      on conflict do nothing`,
     [messageId, recipientIds]
   );
+}
+
+/**
+ * Надсилає Web Push підписникам відповідно до аудиторії повідомлення.
+ * @param {string}   audience    — 'clients' | 'trainers' | 'all' | 'custom'
+ * @param {number[]} customIds   — конкретні user_id (тільки для audience='custom')
+ * @param {string}   title
+ * @param {string}   body
+ */
+async function sendPushForMessage(audience, customIds, title, body) {
+  let userIds = [];
+
+  if (audience === 'custom') {
+    userIds = customIds;
+  } else {
+    // Вибираємо user_id з потрібною роллю
+    const roleFilter =
+      audience === 'clients'  ? `role = 'client'` :
+      audience === 'trainers' ? `role = 'trainer'` :
+      `role in ('client', 'trainer', 'admin', 'manager')`;
+
+    const result = await query(`select id from users where ${roleFilter}`);
+    userIds = result.rows.map((r) => r.id);
+  }
+
+  if (userIds.length > 0) {
+    await sendPush(userIds, title, body);
+  }
 }
 
 /**
@@ -152,6 +181,16 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
 
   if (recipientIds.length > 0) {
     await replaceRecipients(result.rows[0].id, recipientIds);
+  }
+
+  // Надіслати Web Push негайно якщо повідомлення відправлено зараз
+  if (normalizeStatus(status) === 'sent') {
+    sendPushForMessage(
+      effectiveAudience,
+      recipientIds,
+      subject,
+      body || '',
+    ).catch(() => {});
   }
 
   return res.status(HTTP_CREATED).json(result.rows[0]);

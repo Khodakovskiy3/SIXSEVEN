@@ -82,11 +82,17 @@ function getPageByRole(role) {
  * @returns {Promise<object|null>} актуальний користувач або null.
  */
 export async function requireFreshAuth(expectedRoles = []) {
-  const user = requireAuth();
-  if (!user) return null;
+  const { token, user } = getAuth();
+  if (!token || !user) {
+    window.location.href = PAGE.LOGIN;
+    return null;
+  }
 
   try {
     const data = await apiFetch('/auth/me');
+    // apiFetch повертає null при 401 (уже очистив auth і редіректнув)
+    if (!data) return null;
+
     const freshUser = data.user;
     localStorage.setItem(STORAGE_KEY.USER, JSON.stringify(freshUser));
 
@@ -97,9 +103,13 @@ export async function requireFreshAuth(expectedRoles = []) {
 
     return freshUser;
   } catch {
-    clearAuth();
-    window.location.href = PAGE.LOGIN;
-    return null;
+    // Мережева помилка або 5xx — НЕ виходимо з облікового запису.
+    // Токен валідний 7 днів, тому працюємо з кешованим користувачем.
+    if (expectedRoles.length && !expectedRoles.includes(user.role)) {
+      window.location.href = getPageByRole(user.role);
+      return null;
+    }
+    return user;
   }
 }
 

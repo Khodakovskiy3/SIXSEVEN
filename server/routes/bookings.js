@@ -142,6 +142,41 @@ async function notifyTrainerAboutBooking(scheduleId, clientName) {
   );
 }
 
+async function notifyClientBookingConfirmed(userId, scheduleId) {
+  const result = await query(
+    `select w.name as workout_name, s.date, s.time
+     from schedules s
+     join workouts w on w.id = s.workout_id
+     where s.id = $1`,
+    [scheduleId]
+  );
+  if (!result.rows.length) return;
+  const { workout_name: workoutName, date, time } = result.rows[0];
+  const slot = `${new Date(date).toLocaleDateString('uk-UA')} о ${String(time).slice(0, 5)}`;
+  await notifyUsers([userId], `Запис підтверджено`, `Ви записані на «${workoutName}» ${slot}.`);
+}
+
+async function notifyTrainerIfClassFull(scheduleId) {
+  const result = await query(
+    `select u.id as user_id, w.name as workout_name, s.date, s.time,
+            w.max_clients,
+            (select count(*) from bookings b
+             where b.schedule_id = s.id and b.status = 'active') as booked
+     from schedules s
+     join workouts w on w.id = s.workout_id
+     join trainers t on t.id = s.trainer_id
+     join users u on u.id = t.user_id
+     where s.id = $1`,
+    [scheduleId]
+  );
+  if (!result.rows.length) return;
+  const { user_id: trainerUserId, workout_name: workoutName, date, time, max_clients: maxClients, booked } = result.rows[0];
+  if (Number(booked) >= Number(maxClients)) {
+    const slot = `${new Date(date).toLocaleDateString('uk-UA')} о ${String(time).slice(0, 5)}`;
+    await notifyUsers([trainerUserId], `Заняття «${workoutName}» заповнено`, `Усі місця на ${slot} зайняті.`);
+  }
+}
+
 router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
   const { schedule_id: scheduleId } = req.body || {};
   if (!scheduleId) {
@@ -216,7 +251,9 @@ router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
       return res.status(HTTP_CONFLICT).json({ error: bookingResult.error });
     }
 
-    await notifyTrainerAboutBooking(scheduleId, req.user.name);
+    notifyTrainerAboutBooking(scheduleId, req.user.name).catch(() => {});
+    notifyClientBookingConfirmed(req.user.id, scheduleId).catch(() => {});
+    notifyTrainerIfClassFull(scheduleId).catch(() => {});
 
     return res.status(HTTP_CREATED).json(bookingResult.booking);
   } catch (error) {
@@ -254,7 +291,25 @@ router.delete('/:id', authRequired, async (req, res) => {
     return res.status(HTTP_FORBIDDEN).json({ error: 'Forbidden' });
   }
 
+  const bookingInfo = await query(
+    `select u.id as client_user_id, w.name as workout_name, s.date, s.time
+     from bookings b
+     join clients c on c.id = b.client_id
+     join users u on u.id = c.user_id
+     join schedules s on s.id = b.schedule_id
+     join workouts w on w.id = s.workout_id
+     where b.id = $1`,
+    [id]
+  );
+
   await query('delete from bookings where id = $1', [id]);
+
+  if (bookingInfo.rows.length) {
+    const { client_user_id: clientUserId, workout_name: workoutName, date, time } = bookingInfo.rows[0];
+    const slot = `${new Date(date).toLocaleDateString('uk-UA')} о ${String(time).slice(0, 5)}`;
+    notifyUsers([clientUserId], `Запис скасовано`, `Ваш запис на «${workoutName}» ${slot} скасовано адміністратором.`).catch(() => {});
+  }
+
   return res.json({ ok: true });
 });
 

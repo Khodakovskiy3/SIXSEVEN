@@ -300,56 +300,84 @@ function closeModal() {
   document.getElementById('notif-modal-backdrop')?.remove();
 }
 
-// ─── Звук сповіщення (Web Audio API, без зовнішніх файлів) ───────────────────
+// ─── Звук сповіщення ─────────────────────────────────────────────────────────
+//
+// Браузер блокує audio.play() якщо його не викликати під час жесту (click/touch).
+// Рішення: при першому кліку зберігаємо "розблокований" Audio елемент,
+// потім переграємо його коли треба — autoplay-обмеження вже не діє.
 
-let _audioCtx = null;
+let _readyAudio = null; // розблокований елемент, готовий до відтворення
 
-/** Повертає (або створює) AudioContext. Може бути null якщо API недоступне. */
-function getAudioCtx() {
-  if (_audioCtx) return _audioCtx;
-  try {
-    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  } catch {
-    // браузер не підтримує Web Audio
+/**
+ * Генерує WAV-beep в пам'яті та повертає blob:// URL.
+ */
+function _makeBlobUrl() {
+  const sr = 22050, dur = 0.25, freq = 880;
+  const n   = Math.floor(sr * dur);
+  const buf = new ArrayBuffer(44 + n * 2);
+  const v   = new DataView(buf);
+  const w   = (off, s) => [...s].forEach((c, i) => v.setUint8(off + i, c.charCodeAt(0)));
+  w(0,  'RIFF'); v.setUint32(4, 36 + n * 2, true);
+  w(8,  'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true);
+  v.setUint16(32, 2,  true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) {
+    const t = i / sr;
+    const s = Math.sin(2 * Math.PI * freq * t) * Math.min(1, t / 0.008) * Math.exp(-t * 10) * 0.7;
+    v.setInt16(44 + i * 2, Math.round(s * 32767), true);
   }
-  return _audioCtx;
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
 }
 
 /**
- * Грає двонотний «дзень-дзень» звук сповіщення.
- * Не кидає помилок — якщо щось не так, просто мовчить.
+ * Розблоковує аудіо при першому жесті: тихо програє і зупиняє звук,
+ * щоб наступні виклики play() не блокувалися autoplay-політикою.
+ */
+function _unlockAudio() {
+  if (_readyAudio) return;
+  try {
+    const url   = _makeBlobUrl();
+    const audio = new Audio(url);
+    audio.volume = 0;
+    audio.play().then(() => {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.volume      = 0.85;
+      _readyAudio = audio;
+    }).catch(() => {});
+  } catch {}
+}
+
+/**
+ * Грає звук сповіщення.
+ * Якщо аудіо ще не розблоковано — намагається напряму (спрацює якщо браузер
+ * лояльний, або якщо є нещодавній жест).
  */
 function playNotificationSound() {
-  const ctx = getAudioCtx();
-  if (!ctx) return;
-
-  // Браузер може заморозити контекст після паузи — розморозити
-  if (ctx.state === 'suspended') {
-    ctx.resume().catch(() => {});
+  if (_readyAudio) {
+    // Клонуємо щоб одночасно могло грати кілька
+    const clone = /** @type {HTMLAudioElement} */ (_readyAudio.cloneNode());
+    clone.volume = 0.85;
+    clone.play().catch(() => {});
+    return;
   }
-
-  const now = ctx.currentTime;
-
-  function note(freq, startAt, duration, peakGain = 0.22) {
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.type = 'sine';
-    osc.frequency.value = freq;
-
-    gain.gain.setValueAtTime(0, now + startAt);
-    gain.gain.linearRampToValueAtTime(peakGain, now + startAt + 0.015);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + startAt + duration);
-
-    osc.start(now + startAt);
-    osc.stop(now + startAt + duration + 0.05);
-  }
-
-  note(880, 0,    0.35);   // A5 — перша нота
-  note(659, 0.18, 0.45);   // E5 — друга нота (злегка нижча)
+  // Fallback: спробуємо напряму
+  try {
+    const audio = new Audio(_makeBlobUrl());
+    audio.volume = 0.85;
+    audio.play().catch(() => {});
+  } catch {}
 }
+
+// Для ручного тестування прямо з DevTools консолі
+window._testNotifSound = playNotificationSound;
+window._testPush = async () => {
+  const { apiFetch } = await import('./api.js');
+  const r = await apiFetch('/push/test', { method: 'POST' });
+  console.log('[push] test result:', r);
+};
 
 // ─── Головний експорт ─────────────────────────────────────────────────────────
 
@@ -357,6 +385,11 @@ const POLL_INTERVAL_MS = 30_000; // перевіряти кожні 30 секу�
 
 export async function initNotifications() {
   injectStyles();
+
+  // Розблоковуємо аудіо при першому жесті користувача
+  document.addEventListener('click',    _unlockAudio, { once: true, passive: true });
+  document.addEventListener('touchend', _unlockAudio, { once: true, passive: true });
+  document.addEventListener('keydown',  _unlockAudio, { once: true, passive: true });
 
   const btn = document.querySelector('.notification-btn');
   if (!btn) return;
@@ -519,13 +552,9 @@ export async function initNotifications() {
     document.body.appendChild(dropdown);
   }
 
-  // ── Клік на дзвіночок — toggle + ініціалізація AudioContext ──
+  // ── Клік на дзвіночок — toggle ──
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    // Ініціалізуємо (або розморожуємо) AudioContext після першого кліку користувача
-    const ctx = getAudioCtx();
-    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
-
     if (document.getElementById(DROPDOWN_ID)) {
       closeDropdown();
     } else {

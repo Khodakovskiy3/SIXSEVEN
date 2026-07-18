@@ -55,6 +55,22 @@
     return token;
   }
 
+  function _playChime() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } catch {}
+  }
+
   /** Екранує текст перед вставкою в HTML. */
   function escapeHtml(value = '') {
     return String(value)
@@ -68,6 +84,16 @@
   const guestToken = getGuestToken();
   let lastMessageId = 0;
   let pollTimer = null;
+
+  // Звук грає лише якщо клієнт підписаний на push (тобто увімкнув у налаштуваннях).
+  // Гостям звук завжди доступний — вони не мають налаштувань.
+  let _soundEnabled = !isAuthenticated;
+  if (isAuthenticated && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => { _soundEnabled = Boolean(sub); })
+      .catch(() => {});
+  }
   let sse = null;
   let isOpen = false;
 
@@ -238,9 +264,16 @@
   const requestEl = panel.querySelector('[data-request]');
 
   let hasMessages = false;
+  const renderedIds = new Set(); // захист від дублікатів при race SSE ↔ optimistic UI
 
   /** Додає одне повідомлення у стрічку. */
   function appendMessage(message) {
+    // Якщо повідомлення з ID вже відображено (напр. optimistic + SSE) — пропускаємо
+    if (message.id) {
+      if (renderedIds.has(message.id)) return;
+      renderedIds.add(message.id);
+    }
+
     if (!hasMessages) {
       bodyEl.innerHTML = '';
       hasMessages = true;
@@ -552,10 +585,14 @@
 
       const previousState = chatState;
       chatState = data.state || STATE_NONE;
+      const isIncremental = lastMessageId > 0;
+      let hasNewAdminMsg = false;
       (data.messages || []).forEach((message) => {
         appendMessage(message);
         lastMessageId = Math.max(lastMessageId, message.id);
+        if (message.sender === 'admin') hasNewAdminMsg = true;
       });
+      if (isIncremental && hasNewAdminMsg && _soundEnabled) _playChime();
       if (chatState !== previousState) {
         renderGate();
       }

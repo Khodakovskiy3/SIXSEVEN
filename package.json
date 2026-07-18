@@ -26,6 +26,7 @@
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^9.0.1",
     "pg": "^8.12.0",
+    "web-push": "^3.6.7",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -51,7 +52,10 @@
       "!AGENTS.md"
     ],
     "extraResources": [
-      { "from": ".env", "to": "app/.env" }
+      {
+        "from": ".env",
+        "to": "app/.env"
+      }
     ],
     "mac": {
       "icon": "public/assets/icons/icon-512.png",
@@ -62,7 +66,12 @@
     "win": {
       "icon": "public/assets/icons/icon-512.png",
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
     },
     "nsis": {

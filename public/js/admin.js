@@ -6,6 +6,7 @@ import { initSidebar } from './sidebar.js';
 import { initTheme } from './theme.js';
 import { initNotifications } from './notifications.js';
 import { startChatListPolling, stopChatPolling } from "./admin/chat.js";
+import { subscribePush } from './push.js';
 
 const titles = {
   dashboard: 'Головна',
@@ -29,6 +30,7 @@ const pageRoutes = {
   services: '/pages/admin/services.html',
   plans: '/pages/admin/plans.html',
   messages: '/pages/admin/messages.html',
+  chat: '/pages/admin/messages.html?tab=chat',
   profile: '/pages/admin/profile.html',
   'admin-personal': '/pages/admin/personal.html',
   'club-settings': '/pages/admin/club.html',
@@ -530,11 +532,45 @@ async function openScheduleDetails(scheduleId) {
       return;
     }
 
-    attendeeList.innerHTML = activeAttendees.length
-      ? activeAttendees
-        .map((item) => `<li>${escapeHtml(item.client_name)}${item.attended ? ' · відвідав' : ''}</li>`)
-        .join('')
-      : '<li>Ще ніхто не записався</li>';
+    const renderAttendees = (list) => {
+      attendeeList.innerHTML = list.length
+        ? list.map((item) => `
+            <li class="schedule-attendee-item">
+              <span>${escapeHtml(item.client_name)}${item.attended ? ' · відвідав' : ''}</span>
+              <button class="icon-btn attendee-remove-btn" data-booking-id="${item.id}" title="Видалити запис">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16">
+                  <line x1="4" y1="4" x2="16" y2="16"/><line x1="16" y1="4" x2="4" y2="16"/>
+                </svg>
+              </button>
+            </li>`).join('')
+        : '<li>Ще ніхто не записався</li>';
+
+      attendeeList.querySelectorAll('.attendee-remove-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const bookingId = btn.dataset.bookingId;
+          if (!confirm('Видалити цей запис?')) return;
+          try {
+            await apiFetch(`/bookings/${bookingId}`, { method: 'DELETE' });
+            await loadSchedules();
+            const updatedSchedule = schedules.find((s) => String(s.id) === String(scheduleId));
+            if (updatedSchedule) {
+              const bookedNow = Number(updatedSchedule.booked || 0);
+              const maxNow = Number(updatedSchedule.max_clients || 0);
+              const availableNow = Math.max(maxNow - bookedNow, 0);
+              sheetBody.querySelector('dd:nth-of-type(3)').textContent =
+                `${bookedNow}/${maxNow} · вільно ${availableNow}`;
+            }
+            const remaining = activeAttendees.filter((a) => String(a.id) !== String(bookingId));
+            activeAttendees.splice(0, activeAttendees.length, ...remaining);
+            renderAttendees(activeAttendees);
+          } catch (err) {
+            alert(`Помилка: ${err.message}`);
+          }
+        });
+      });
+    };
+
+    renderAttendees(activeAttendees);
   } catch (error) {
     const attendeeList = document.querySelector('#schedule-attendees');
     if (attendeeList) {
@@ -2517,7 +2553,7 @@ document.querySelectorAll('.chip, .cseg-btn').forEach((button) => {
         if (feedbackEl)     feedbackEl.style.display = 'none';
         // Показуємо чат на повну висоту
         if (chatPanel) { chatPanel.style.display = 'flex'; chatPanel.removeAttribute('hidden'); }
-        startChatListPolling();
+        startChatListPolling(currentUser);
       } else {
         // Відновлюємо видимість
         if (broadcastPanel) broadcastPanel.style.display = '';
@@ -3954,6 +3990,7 @@ initNotifications();
 const currentUser = await requireFreshAuth([ROLE.ADMIN]);
 if (currentUser) {
   hydrateAccount({ role: ROLE.ADMIN });
+  subscribePush().catch(() => {}); // адмін завжди підписаний на пуш
   loadAdminSettings();
   loadClubSettings();
   attachPhoneMasks(document); // маска для статичних полів телефону
@@ -3967,6 +4004,9 @@ if (currentUser && dashboardPage) {
 }
 if (currentUser && messagesPage) {
   loadMessages();
+  if (new URLSearchParams(window.location.search).get('tab') === 'chat') {
+    document.querySelector('[data-message-filter="chat"]')?.click();
+  }
 }
 if (currentUser && clientsPage) {
   loadClients();

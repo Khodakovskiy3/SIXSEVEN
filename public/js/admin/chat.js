@@ -14,14 +14,32 @@
 import { apiFetch } from '../api.js';
 import { escapeHtml } from '../utils.js';
 
+function _playChime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+  } catch {}
+}
+
 /* ══════════════════════════════════════════
    ЧАТ З ПОТЕНЦІЙНИМИ КЛІЄНТАМИ (messages → Чат)
    ══════════════════════════════════════════ */
+let currentUser = null;
 let chatConversations = [];
 let activeChatId = null;
 let _chatMsgPollTimer = null;   // поллінг повідомлень активної розмови
 let _chatListPollTimer = null;  // поллінг списку розмов
 let _lastMsgId = 0;             // id останнього отриманого повідомлення
+const _renderedMsgIds = new Set(); // захист від дублікатів при race SSE ↔ polling
 
 // Реалтайм чату: основний канал — SSE, polling лишається запобіжником.
 // Поки SSE підключений, інтервали опитування сповільнюються; якщо SSE
@@ -97,7 +115,8 @@ async function loadChatConversations() {
     chatConversations = data || [];
     renderChatList();
   } catch (e) {
-    listEl.innerHTML = '<div class="msg-chat-list-empty">Помилка завантаження</div>';
+    console.error('[chat] loadChatConversations:', e);
+    listEl.innerHTML = `<div class="msg-chat-list-empty">Помилка: ${e.message}</div>`;
   }
 }
 
@@ -183,12 +202,13 @@ function _renderChatWindowShell(id) {
         Назад
       </button>
     </div>
+    <div class="msg-chat-topbar" id="msg-chat-topbar"></div>
     <div class="msg-chat-messages" id="msg-chat-messages"></div>
     <form class="msg-chat-reply" id="msg-chat-reply-form">
       <input type="text" id="msg-chat-input" placeholder="Відповідь…" autocomplete="off">
-      <button type="submit" class="clients-add-btn" style="flex-shrink:0;height:40px;padding:0 16px">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        Надіслати
+      <button type="submit" class="clients-add-btn msg-chat-send-btn">
+        <svg class="msg-chat-send-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        <span class="btn-label">Надіслати</span>
       </button>
     </form>`;
 
@@ -246,13 +266,22 @@ function updateChatControls() {
     topbar.innerHTML = '<span class="msg-chat-note">Діалог завершено</span>';
   } else if (isFree) {
     topbar.innerHTML = `
-      <button type="button" class="clients-add-btn msg-chat-claim" data-chat-claim>Взяти в роботу</button>
-      <span class="msg-chat-note">або просто відповідайте</span>
-      <button type="button" class="msg-chat-close-btn" data-chat-close>Завершити</button>`;
+      <button type="button" class="clients-add-btn msg-chat-claim" data-chat-claim>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" width="14" height="14"><path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3v4M8 3v4"/></svg>
+        <span class="btn-label">Взяти в роботу</span>
+      </button>
+      <span class="msg-chat-note btn-label">або просто відповідайте</span>
+      <button type="button" class="msg-chat-close-btn" data-chat-close>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+        <span class="btn-label">Завершити</span>
+      </button>`;
   } else if (isMine) {
     topbar.innerHTML = `
-      <span class="msg-chat-note">Ви ведете цей діалог</span>
-      <button type="button" class="msg-chat-close-btn" data-chat-close>Завершити чат</button>`;
+      <span class="msg-chat-note btn-label">Ви ведете цей діалог</span>
+      <button type="button" class="msg-chat-close-btn" data-chat-close>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+        <span class="btn-label">Завершити чат</span>
+      </button>`;
   } else {
     const adminName = escapeHtml(conv.assigned_admin_name || 'інший адміністратор');
     topbar.innerHTML = `<span class="msg-chat-note">Веде ${adminName} — лише перегляд</span>`;
@@ -311,22 +340,34 @@ async function _loadAndAppendMsgs(id, incremental) {
     if (!msgs || msgs.length === 0) return; // нічого нового — не чіпаємо DOM
 
     if (!incremental) {
-      msgList.innerHTML = msgs.map(_buildBubble).join('');
+      // Повне перезавантаження — скидаємо трекер
+      _renderedMsgIds.clear();
+      msgList.innerHTML = msgs.map((m) => { _renderedMsgIds.add(m.id); return _buildBubble(m); }).join('');
     } else {
-      msgs.forEach(m => msgList.insertAdjacentHTML('beforeend', _buildBubble(m)));
+      // Incremental — пропускаємо дублікати (race SSE ↔ polling)
+      const fresh = msgs.filter((m) => !_renderedMsgIds.has(m.id));
+      fresh.forEach((m) => {
+        _renderedMsgIds.add(m.id);
+        msgList.insertAdjacentHTML('beforeend', _buildBubble(m));
+      });
+      if (fresh.length === 0) return; // нічого нового — не скролимо
     }
     _lastMsgId = msgs[msgs.length - 1].id;
     msgList.scrollTop = msgList.scrollHeight;
 
-    // Оновити список якщо прийшло нове (від гостя)
-    if (msgs.some(m => m.sender === 'guest')) loadChatConversations();
+    // Оновити список і програти звук якщо прийшло нове від гостя
+    if (msgs.some(m => m.sender === 'guest')) {
+      loadChatConversations();
+      if (incremental) _playChime();
+    }
   } catch (e) {
     console.error('Chat poll error:', e);
   }
 }
 
 /* ── Запуск/зупинка поллінгу списку розмов ── */
-function startChatListPolling() {
+function startChatListPolling(user) {
+  currentUser = user;
   clearInterval(_chatListPollTimer);
   clearInterval(_chatMsgPollTimer);
   loadChatConversations();

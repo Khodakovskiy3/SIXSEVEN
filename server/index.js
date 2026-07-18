@@ -29,12 +29,16 @@ import chatRoutes from './routes/chat.js';
 import uploadRoutes from './routes/upload.js';
 import anthropometryRoutes from './routes/anthropometry.js';
 import notificationsRoutes from './routes/notifications.js';
+import pushRoutes from './routes/push.js';
 import aiRoutes from './routes/ai.js';
 
 import { DEFAULT_HTTP_PORT, HTTP_SERVER_ERROR } from './utils/constants.js';
 import { logError } from './utils/logger.js';
 import { authLimiter } from './middleware/rateLimit.js';
 import { runMigrations } from './migrate.js';
+import { runSubscriptionReminders } from './utils/subscription-reminders.js';
+import { query } from './db.js';
+import { sendPush } from './utils/notify.js';
 console.log('SERVER INDEX JS STARTED');
 dotenv.config();
 
@@ -97,6 +101,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/anthropometry', anthropometryRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/push', pushRoutes);
 app.use('/api/ai', aiRoutes);
 
 // ─── Глобальна обробка помилок ────────────────────────────────────────────────
@@ -110,6 +115,7 @@ app.use((err, req, res, next) => {
     path: req.originalUrl,
     userId: req.user?.id,
   });
+  notifyManagers(`⚠️ Критична помилка сервера`, `${err?.message || err}\n${req.method} ${req.originalUrl}`).catch(() => {});
   if (res.headersSent) {
     return next(err);
   }
@@ -120,19 +126,34 @@ app.use((err, req, res, next) => {
 // в асинхронному обробнику не повинні «вбивати» сервер для всіх користувачів.
 process.on('unhandledRejection', (reason) => {
   logError('Необроблений reject промісу', reason);
+  notifyManagers('⚠️ Необроблена помилка', String(reason?.message || reason)).catch(() => {});
 });
 
 process.on('uncaughtException', (error) => {
   logError('Необроблений виняток', error);
+  notifyManagers('⚠️ Критичний виняток', String(error?.message || error)).catch(() => {});
 });
 
+async function notifyManagers(title, body) {
+  try {
+    const result = await query(`select id from users where role = 'manager'`);
+    const ids = result.rows.map((r) => r.id);
+    if (ids.length) await sendPush(ids, title, body);
+  } catch {}
+}
+
 console.log('ROUTES REGISTERED');
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 runMigrations()
   .then(() => {
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
+    // Нагадування про абонементи: запускаємо одразу й потім щодня.
+    runSubscriptionReminders();
+    setInterval(runSubscriptionReminders, MS_PER_DAY);
   })
   .catch((err) => {
     logError('Не вдалося застосувати міграції', err);

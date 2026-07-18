@@ -1,32 +1,91 @@
 /**
  * Системні сповіщення користувачам через загальну систему повідомлень.
  *
- * Створює запис у messages з audience='custom' і прив'язує отримувачів
- * через message_recipients. Дзвіночок на фронтенді підхоплює такі
- * повідомлення звичайним полінгом /api/notifications і сам грає звук —
- * окремого механізму доставки не потрібно.
+ * Створює запис у messages + надсилає Web Push тим, хто підписаний.
  */
 
+import webpush from 'web-push';
+import dotenv from 'dotenv';
 import { query } from '../db.js';
 import { logError } from './logger.js';
 
+dotenv.config();
+
+// ── VAPID ──────────────────────────────────────────────────────────────────────
+const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY  || '';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT     || 'mailto:admin@example.com';
+
+if (VAPID_PUBLIC && VAPID_PRIVATE) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+}
+
 /**
- * Надсилає сповіщення переліченим користувачам.
- * Помилки лише логуються: збій сповіщення не повинен ламати основну
- * дію (призначення абонемента, зміну розкладу тощо).
+ * Надсилає Web Push підписникам зі списку userIds.
+ * Прострочені підписки видаляються автоматично.
  *
- * @param {number[]} userIds Ідентифікатори користувачів-отримувачів.
- * @param {string} subject Тема сповіщення (обов'язкова).
- * @param {string} [body] Текст сповіщення.
- * @returns {Promise<void>}
+ * @param {number[]} userIds
+ * @param {string} title
+ * @param {string} body
+ */
+export async function sendPush(userIds, title, body) {
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE || userIds.length === 0) return;
+
+  try {
+    const result = await query(
+      `select ps.id, ps.endpoint, ps.p256dh, ps.auth
+       from push_subscriptions ps
+       join users u on u.id = ps.user_id
+       where ps.user_id = any($1::int[])
+         and u.notif_push = true`,
+      [userIds]
+    );
+
+    const payload = JSON.stringify({ title, body });
+    const expired = [];
+
+    await Promise.allSettled(
+      result.rows.map(async (sub) => {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            payload,
+            { TTL: 86400 }
+          );
+        } catch (err) {
+          // 410 Gone / 404 = підписка протерміна, видалити
+          if (err.statusCode === 410 || err.statusCode === 404) {
+            expired.push(sub.id);
+          }
+        }
+      })
+    );
+
+    if (expired.length > 0) {
+      await query(
+        `delete from push_subscriptions where id = any($1::int[])`,
+        [expired]
+      );
+    }
+  } catch (err) {
+    logError('sendPush помилка', err);
+  }
+}
+
+/**
+ * Надсилає сповіщення переліченим користувачам:
+ * 1. Запис у messages + message_recipients (для дзвіночка в UI)
+ * 2. Web Push для підписаних користувачів
+ *
+ * @param {number[]} userIds
+ * @param {string} subject
+ * @param {string} [body]
  */
 export async function notifyUsers(userIds, subject, body = '') {
   const ids = [...new Set(userIds)]
     .map(Number)
     .filter((id) => Number.isInteger(id) && id > 0);
-  if (ids.length === 0 || !subject) {
-    return;
-  }
+  if (ids.length === 0 || !subject) return;
 
   try {
     const message = await query(
@@ -42,6 +101,9 @@ export async function notifyUsers(userIds, subject, body = '') {
        on conflict do nothing`,
       [message.rows[0].id, ids]
     );
+
+    // Асинхронно надсилаємо push (не блокуємо відповідь)
+    sendPush(ids, subject, body).catch(() => {});
   } catch (error) {
     logError('Не вдалося створити системне сповіщення', error);
   }
