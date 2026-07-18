@@ -54,13 +54,23 @@ ON CONFLICT (email) DO NOTHING;
 --    Спеціалізації містять точні назви занять — для seed-schedule.sql
 -- ─────────────────────────────────────────────────────────────
 
-INSERT INTO trainers (user_id, phone, specialization)
-SELECT u.id, d.phone, d.spec
+-- Телефон живе в users (АУДИТ_БД П1), тому спершу оновлюємо його там
+UPDATE users u
+SET phone = d.phone
 FROM (VALUES
-  ('anna@olimp.ua',    '+380671000001', 'Йога, Фітнес'),
-  ('ihor@olimp.ua',    '+380672000002', 'Єдиноборства, Фітнес'),
-  ('maksym@olimp.ua',  '+380673000003', 'Персональні, Фітнес')
-) AS d(email, phone, spec)
+  ('anna@olimp.ua',    '+380671000001'),
+  ('ihor@olimp.ua',    '+380672000002'),
+  ('maksym@olimp.ua',  '+380673000003')
+) AS d(email, phone)
+WHERE u.email = d.email AND u.phone IS NULL;
+
+INSERT INTO trainers (user_id, specialization)
+SELECT u.id, d.spec
+FROM (VALUES
+  ('anna@olimp.ua',    'Йога, Фітнес'),
+  ('ihor@olimp.ua',    'Єдиноборства, Фітнес'),
+  ('maksym@olimp.ua',  'Персональні, Фітнес')
+) AS d(email, spec)
 JOIN users u ON u.email = d.email
 ON CONFLICT (user_id) DO NOTHING;
 
@@ -68,8 +78,9 @@ ON CONFLICT (user_id) DO NOTHING;
 -- 3. КЛІЄНТИ
 -- ─────────────────────────────────────────────────────────────
 
-INSERT INTO clients (user_id, phone)
-SELECT u.id, d.phone
+-- Телефон живе в users (АУДИТ_БД П1), тому спершу оновлюємо його там
+UPDATE users u
+SET phone = d.phone
 FROM (VALUES
   ('olena@mail.com',   '+380670001001'),
   ('daryna@mail.com',  '+380670001002'),
@@ -80,7 +91,15 @@ FROM (VALUES
   ('mykola@mail.com',  '+380670001007'),
   ('yulia@mail.com',   '+380670001008')
 ) AS d(email, phone)
-JOIN users u ON u.email = d.email
+WHERE u.email = d.email AND u.phone IS NULL;
+
+INSERT INTO clients (user_id)
+SELECT u.id
+FROM users u
+WHERE u.email IN (
+  'olena@mail.com', 'daryna@mail.com', 'serhii@mail.com', 'tetiana@mail.com',
+  'vasyl@mail.com', 'iryna@mail.com', 'mykola@mail.com', 'yulia@mail.com'
+)
 ON CONFLICT (user_id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────
@@ -173,7 +192,8 @@ CROSS JOIN clients c
 WHERE s.date >= current_date - interval '30 days'
   AND s.date <  current_date
   AND (c.id + date_part('doy', s.date)::int) % 5 != 0
-ON CONFLICT (client_id, schedule_id) DO NOTHING;
+-- Індекс bookings_active_unique частковий, тому предикат обов'язковий
+ON CONFLICT (client_id, schedule_id) WHERE status = 'active' DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────
 -- 7. ОПЛАТИ — ~3–4 на день протягом 30 днів (~100 разом)

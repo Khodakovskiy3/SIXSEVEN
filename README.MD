@@ -49,6 +49,25 @@ npm run dev
 
 Застосунок буде на <http://localhost:3000>.
 
+## Тестові акаунти
+
+Створюються командою `npm run db:seed`. Пароль у всіх однаковий: **`admin123`**.
+
+| Роль | Email | Примітка |
+|---|---|---|
+| Адміністратор | `admin` | 2FA обов'язкова |
+| Керівник (manager) | `manager@olimp.ua` | 2FA обов'язкова |
+| Тренер | `anna@olimp.ua` (також `ihor@`, `maksym@olimp.ua`) | вхід одразу |
+| Клієнт | `olena@mail.com` (також `daryna@`, `serhii@`, … `@mail.com`) | вхід одразу |
+
+Для admin/manager другий крок входу — код 2FA. Без налаштованого SMTP (dev-режим)
+код повертається у відповіді логіну як `devCode` і друкується в консоль сервера
+(`[2FA] (DEV) код для …`); з SMTP — надсилається на email. Для діагностики з
+увімкненим SMTP можна задати `DEBUG_OTP=1`, щоб код дублювався в консоль.
+
+Сід ідемпотентний — повторний запуск не створює дублікатів користувачів
+(лише додає нові платежі/відвідування до статистики).
+
 ## АІ-асистент
 
 Асистент відповідає клієнтам на питання про тренування у вкладці
@@ -89,21 +108,22 @@ docker compose --profile ollama up -d    # + Ollama в контейнері
 
 ## Резервне копіювання БД
 
-Скрипт `scripts/db-backup.sh` робить `pg_dump` (через Docker-контейнер або напряму),
-стискає у `backups/sports_club_db_<дата>.sql.gz` і видаляє копії, старші за 30 днів.
-Лог — у `logs/db-backup.log`.
-
-Щоденний автозапуск о 10:00 на macOS — через launchd (на відміну від cron,
-виконує пропущений запуск після пробудження Mac):
+Основний (кросплатформенний) механізм — сервіс `db-backup` у `docker-compose.yml`:
+окремий контейнер з cron, який щодня о 10:00 (Київ) робить `pg_dump`, стискає у
+`backups/sports_club_db_<дата>.sql.gz`, перевіряє повноту дампа і видаляє копії,
+старші за 30 днів. Якщо о 10:00 стек не працював — пропущений бекап виконується
+одразу при наступному старті. Працює однаково на macOS, Windows і Linux; нічого
+налаштовувати не треба — сервіс піднімається разом зі стеком:
 
 ```bash
-cp scripts/com.olimp.db-backup.plist ~/Library/LaunchAgents/
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.olimp.db-backup.plist
-# перевірка:  launchctl print gui/$(id -u)/com.olimp.db-backup
-# видалення:  launchctl bootout gui/$(id -u)/com.olimp.db-backup
+docker compose up -d          # db + app + db-backup
+# лог:            docker compose logs db-backup   (або backups/db-backup.log)
+# бекап вручну:   docker compose exec db-backup sh /usr/local/bin/db-backup-cron.sh
 ```
 
-На Linux-сервері — звичайний cron: `0 10 * * * /шлях/до/проєкту/scripts/db-backup.sh`.
+Запасний варіант без compose-стека — локальний скрипт `scripts/db-backup.sh`
+(macOS/Linux): запускається вручну або через launchd
+(`scripts/com.olimp.db-backup.plist`, інструкція в коментарі файлу) чи cron.
 
 Відновлення з копії:
 
