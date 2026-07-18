@@ -105,6 +105,7 @@ docker compose --profile ollama up -d    # + Ollama в контейнері
 | `npm run db:migrate` | Застосувати міграції вручну |
 | `npm run db:seed` | Наповнити БД тестовими даними |
 | `./scripts/db-backup.sh` | Резервна копія БД у `backups/` (gzip, ротація 30 днів) |
+| `./scripts/db-restore.sh` | Відновлення БД з найсвіжішої (або вказаної) копії |
 
 ## Резервне копіювання БД
 
@@ -125,12 +126,13 @@ docker compose up -d          # db + app + db-backup
 (macOS/Linux): запускається вручну або через launchd
 (`scripts/com.olimp.db-backup.plist`, інструкція в коментарі файлу) чи cron.
 
-Відновлення з копії (дампи створюються з `--clean --if-exists`, тому команда
-працює і в непорожню базу — старі об'єкти видаляються й створюються заново):
+Відновлення з копії — одна команда (працює і в непорожню базу: дампи
+створюються з `--clean --if-exists`, старі об'єкти замінюються):
 
 ```bash
-gunzip -c backups/sports_club_db_<дата>.sql.gz \
-  | docker exec -i 67-db-1 psql -q -U postgres sports_club_db
+./scripts/db-restore.sh                        # найсвіжіша копія, з підтвердженням
+./scripts/db-restore.sh backups/<файл>.sql.gz  # конкретна копія
+./scripts/db-restore.sh --yes                  # без питань (для скриптів)
 ```
 
 Примітка: копії, створені до 2026-07-18, зроблені без `--clean` — їх можна
