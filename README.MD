@@ -135,14 +135,12 @@ docker compose up -d          # db + app + db-backup
 ./scripts/db-restore.sh --yes                  # без питань (для скриптів)
 ```
 
-На Windows скрипт запускається з Git Bash. Альтернатива без bash (PowerShell,
-cmd — будь-де, де є Docker): відновлення через контейнер db-backup, у якому
-вже є psql і змонтована папка backups (підставте ім'я файлу або залиште
-$(ls -t ...) — воно бере найсвіжішу копію):
+На Windows скрипт запускається з Git Bash. Альтернатива для будь-якої оболонки
+(PowerShell, cmd) — команда restore, вбудована в контейнер db-backup:
 
 ```bash
-# У PowerShell вводити ОДНИМ рядком (перенос через «\» — це bash-синтаксис)
-docker compose exec db-backup sh -c 'gunzip -c "$(ls -t /backups/*.sql.gz | head -1)" | psql -q -v ON_ERROR_STOP=1 -h db -U postgres sports_club_db'
+docker compose exec db-backup restore                       # найсвіжіша копія
+docker compose exec db-backup restore /backups/<файл>.sql.gz
 ```
 
 Примітка: копії, створені до 2026-07-18, зроблені без `--clean` — їх можна

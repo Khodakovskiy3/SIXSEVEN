@@ -40,6 +40,7 @@ services:
     volumes:
       - ./backups:/backups
       - ./scripts/db-backup-cron.sh:/usr/local/bin/db-backup-cron.sh:ro
+      - ./scripts/db-restore-docker.sh:/usr/local/bin/db-restore-docker.sh:ro
     entrypoint: ["/bin/sh", "-c"]
     # 1) прибираємо CR: на Windows git міг перетворити LF на CRLF,
     #    що ламає скрипт в Alpine («set: illegal option -»);
@@ -49,6 +50,8 @@ services:
     command:
       - |
         tr -d '\r' < /usr/local/bin/db-backup-cron.sh > /tmp/db-backup-cron.sh
+        tr -d '\r' < /usr/local/bin/db-restore-docker.sh > /usr/local/bin/restore
+        chmod +x /usr/local/bin/restore
         [ -e /usr/share/zoneinfo/Europe/Kyiv ] || apk add --no-cache tzdata
         ls /backups/sports_club_db_"$$(date +%F)"_*.sql.gz >/dev/null 2>&1 \
           || sh /tmp/db-backup-cron.sh
