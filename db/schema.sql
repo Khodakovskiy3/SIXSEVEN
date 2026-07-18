@@ -3,8 +3,9 @@
 --  Автоматизована система: тренування, розклад, членство.
 --
 --  Цей файл — точна копія реальної схеми бази sports_club_db, включно
---  з усіма міграціями db/migrations/001…025 (востаннє звірено після
---  аудиту БД від 17.07.2026 — див. АУДИТ_БД.md). Файл не виконується
+--  з усіма міграціями db/migrations/001…028 (востаннє звірено після
+--  аудиту БД від 18.07.2026 — виправлення В1–В3, С4–С6, Н10–Н11).
+--  Файл не виконується
 --  сервером автоматично (це робить server/migrate.js за db/migrations/*.sql
 --  при кожному старті) — призначення схеми лише довідкове: відтворення
 --  БД на новому середовищі одним запуском або звірка з живою базою.
@@ -19,7 +20,6 @@
 --  Далі: npm run db:migrate (ідемпотентно, безпечно навіть одразу після
 --  цього файлу) і, за потреби, npm run db:seed.
 --
---  PostgreSQL 15+ обов'язковий (UNIQUE NULLS NOT DISTINCT).
 -- ============================================================
 
 -- ─── (НЕБЕЗПЕЧНО) Очищення. Розкоментуйте лише для повного перестворення ───
@@ -53,9 +53,12 @@ CREATE TABLE IF NOT EXISTS public.users (
     email         varchar(100) NOT NULL,
     "password"    varchar(255) NOT NULL,              -- bcrypt-хеш
     "role"        varchar(20)  NOT NULL,
-    twofa_enabled boolean      NOT NULL DEFAULT false,
-    phone         varchar(20)  NULL,
-    created_at    timestamptz  NOT NULL DEFAULT now(),
+    twofa_enabled    boolean      NOT NULL DEFAULT false,
+    phone            varchar(30)  NULL,
+    notif_training   boolean      NOT NULL DEFAULT true,
+    notif_hour_reminder boolean   NOT NULL DEFAULT true,
+    notif_push       boolean      NOT NULL DEFAULT false,
+    created_at       timestamptz  NOT NULL DEFAULT now(),
     CONSTRAINT users_email_key UNIQUE (email),
     CONSTRAINT users_role_check CHECK (
         role IN ('admin','trainer','client','manager')
@@ -71,7 +74,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower_key
 CREATE TABLE IF NOT EXISTS public.clients (
     id         serial4 PRIMARY KEY,
     user_id    int4 NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT clients_user_id_key  UNIQUE (user_id),   -- гарантія 1:1
     CONSTRAINT clients_user_id_fkey FOREIGN KEY (user_id)
         REFERENCES public.users(id) ON DELETE CASCADE
@@ -82,7 +84,6 @@ CREATE TABLE IF NOT EXISTS public.trainers (
     id             serial4 PRIMARY KEY,
     user_id        int4 NOT NULL,
     specialization varchar(100) NULL,
-    created_at     timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT trainers_user_id_key  UNIQUE (user_id),
     CONSTRAINT trainers_user_id_fkey FOREIGN KEY (user_id)
         REFERENCES public.users(id) ON DELETE CASCADE
@@ -121,7 +122,12 @@ CREATE TABLE IF NOT EXISTS public.subscription_plans (
     -- Закріплює фактичний словник значень доступу, що використовує код.
     CONSTRAINT subscription_plans_access_check CHECK (
         access_type IN ('gym','gym_group','group','personal')
-    )
+    ),
+    -- Умовні обмеження за plan_type (В28: уникаємо планів-примар без тривалості/ліміту).
+    CONSTRAINT subscription_plans_duration_check
+        CHECK (plan_type <> 'subscription' OR duration_days > 0),
+    CONSTRAINT subscription_plans_usage_check
+        CHECK (plan_type <> 'single' OR usage_count > 0)
 );
 
 -- ─── Куплені абонементи ─────────────────────────────────────────
@@ -136,7 +142,7 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
     -- Знімок назви плану на момент покупки (свідома денормалізація):
     -- якщо план перейменують чи видалять (plan_id стане NULL), підписка
     -- збереже назву того, що реально було продано.
-    "type"     varchar(50) NOT NULL,
+    "type"     varchar(100) NOT NULL,
     start_date date NOT NULL,
     end_date   date NOT NULL,
     status     varchar(20) NOT NULL DEFAULT 'active',
@@ -167,10 +173,6 @@ CREATE TABLE IF NOT EXISTS public.schedules (
     "date"     date NOT NULL,
     "time"     time NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    -- Однаковий слот (послуга + тренер + дата + час) — помилка вводу.
-    -- NULLS NOT DISTINCT, щоб дублі ловилися й для занять без тренера.
-    CONSTRAINT schedules_slot_unique
-        UNIQUE NULLS NOT DISTINCT (workout_id, trainer_id, "date", "time"),
     CONSTRAINT schedules_trainer_id_fkey FOREIGN KEY (trainer_id)
         REFERENCES public.trainers(id) ON DELETE SET NULL,
     CONSTRAINT schedules_workout_id_fkey FOREIGN KEY (workout_id)
@@ -180,6 +182,14 @@ CREATE TABLE IF NOT EXISTS public.schedules (
 CREATE INDEX IF NOT EXISTS idx_schedules_workout   ON public.schedules(workout_id);
 CREATE INDEX IF NOT EXISTS idx_schedules_trainer   ON public.schedules(trainer_id);
 CREATE INDEX IF NOT EXISTS idx_schedules_date_time ON public.schedules(date, "time");
+-- Два часткові унікальні індекси замість UNIQUE NULLS NOT DISTINCT (міг. 028):
+-- видалення тренера (SET NULL) більше не ламає DELETE через constraint.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_schedules_slot_with_trainer
+    ON public.schedules (workout_id, trainer_id, "date", "time")
+    WHERE trainer_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_schedules_slot_no_trainer
+    ON public.schedules (workout_id, "date", "time")
+    WHERE trainer_id IS NULL;
 
 -- ─── Бронювання занять ──────────────────────────────────────────
 -- Скасування клієнтом переводить статус у 'cancelled' (не DELETE) —
@@ -281,7 +291,10 @@ CREATE TABLE IF NOT EXISTS public.messages (
     CONSTRAINT messages_audience_check CHECK (
         audience IN ('clients','trainers','all','custom')
     ),
-    CONSTRAINT messages_status_check CHECK (status IN ('sent','planned'))
+    CONSTRAINT messages_status_check CHECK (status IN ('sent','planned')),
+    -- Заплановане повідомлення без дати зависає назавжди (міг. 028).
+    CONSTRAINT messages_planned_requires_date
+        CHECK (status <> 'planned' OR send_date IS NOT NULL)
 );
 
 -- Адресати custom-розсилок (M:N, складений PK).
@@ -328,6 +341,9 @@ CREATE TABLE IF NOT EXISTS public.chat_conversations (
     updated_at        timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_chat_conversations_user ON public.chat_conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_conv_admin_open
+    ON public.chat_conversations (assigned_admin_id)
+    WHERE closed_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS public.chat_messages (
     id              serial4 PRIMARY KEY,
@@ -420,3 +436,16 @@ CREATE TABLE IF NOT EXISTS public.client_anthropometry (
 );
 CREATE INDEX IF NOT EXISTS client_anthropometry_client_idx
     ON public.client_anthropometry(client_id, recorded_at DESC);
+
+-- ─── Web Push підписки (міг. 027 + виправлення В2 в міг. 028) ───────
+-- UNIQUE(endpoint): один браузер = один запис; перелогін перезаписує власника.
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+    id         serial4 PRIMARY KEY,
+    user_id    int4 NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    endpoint   text NOT NULL,
+    p256dh     text NOT NULL,
+    auth       text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT push_subscriptions_endpoint_key UNIQUE (endpoint)
+);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON public.push_subscriptions(user_id);

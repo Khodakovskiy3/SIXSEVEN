@@ -33,9 +33,10 @@ router.post('/subscribe', async (req, res) => {
     await query(
       `insert into push_subscriptions (user_id, endpoint, p256dh, auth)
        values ($1, $2, $3, $4)
-       on conflict (user_id, endpoint) do update
-         set p256dh = excluded.p256dh,
-             auth   = excluded.auth`,
+       on conflict (endpoint) do update
+         set user_id = excluded.user_id,
+             p256dh  = excluded.p256dh,
+             auth    = excluded.auth`,
       [req.user.id, endpoint, keys.p256dh, keys.auth]
     );
 

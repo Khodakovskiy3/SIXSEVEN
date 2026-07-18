@@ -6,7 +6,7 @@ import { initSidebar } from './sidebar.js';
 import { initTheme } from './theme.js';
 import { initNotifications } from './notifications.js';
 import { startChatListPolling, stopChatPolling } from "./admin/chat.js";
-import { subscribePush } from './push.js';
+import { subscribePush, unsubscribePush, getPushStatus } from './push.js';
 
 const titles = {
   dashboard: 'Головна',
@@ -3973,6 +3973,29 @@ function loadAdminSettings() {
     localStorage.setItem(ADMIN_SETTINGS_KEY, JSON.stringify(next));
     setNote('#admin-settings-feedback', 'Налаштування збережено', 'success');
   });
+
+  // Push-перемикач
+  const pushToggle = panel.querySelector('#admin-push-toggle');
+  if (pushToggle && 'serviceWorker' in navigator) {
+    getPushStatus().then((active) => { pushToggle.checked = active; });
+
+    pushToggle.addEventListener('change', async () => {
+      if (pushToggle.checked) {
+        const result = await subscribePush();
+        if (!result.ok) {
+          pushToggle.checked = false;
+          setNote('#admin-settings-feedback', result.error || 'Не вдалося підписатися', 'error');
+        } else {
+          setNote('#admin-settings-feedback', 'Push-сповіщення увімкнено', 'success');
+        }
+      } else {
+        await unsubscribePush();
+        setNote('#admin-settings-feedback', 'Push-сповіщення вимкнено', 'success');
+      }
+    });
+  } else if (pushToggle) {
+    pushToggle.disabled = true;
+  }
 }
 
 document.querySelector('[data-change-password]')?.addEventListener('click', openPasswordModal);
@@ -3986,6 +4009,31 @@ passwordModal?.addEventListener('click', (event) => {
 initSidebar();
 initTheme();
 initNotifications();
+
+// Звуковий сигнал при push-сповіщенні (незалежно від поточної вкладки)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'PUSH_RECEIVED' && String(event.data.title || '').startsWith('💬')) {
+      _playAdminChime();
+    }
+  });
+}
+
+function _playAdminChime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+  } catch {}
+}
 
 const currentUser = await requireFreshAuth([ROLE.ADMIN]);
 if (currentUser) {
@@ -4044,5 +4092,31 @@ async function loadProfileStats() {
     setEl('prof-stat-trainers', trs.length ?? '—');
     setEl('prof-stat-plans', (pls.filter ? pls.filter(p => p.status !== 'deleted') : pls).length ?? '—');
   } catch (_) { /* ігноруємо */ }
+}
+
+// ── Глобальний фоновий полінг нових чат-повідомлень ──────────────────────────
+// Працює на будь-якій сторінці адміна. Якщо з'явилася нова активна розмова
+// або оновилась існуюча — грає звуковий сигнал.
+if (currentUser) {
+  let _lastChatKey = null;
+
+  async function _globalChatPoll() {
+    try {
+      const convs = await apiFetch('/chat/admin/conversations');
+      if (!Array.isArray(convs)) return;
+
+      // Відслідковуємо тільки непрочитані від клієнтів/гостей (не власні відповіді адміна)
+      const totalUnread = convs.reduce((sum, c) => sum + (Number(c.unread) || 0), 0);
+
+      if (_lastChatKey !== null && totalUnread > _lastChatKey) {
+        _playAdminChime();
+      }
+      _lastChatKey = totalUnread;
+    } catch {}
+  }
+
+  // Перший запит — встановлює базову лінію без звуку
+  _globalChatPoll();
+  setInterval(_globalChatPoll, 15000);
 }
 

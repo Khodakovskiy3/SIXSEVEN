@@ -36,13 +36,19 @@ self.addEventListener('push', (event) => {
   try { data = event.data?.json() ?? data; } catch {}
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'OLIMP', {
-      body: data.body || '',
-      icon: '/assets/icons/icon-192.png',
-      badge: '/assets/icons/icon-192.png',
-      tag: 'olimp-notification',
-      renotify: true,
-    })
+    Promise.all([
+      self.registration.showNotification(data.title || 'OLIMP', {
+        body: data.body || '',
+        icon: '/assets/icons/icon-192.png',
+        badge: '/assets/icons/icon-192.png',
+        tag: 'olimp-notification',
+        renotify: true,
+      }),
+      // Сповіщаємо відкриті вкладки щоб зіграли звук
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+        list.forEach((client) => client.postMessage({ type: 'PUSH_RECEIVED', title: data.title }));
+      }),
+    ])
   );
 });
 

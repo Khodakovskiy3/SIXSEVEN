@@ -673,6 +673,35 @@
     disconnectSse();
   }
 
+  // Авто-підписка на push при першому відкритті чату (клік = user gesture → iOS OK).
+  // Гостям підписка не потрібна: сервер не знає їх userId.
+  let _pushAttempted = false;
+  async function _tryAutoSubscribePush() {
+    if (!isAuthenticated || _pushAttempted) return;
+    if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
+    _pushAttempted = true;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) { _soundEnabled = true; return; }
+
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
+
+      const { publicKey } = await apiFetch('/push/vapid-key');
+      if (!publicKey) return;
+
+      const padding = '='.repeat((4 - (publicKey.length % 4)) % 4);
+      const b64 = (publicKey + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const raw = atob(b64);
+      const key = Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+      await apiFetch('/push/subscribe', { method: 'POST', body: JSON.stringify(sub.toJSON()) });
+      _soundEnabled = true;
+    } catch {}
+  }
+
   function openPanel() {
     isOpen = true;
     panel.classList.add('open');
@@ -680,6 +709,7 @@
     if (!formEl.hidden) {
       inputEl.focus();
     }
+    _tryAutoSubscribePush();
   }
 
   function closePanel() {
@@ -760,3 +790,25 @@
   // інакше користувач на мить побачив би форму, у яку не має права писати.
   renderGate();
 })();
+
+// Звук при push від адміна коли чат-панель закрита
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type !== 'PUSH_RECEIVED') return;
+    const title = String(event.data.title || '');
+    if (!title.startsWith('💬')) return;
+    // Не грати якщо чат відкритий — там вже грає свій чайм
+    const panel = document.getElementById('chat-panel');
+    if (panel && panel.classList.contains('open')) return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine'; osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+      osc.start(); osc.stop(ctx.currentTime + 0.4);
+    } catch {}
+  });
+}
