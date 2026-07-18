@@ -141,8 +141,8 @@ cmd — будь-де, де є Docker): відновлення через кон
 $(ls -t ...) — воно бере найсвіжішу копію):
 
 ```bash
-docker compose exec db-backup sh -c \
-  'gunzip -c "$(ls -t /backups/*.sql.gz | head -1)" | psql -q -v ON_ERROR_STOP=1 -h db -U postgres sports_club_db'
+# У PowerShell вводити ОДНИМ рядком (перенос через «\» — це bash-синтаксис)
+docker compose exec db-backup sh -c 'gunzip -c "$(ls -t /backups/*.sql.gz | head -1)" | psql -q -v ON_ERROR_STOP=1 -h db -U postgres sports_club_db'
 ```
 
 Примітка: копії, створені до 2026-07-18, зроблені без `--clean` — їх можна
