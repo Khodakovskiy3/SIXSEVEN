@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Щоденне резервне копіювання БД OLIMP через launchd (macOS).
+  Встановлення:
+    cp scripts/com.olimp.db-backup.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.olimp.db-backup.plist
+  Видалення:
+    launchctl bootout gui/$(id -u)/com.olimp.db-backup
+  launchd (на відміну від cron) виконує пропущений запуск після пробудження Mac.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.olimp.db-backup</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/maksym/Documents/ІСЗЗІ/67/scripts/db-backup.sh</string>
+  </array>
+
+  <!-- Щодня о 10:00 -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>10</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/maksym/Documents/ІСЗЗІ/67/logs/db-backup-launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/maksym/Documents/ІСЗЗІ/67/logs/db-backup-launchd.log</string>
+
+  <!-- docker та pg_dump можуть бути поза стандартним PATH launchd -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>

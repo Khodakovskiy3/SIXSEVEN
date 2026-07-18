@@ -85,6 +85,32 @@ docker compose --profile ollama up -d    # + Ollama в контейнері
 | `npm start` | Продакшн-запуск |
 | `npm run db:migrate` | Застосувати міграції вручну |
 | `npm run db:seed` | Наповнити БД тестовими даними |
+| `./scripts/db-backup.sh` | Резервна копія БД у `backups/` (gzip, ротація 30 днів) |
+
+## Резервне копіювання БД
+
+Скрипт `scripts/db-backup.sh` робить `pg_dump` (через Docker-контейнер або напряму),
+стискає у `backups/sports_club_db_<дата>.sql.gz` і видаляє копії, старші за 30 днів.
+Лог — у `logs/db-backup.log`.
+
+Щоденний автозапуск о 10:00 на macOS — через launchd (на відміну від cron,
+виконує пропущений запуск після пробудження Mac):
+
+```bash
+cp scripts/com.olimp.db-backup.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.olimp.db-backup.plist
+# перевірка:  launchctl print gui/$(id -u)/com.olimp.db-backup
+# видалення:  launchctl bootout gui/$(id -u)/com.olimp.db-backup
+```
+
+На Linux-сервері — звичайний cron: `0 10 * * * /шлях/до/проєкту/scripts/db-backup.sh`.
+
+Відновлення з копії:
+
+```bash
+gunzip -c backups/sports_club_db_<дата>.sql.gz \
+  | docker exec -i 67-db-1 psql -U postgres sports_club_db
+```
 
 ## Структура проєкту
 

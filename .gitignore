@@ -14,3 +14,5 @@ docx
 .graphifyignore
 AGENTS.md
 dist-electron/
+backups/
+
