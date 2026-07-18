@@ -25,9 +25,11 @@
 | БД | PostgreSQL, автоматичні SQL-міграції при старті |
 | Фронтенд | Ванільні HTML/CSS/JS (ES-модулі), без збірки |
 | АІ-асистент | Ollama + qwen3:8b (локальна LLM, працює офлайн) |
-| Інфраструктура | Docker Compose (БД, застосунок, опційно Ollama) |
+| Інфраструктура | Docker Compose (БД, застосунок, бекапи, опційно Ollama) |
 
-## Швидкий старт
+## Запуск
+
+### Для розробки (сервер на хості, БД у Docker)
 
 ```bash
 # 1. Залежності
@@ -48,6 +50,18 @@ npm run dev
 ```
 
 Застосунок буде на <http://localhost:3000>.
+
+### Повністю в Docker
+
+```bash
+docker compose up -d                     # БД + застосунок + бекапи, Ollama на хості
+docker compose --profile ollama up -d    # + Ollama в контейнері
+```
+
+Для контейнерної Ollama розкоментуйте в `.env`
+`OLLAMA_DOCKER_URL=http://ollama:11434` — модель завантажиться
+автоматично при першому старті (на macOS контейнер працює без GPU,
+тому для розробки швидша нативна Ollama).
 
 ## Тестові акаунти
 
@@ -84,40 +98,16 @@ ollama pull qwen3:8b
 (хук `predev`). Адреса й модель налаштовуються у `.env`
 (`OLLAMA_URL`, `OLLAMA_MODEL`).
 
-## Запуск повністю в Docker
-
-```bash
-docker compose up -d                     # БД + застосунок, Ollama на хості
-docker compose --profile ollama up -d    # + Ollama в контейнері
-```
-
-Для контейнерної Ollama розкоментуйте в `.env`
-`OLLAMA_DOCKER_URL=http://ollama:11434` — модель завантажиться
-автоматично при першому старті (на macOS контейнер працює без GPU,
-тому для розробки швидша нативна Ollama).
-
-## Скрипти
-
-| Команда | Дія |
-|---|---|
-| `npm run dev` | Dev-сервер із перезапуском (nodemon) + автозапуск Ollama |
-| `npm start` | Продакшн-запуск |
-| `npm run db:migrate` | Застосувати міграції вручну |
-| `npm run db:seed` | Наповнити БД тестовими даними |
-| `docker compose exec db-backup sh /tmp/db-backup-cron.sh` | Резервна копія БД у `backups/` |
-| `docker compose exec db-backup restore` | Відновлення БД з найсвіжішої (або вказаної) копії |
-
 ## Резервне копіювання БД
 
-Основний (кросплатформенний) механізм — сервіс `db-backup` у `docker-compose.yml`:
-окремий контейнер з cron, який щодня о 10:00 (Київ) робить `pg_dump`, стискає у
-`backups/sports_club_db_<дата>.sql.gz`, перевіряє повноту дампа і видаляє копії,
-старші за 30 днів. Якщо о 10:00 стек не працював — пропущений бекап виконується
-одразу при наступному старті. Працює однаково на macOS, Windows і Linux; нічого
-налаштовувати не треба — сервіс піднімається разом зі стеком:
+Сервіс `db-backup` у `docker-compose.yml` — окремий контейнер з cron, який
+щодня о 10:00 (Київ) робить `pg_dump`, стискає у
+`backups/sports_club_db_<дата>.sql.gz`, перевіряє повноту дампа і видаляє
+копії, старші за 30 днів. Якщо о 10:00 стек не працював — пропущений бекап
+виконується одразу при наступному старті. Працює однаково на macOS, Windows
+і Linux; нічого налаштовувати не треба — сервіс піднімається разом зі стеком.
 
 ```bash
-docker compose up -d          # db + app + db-backup
 # лог:            docker compose logs db-backup   (або backups/db-backup.log)
 # бекап вручну:   docker compose exec db-backup sh /tmp/db-backup-cron.sh
 ```
@@ -132,6 +122,17 @@ docker compose exec db-backup restore /backups/<файл>.sql.gz
 
 Після зміни бекап-скриптів контейнер треба перестворити:
 `docker compose up -d --force-recreate db-backup`.
+
+## Скрипти
+
+| Команда | Дія |
+|---|---|
+| `npm run dev` | Dev-сервер із перезапуском (nodemon) + автозапуск Ollama |
+| `npm start` | Продакшн-запуск |
+| `npm run db:migrate` | Застосувати міграції вручну |
+| `npm run db:seed` | Наповнити БД тестовими даними |
+| `docker compose exec db-backup sh /tmp/db-backup-cron.sh` | Резервна копія БД у `backups/` |
+| `docker compose exec db-backup restore` | Відновлення БД з найсвіжішої (або вказаної) копії |
 
 ## Структура проєкту
 
@@ -148,7 +149,7 @@ public/          фронтенд (роздається як статика)
 db/
   schema.sql     базова схема БД
   migrations/    інкрементальні зміни схеми
-scripts/         службові скрипти (міграції, сіди, автозапуск Ollama)
+scripts/         службові скрипти (міграції, сіди, бекапи, автозапуск Ollama)
 ```
 
 ## Розробка
