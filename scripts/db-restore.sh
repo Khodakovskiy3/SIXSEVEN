@@ -51,6 +51,12 @@ if [[ -z "$BACKUP_FILE" ]]; then
 fi
 [[ -f "$BACKUP_FILE" ]] || die "файл не знайдено: $BACKUP_FILE"
 
+# Старі копії (без --clean) не містять DROP-секції — у непорожній базі
+# вони падають на «already exists»; попереджаємо одразу і зрозуміло.
+if ! gunzip -c "$BACKUP_FILE" | head -100 | grep -q '^DROP '; then
+  die "$BACKUP_FILE — стара копія без DROP-секції (--clean); вона відновлюється лише в порожню базу"
+fi
+
 # ─── Підтвердження ────────────────────────────────────────────────────────────
 echo "База:  $PGDATABASE"
 echo "Копія: $BACKUP_FILE ($(du -sh "$BACKUP_FILE" | cut -f1), $(date -r "$BACKUP_FILE" '+%Y-%m-%d %H:%M'))"

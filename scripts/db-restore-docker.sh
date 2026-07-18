@@ -15,6 +15,15 @@ if [ -z "$BACKUP_FILE" ] || [ ! -f "$BACKUP_FILE" ]; then
   exit 1
 fi
 
+# Старі копії (без --clean) не містять DROP-секції — у непорожній базі
+# вони падають на «already exists»; попереджаємо одразу і зрозуміло.
+if ! gunzip -c "$BACKUP_FILE" | head -100 | grep -q '^DROP '; then
+  echo "ПОМИЛКА: $BACKUP_FILE — стара копія без DROP-секції (--clean)." >&2
+  echo "Вона відновлюється лише в порожню базу. Зробіть свіжу копію:" >&2
+  echo "  docker compose exec db-backup sh /tmp/db-backup-cron.sh" >&2
+  exit 1
+fi
+
 echo "Відновлення бази $PGDATABASE з $BACKUP_FILE …"
 gunzip -c "$BACKUP_FILE" \
   | psql -q -v ON_ERROR_STOP=1 -h "$PGHOST" -U "$PGUSER" "$PGDATABASE" \
