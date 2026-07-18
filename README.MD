@@ -104,8 +104,8 @@ docker compose --profile ollama up -d    # + Ollama в контейнері
 | `npm start` | Продакшн-запуск |
 | `npm run db:migrate` | Застосувати міграції вручну |
 | `npm run db:seed` | Наповнити БД тестовими даними |
-| `./scripts/db-backup.sh` | Резервна копія БД у `backups/` (gzip, ротація 30 днів) |
-| `./scripts/db-restore.sh` | Відновлення БД з найсвіжішої (або вказаної) копії |
+| `docker compose exec db-backup sh /tmp/db-backup-cron.sh` | Резервна копія БД у `backups/` |
+| `docker compose exec db-backup restore` | Відновлення БД з найсвіжішої (або вказаної) копії |
 
 ## Резервне копіювання БД
 
@@ -119,32 +119,19 @@ docker compose --profile ollama up -d    # + Ollama в контейнері
 ```bash
 docker compose up -d          # db + app + db-backup
 # лог:            docker compose logs db-backup   (або backups/db-backup.log)
-# бекап вручну:   docker compose exec db-backup sh /usr/local/bin/db-backup-cron.sh
+# бекап вручну:   docker compose exec db-backup sh /tmp/db-backup-cron.sh
 ```
 
-Запасний варіант без compose-стека — локальний скрипт `scripts/db-backup.sh`
-(macOS/Linux): запускається вручну або через launchd
-(`scripts/com.olimp.db-backup.plist`, інструкція в коментарі файлу) чи cron.
-
-Відновлення з копії — одна команда (працює і в непорожню базу: дампи
-створюються з `--clean --if-exists`, старі об'єкти замінюються):
-
-```bash
-./scripts/db-restore.sh                        # найсвіжіша копія, з підтвердженням
-./scripts/db-restore.sh backups/<файл>.sql.gz  # конкретна копія
-./scripts/db-restore.sh --yes                  # без питань (для скриптів)
-```
-
-На Windows скрипт запускається з Git Bash. Альтернатива для будь-якої оболонки
-(PowerShell, cmd) — команда restore, вбудована в контейнер db-backup:
+Відновлення з копії (працює у будь-якій оболонці на будь-якій ОС; дампи
+створюються з `--clean --if-exists`, тому непорожня база теж перезаписується):
 
 ```bash
 docker compose exec db-backup restore                       # найсвіжіша копія
 docker compose exec db-backup restore /backups/<файл>.sql.gz
 ```
 
-Примітка: копії, створені до 2026-07-18, зроблені без `--clean` — їх можна
-відновити лише в порожню базу (або спершу видалити схему вручну).
+Після зміни бекап-скриптів контейнер треба перестворити:
+`docker compose up -d --force-recreate db-backup`.
 
 ## Структура проєкту
 
