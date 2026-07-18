@@ -62,6 +62,10 @@ input {
     z-index: 20;
     display: grid;
     grid-template-columns: 140px 1fr auto auto;
+    /* Кнопку «Встановити» (PWA) вставляє скрипт — додаткові елементи мають
+       ставати новими колонками в тому ж рядку, а не переноситися вниз. */
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
     align-items: center;
     gap: 18px;
     width: min(1180px, calc(100% - 48px));

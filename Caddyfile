@@ -1,0 +1,11 @@
+# HTTPS-проксі перед застосунком (сервіс caddy у docker-compose.yml).
+#
+# SITE_ADDRESS=localhost (типово)  — самопідписаний локальний сертифікат;
+# SITE_ADDRESS=club.example.com    — автоматичний сертифікат Let's Encrypt
+#                                    (потрібен реальний домен, що вказує на
+#                                    сервер, і відкриті порти 80/443).
+# UPSTREAM — куди проксувати; типово app-контейнер, для сервера на хості
+# (npm run dev) задайте UPSTREAM=host.docker.internal:3000 у .env.
+{$SITE_ADDRESS:localhost} {
+  reverse_proxy {$UPSTREAM:app:3000}
+}

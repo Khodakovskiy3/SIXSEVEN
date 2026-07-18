@@ -81,6 +81,25 @@ services:
       db:
         condition: service_healthy
 
+  # HTTPS-проксі: https://localhost (локальний сертифікат) або реальний домен
+  # із Let's Encrypt — налаштовується через SITE_ADDRESS у .env (див. Caddyfile).
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+      UPSTREAM: ${UPSTREAM:-app:3000}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Сертифікати й локальний CA переживають перезапуск контейнера.
+      - caddy_data:/data
+      - caddy_config:/config
+    # Без depends_on: app — щоб можна було тримати caddy запущеним, а сервер
+    # ганяти локально (npm run dev + UPSTREAM=host.docker.internal:3000).
+
   # АІ-асистент у контейнері — опціонально (docker compose --profile ollama up).
   # На macOS працює лише на CPU, тому для розробки швидша нативна Ollama;
   # профіль призначений насамперед для деплою на Linux-сервер.
@@ -99,3 +118,5 @@ services:
 volumes:
   postgres_data:
   ollama_models:
+  caddy_data:
+  caddy_config:
