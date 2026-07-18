@@ -1,0 +1,4 @@
+# Shell-скрипти виконуються в Linux-контейнерах — CRLF ламає їх
+# («set: illegal option -»), тому примусово LF незалежно від core.autocrlf.
+*.sh text eol=lf
+*.sql text eol=lf

@@ -54,7 +54,12 @@ export async function sendOtpEmail(to, code, purpose) {
     `Код дійсний ${OTP_TTL_MIN} хвилин. ` +
     `Якщо ви не робили цей запит — просто проігноруйте цей лист.`;
 
-  if (!transporter) {
+  // Тестові акаунти (наприклад, логін «admin») не мають справжньої адреси —
+  // спроба надсилання впаде в nodemailer з «No recipients defined»,
+  // тому для них поводимося як у dev-режимі: лише код у консоль.
+  const isRealEmail = String(to || '').includes('@');
+
+  if (!transporter || !isRealEmail) {
     // Dev-режим без SMTP: код у консоль сервера.
     console.log(`[2FA] (DEV) код для ${to} [${purpose}]: ${code}`);
     return;

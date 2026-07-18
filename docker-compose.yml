@@ -41,15 +41,18 @@ services:
       - ./backups:/backups
       - ./scripts/db-backup-cron.sh:/usr/local/bin/db-backup-cron.sh:ro
     entrypoint: ["/bin/sh", "-c"]
-    # 1) tzdata — щоб «10:00» означало київський час, а не UTC;
-    # 2) наздоганяємо бекап, якщо за сьогодні його ще немає;
-    # 3) crond щодня о 10:00 запускає скрипт (вивід — у docker logs).
+    # 1) прибираємо CR: на Windows git міг перетворити LF на CRLF,
+    #    що ламає скрипт в Alpine («set: illegal option -»);
+    # 2) tzdata — щоб «10:00» означало київський час, а не UTC;
+    # 3) наздоганяємо бекап, якщо за сьогодні його ще немає;
+    # 4) crond щодня о 10:00 запускає скрипт (вивід — у docker logs).
     command:
       - |
+        tr -d '\r' < /usr/local/bin/db-backup-cron.sh > /tmp/db-backup-cron.sh
         [ -e /usr/share/zoneinfo/Europe/Kyiv ] || apk add --no-cache tzdata
         ls /backups/sports_club_db_"$$(date +%F)"_*.sql.gz >/dev/null 2>&1 \
-          || sh /usr/local/bin/db-backup-cron.sh
-        echo '0 10 * * * sh /usr/local/bin/db-backup-cron.sh >> /proc/1/fd/1 2>&1' \
+          || sh /tmp/db-backup-cron.sh
+        echo '0 10 * * * sh /tmp/db-backup-cron.sh >> /proc/1/fd/1 2>&1' \
           > /var/spool/cron/crontabs/root
         exec crond -f
     depends_on:
