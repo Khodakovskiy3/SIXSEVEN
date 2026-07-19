@@ -36,7 +36,8 @@ async function notifyExpiringIn3Days() {
     await notifyUsers(
       [row.user_id],
       `Абонемент закінчується`,
-      `Ваш абонемент${row.plan_name ? ` «${row.plan_name}»` : ''} діє до ${until}. Продовжіть вчасно!`
+      `Ваш абонемент${row.plan_name ? ` «${row.plan_name}»` : ''} діє до ${until}. ` +
+        `Продовжіть вчасно!`
     );
   }
 }
@@ -50,7 +51,9 @@ async function markAndNotifyExpired() {
      returning id, client_id, plan_id`
   );
 
-  if (!result.rows.length) return;
+  if (!result.rows.length) {
+    return;
+  }
 
   for (const row of result.rows) {
     const userResult = await query(
@@ -61,12 +64,15 @@ async function markAndNotifyExpired() {
        where c.id = $1`,
       [row.client_id, row.plan_id]
     );
-    if (!userResult.rows.length) continue;
+    if (!userResult.rows.length) {
+      continue;
+    }
     const { user_id: userId, plan_name: planName } = userResult.rows[0];
     await notifyUsers(
       [userId],
       `Абонемент закінчився`,
-      `Ваш абонемент${planName ? ` «${planName}»` : ''} більше не активний. Зверніться до адміністратора для продовження.`
+      `Ваш абонемент${planName ? ` «${planName}»` : ''} більше не активний. ` +
+        `Зверніться до адміністратора для продовження.`
     );
   }
 }

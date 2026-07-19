@@ -22,8 +22,12 @@ router.use(authRequired);
  * @returns {string[]}
  */
 function audiencesForRole(role) {
-  if (role === 'client') return ['clients', 'all'];
-  if (role === 'trainer') return ['trainers', 'all'];
+  if (role === 'client') {
+    return ['clients', 'all'];
+  }
+  if (role === 'trainer') {
+    return ['trainers', 'all'];
+  }
   return ['clients', 'trainers', 'all']; // admin, manager
 }
 

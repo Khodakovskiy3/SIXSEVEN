@@ -115,7 +115,10 @@ app.use((err, req, res, next) => {
     path: req.originalUrl,
     userId: req.user?.id,
   });
-  notifyManagers(`⚠️ Критична помилка сервера`, `${err?.message || err}\n${req.method} ${req.originalUrl}`).catch(() => {});
+  notifyManagers(
+    `⚠️ Критична помилка сервера`,
+    `${err?.message || err}\n${req.method} ${req.originalUrl}`
+  ).catch(() => {});
   if (res.headersSent) {
     return next(err);
   }
@@ -138,7 +141,9 @@ async function notifyManagers(title, body) {
   try {
     const result = await query(`select id from users where role = 'manager'`);
     const ids = result.rows.map((r) => r.id);
-    if (ids.length) await sendPush(ids, title, body);
+    if (ids.length) {
+      await sendPush(ids, title, body);
+    }
   } catch {}
 }
 

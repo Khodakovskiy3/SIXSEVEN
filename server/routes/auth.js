@@ -115,7 +115,9 @@ async function getPendingResendWait(email) {
     [email]
   );
   const row = result.rows[0];
-  if (!row) return 0;
+  if (!row) {
+    return 0;
+  }
   const wait = OTP_RESEND_COOLDOWN_SEC - Math.floor(Number(row.age_sec));
   return wait > 0 ? wait : 0;
 }
@@ -135,7 +137,9 @@ async function verifyPendingCode(email, code) {
     [email]
   );
   const row = result.rows[0];
-  if (!row) return { ok: false, reason: 'no_code' };
+  if (!row) {
+    return { ok: false, reason: 'no_code' };
+  }
 
   if (row.is_expired) {
     await query('delete from pending_registrations where id = $1', [row.id]);
@@ -314,7 +318,9 @@ router.post('/register/verify', validateBody(registerVerifySchema), async (req, 
 
   const check = await verifyPendingCode(emailLc, code);
   if (!check.ok) {
-    return res.status(HTTP_UNAUTHORIZED).json({ error: OTP_ERRORS[check.reason] || 'Невірний код' });
+    return res
+      .status(HTTP_UNAUTHORIZED)
+      .json({ error: OTP_ERRORS[check.reason] || 'Невірний код' });
   }
 
   const pending = check.pending;
@@ -473,7 +479,9 @@ router.post('/login/verify', validateBody(loginVerifySchema), async (req, res) =
 
   const check = await verifyCode(user.id, OTP_PURPOSE.LOGIN, code);
   if (!check.ok) {
-    return res.status(HTTP_UNAUTHORIZED).json({ error: OTP_ERRORS[check.reason] || 'Невірний код' });
+    return res
+      .status(HTTP_UNAUTHORIZED)
+      .json({ error: OTP_ERRORS[check.reason] || 'Невірний код' });
   }
 
   return res.json(authResponse(user));

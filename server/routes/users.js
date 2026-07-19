@@ -61,7 +61,9 @@ function canAssignRole(actorRole, targetRole) {
 
 function canManagerChangeRole(currentRole, targetRole) {
   // Менеджер не може чіпати інших менеджерів і не може призначати роль менеджера
-  if (currentRole === ROLE.MANAGER || targetRole === ROLE.MANAGER) return false;
+  if (currentRole === ROLE.MANAGER || targetRole === ROLE.MANAGER) {
+    return false;
+  }
   // Будь-які інші переходи між client / trainer / admin — дозволено
   return true;
 }

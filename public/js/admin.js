@@ -884,6 +884,7 @@ function _buildAdminSvcCard(service, globalIndex) {
         <h3 class="svc-card__title">${escapeHtml(service.name)}</h3>
         <p class="svc-card__desc">${escapeHtml(service.description || 'Опис не вказано')}</p>
         <div class="svc-card__chips">
+          <span>${service.category === 'personal' ? '👤 Персональне' : '👥 Групове'}</span>
           <span>${capacity}</span>
           ${duration ? `<span>⏱ ${duration}</span>` : ''}
         </div>
@@ -1622,6 +1623,7 @@ function renderScheduleForm(schedule = null) {
 function renderServiceForm(service = null) {
   const isEdit = Boolean(service);
   const status = service?.status || 'active';
+  const category = service?.category || 'group';
   return `
     <form id="service-form" class="admin-form" data-service-id="${service?.id || ''}">
       <label>Назва
@@ -1630,6 +1632,13 @@ function renderServiceForm(service = null) {
       <label>Опис
         <textarea name="description" rows="4">${escapeHtml(service?.description || '')}</textarea>
       </label>
+      <label>Тип заняття
+        <select name="category" required>
+          <option value="group" ${category === 'group' ? 'selected' : ''}>Групове</option>
+          <option value="personal" ${category === 'personal' ? 'selected' : ''}>Персональне</option>
+        </select>
+      </label>
+      <p class="form-note">Визначає, який абонемент дозволяє записатися на це заняття: «Групові» абонементи покривають лише групові заняття, «Персональне» — лише персональні.</p>
       <label>Максимальна кількість клієнтів
         <input name="max_clients" type="number" min="1" required value="${escapeHtml(service?.max_clients || 10)}">
       </label>
@@ -2183,6 +2192,7 @@ async function saveService(form) {
   const payload = {
     name: formData.get('name')?.trim(),
     description: formData.get('description')?.trim(),
+    category: formData.get('category') || 'group',
     max_clients: Number(formData.get('max_clients')),
     duration_minutes: Number(formData.get('duration_minutes')) || 60,
     status: formData.get('status'),

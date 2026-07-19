@@ -31,7 +31,9 @@ const router = Router();
 router.use(authRequired);
 
 function normalizePhone(phone) {
-  if (!phone) return null;
+  if (!phone) {
+    return null;
+  }
   const digits = String(phone).replace(/\D/g, '');
   const normalized = digits.startsWith('380') ? digits : `380${digits.replace(/^0+/, '')}`;
   return `+${normalized.slice(0, 12)}`;
@@ -424,7 +426,9 @@ router.get('/me/schedule', authRequired, requireRole(ROLE.TRAINER), async (req, 
 // Список клієнтів, записаних на тренування
 // ======================================================
 
-router.get('/me/schedule/:id/clients', authRequired, requireRole(ROLE.TRAINER), async (req, res) => {
+const trainerOnly = requireRole(ROLE.TRAINER);
+
+router.get('/me/schedule/:id/clients', authRequired, trainerOnly, async (req, res) => {
   try {
     const scheduleId = Number(req.params.id);
 
@@ -637,11 +641,15 @@ router.put('/me/client-notes/:clientId', requireRole(ROLE.TRAINER), async (req, 
 
 router.get('/client-notes-all/:clientId', requireRole(ROLE.TRAINER), async (req, res) => {
   const clientId = Number(req.params.clientId);
-  if (!clientId) return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid clientId' });
+  if (!clientId) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid clientId' });
+  }
   try {
     // Отримуємо ID поточного тренера
     const meRow = await query('select id from trainers where user_id = $1', [req.user.id]);
-    if (!meRow.rows.length) return res.status(HTTP_NOT_FOUND).json({ error: 'Trainer not found' });
+    if (!meRow.rows.length) {
+      return res.status(HTTP_NOT_FOUND).json({ error: 'Trainer not found' });
+    }
     const myTrainerId = meRow.rows[0].id;
 
     const result = await query(

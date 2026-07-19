@@ -29,7 +29,9 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
  * @param {string} body
  */
 export async function sendPush(userIds, title, body) {
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE || userIds.length === 0) return;
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE || userIds.length === 0) {
+    return;
+  }
 
   try {
     const result = await query(
@@ -85,7 +87,9 @@ export async function notifyUsers(userIds, subject, body = '') {
   const ids = [...new Set(userIds)]
     .map(Number)
     .filter((id) => Number.isInteger(id) && id > 0);
-  if (ids.length === 0 || !subject) return;
+  if (ids.length === 0 || !subject) {
+    return;
+  }
 
   try {
     const message = await query(

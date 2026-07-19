@@ -18,6 +18,55 @@ export function hasAvailableSlot(bookedCount, maxClients) {
 }
 
 /**
+ * Чи дозволяє тип доступу абонемента (access_type) записатися на заняття
+ * заданої категорії (category заняття: 'group' | 'personal').
+ *
+ * Словник access_type у subscription_plans:
+ *  - 'gym'        — лише відвідування залу, без запису на заняття взагалі;
+ *  - 'gym_group'  — зал + групові заняття (персональні НЕ включені);
+ *  - 'group'      — лише групові заняття;
+ *  - 'personal'   — лише персональні заняття.
+ *
+ * @param {string|null} accessType — access_type активного абонемента клієнта
+ *   (null, якщо план видалено або невідомий — трактується як заборона).
+ * @param {string} category — категорія заняття ('group' | 'personal').
+ * @returns {boolean} true, якщо запис дозволений.
+ */
+export function isBookingAllowedForAccessType(accessType, category) {
+  if (accessType === 'gym_group') {
+    return category === 'group';
+  }
+  if (accessType === 'group') {
+    return category === 'group';
+  }
+  if (accessType === 'personal') {
+    return category === 'personal';
+  }
+  // 'gym' і будь-яке невідоме/відсутнє значення — запис на заняття заборонено.
+  return false;
+}
+
+/**
+ * Формує зрозуміле повідомлення про причину відмови в записі на заняття,
+ * коли тип абонемента не відповідає категорії заняття.
+ *
+ * @param {string|null} accessType
+ * @param {string} category
+ * @returns {string}
+ */
+export function bookingDeniedMessage(accessType, category) {
+  if (accessType === 'gym') {
+    return 'Ваш абонемент дає доступ лише до тренажерного залу — запис на заняття не передбачений';
+  }
+  if (!accessType) {
+    return 'Не вдалося визначити тип вашого абонемента — зверніться до адміністратора';
+  }
+  return category === 'personal'
+    ? 'Ваш абонемент не дозволяє записуватися на персональні тренування'
+    : 'Ваш абонемент не дозволяє записуватися на групові заняття';
+}
+
+/**
  * Чи перетинаються два часові інтервали, задані початком (у хвилинах від
  * півночі) та тривалістю (у хвилинах). Дотик «встик» (кінець одного =
  * початок іншого) перетином НЕ вважається.

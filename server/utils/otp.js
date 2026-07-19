@@ -35,7 +35,9 @@ export async function getResendWaitSeconds(userId, purpose) {
     [userId, purpose]
   );
   const row = result.rows[0];
-  if (!row) return 0;
+  if (!row) {
+    return 0;
+  }
   const wait = OTP_RESEND_COOLDOWN_SEC - Math.floor(Number(row.age_sec));
   return wait > 0 ? wait : 0;
 }
@@ -96,7 +98,9 @@ export async function verifyCode(userId, purpose, code) {
   );
 
   const row = result.rows[0];
-  if (!row) return { ok: false, reason: 'no_code' };
+  if (!row) {
+    return { ok: false, reason: 'no_code' };
+  }
 
   if (row.is_expired) {
     await query('delete from email_codes where id = $1', [row.id]);

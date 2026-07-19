@@ -25,7 +25,9 @@ router.use(authRequired);
 // ── Lazy table init (safety net if migrate.js hasn't run yet) ─────────────────
 let _tableEnsured = false;
 async function ensureAnthroTable() {
-  if (_tableEnsured) return;
+  if (_tableEnsured) {
+    return;
+  }
   await query(`
     create table if not exists client_anthropometry (
       id          serial primary key,
@@ -45,7 +47,6 @@ async function ensureAnthroTable() {
       on client_anthropometry(client_id, recorded_at desc);
   `);
   _tableEnsured = true;
-  console.log('[anthro] table ready');
 }
 
 // ── GET /api/anthropometry/me ─────────────────────────────────────────────────
@@ -53,7 +54,9 @@ router.get('/me', requireRole(ROLE.CLIENT), async (req, res) => {
   try {
     await ensureAnthroTable();
     const clientId = await getClientIdByUserId(req.user.id);
-    if (!clientId) return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
+    if (!clientId) {
+      return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
+    }
 
     const result = await query(
       `select id, recorded_at, weight, height, chest, waist, hips, bicep, thigh, note
@@ -74,7 +77,9 @@ router.post('/me', requireRole(ROLE.CLIENT), async (req, res) => {
   try {
     await ensureAnthroTable();
     const clientId = await getClientIdByUserId(req.user.id);
-    if (!clientId) return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
+    if (!clientId) {
+      return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
+    }
 
     const {
       recorded_at,
@@ -83,8 +88,6 @@ router.post('/me', requireRole(ROLE.CLIENT), async (req, res) => {
       bicep, thigh,
       note = '',
     } = req.body || {};
-
-    console.log('[anthro POST] clientId:', clientId, 'body:', req.body);
 
     const toNum = (v) => (v !== undefined && v !== '' && v !== null ? Number(v) : null);
 
@@ -102,7 +105,6 @@ router.post('/me', requireRole(ROLE.CLIENT), async (req, res) => {
         String(note).trim(),
       ]
     );
-    console.log('[anthro POST] OK, id:', result.rows[0]?.id);
     return res.status(HTTP_CREATED).json(result.rows[0]);
   } catch (err) {
     logError('[anthro POST]', err, { userId: req.user?.id });
@@ -116,7 +118,9 @@ router.post('/me', requireRole(ROLE.CLIENT), async (req, res) => {
 router.get('/client/:clientId', requireRole(ROLE.TRAINER), async (req, res) => {
   await ensureAnthroTable().catch(() => {});
   const clientId = Number(req.params.clientId);
-  if (!clientId) return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid clientId' });
+  if (!clientId) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid clientId' });
+  }
 
   try {
     const result = await query(
@@ -138,13 +142,17 @@ router.delete('/me/:id', requireRole(ROLE.CLIENT), async (req, res) => {
   try {
     await ensureAnthroTable();
     const clientId = await getClientIdByUserId(req.user.id);
-    if (!clientId) return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
+    if (!clientId) {
+      return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
+    }
 
     const result = await query(
       `delete from client_anthropometry where id = $1 and client_id = $2`,
       [Number(req.params.id), clientId]
     );
-    if (result.rowCount === 0) return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+    if (result.rowCount === 0) {
+      return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+    }
     return res.json({ ok: true });
   } catch (err) {
     logError('[anthro DELETE]', err, { userId: req.user?.id });

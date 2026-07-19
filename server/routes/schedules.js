@@ -38,8 +38,12 @@ function normalizeSpecialization(value = '') {
 }
 
 async function getTargetWorkoutId(workoutId, scheduleId = null) {
-  if (workoutId) return workoutId;
-  if (!scheduleId) return null;
+  if (workoutId) {
+    return workoutId;
+  }
+  if (!scheduleId) {
+    return null;
+  }
 
   const result = await query('select workout_id from schedules where id = $1', [scheduleId]);
   return result.rows[0]?.workout_id || null;
@@ -66,7 +70,9 @@ async function getScheduleById(scheduleId) {
  * @returns {Promise<boolean>} true, якщо є конфлікт.
  */
 async function trainerHasTimeConflict(trainerId, date, time, newWorkoutId, excludeId = null) {
-  if (!trainerId || !date || !time || !newWorkoutId) return false;
+  if (!trainerId || !date || !time || !newWorkoutId) {
+    return false;
+  }
 
   // Інтервал нового заняття: [time, time + nw.duration_minutes)
   // Інтервал існуючого заняття: [s.time, s.time + w.duration_minutes)
@@ -92,8 +98,12 @@ async function trainerHasTimeConflict(trainerId, date, time, newWorkoutId, exclu
 }
 
 async function trainerCanTeachWorkout(trainerId, workoutId) {
-  if (!trainerId) return true;
-  if (!workoutId) return false;
+  if (!trainerId) {
+    return true;
+  }
+  if (!workoutId) {
+    return false;
+  }
 
   const result = await query(
     `select w.name as workout_name, t.specialization
@@ -104,7 +114,9 @@ async function trainerCanTeachWorkout(trainerId, workoutId) {
   );
 
   const row = result.rows[0];
-  if (!row) return false;
+  if (!row) {
+    return false;
+  }
 
   const workoutName = normalizeSpecialization(row.workout_name);
   return String(row.specialization || '')
@@ -165,7 +177,9 @@ router.get('/', async (req, res) => {
  * @returns {Promise<boolean>} true, якщо час у минулому.
  */
 async function isSlotInPast(date, time) {
-  if (!date || !time) return false;
+  if (!date || !time) {
+    return false;
+  }
   const result = await query(
     `select ($1::date + $2::time) at time zone $3 < now() as past`,
     [date, time, CLUB_TIMEZONE]
@@ -192,7 +206,9 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
   }
 
   if (!(await trainerCanTeachWorkout(trainerId, workoutId))) {
-    return res.status(HTTP_BAD_REQUEST).json({ error: 'Trainer does not match workout specialization' });
+    return res
+      .status(HTTP_BAD_REQUEST)
+      .json({ error: 'Trainer does not match workout specialization' });
   }
 
   if (await trainerHasTimeConflict(trainerId, date, time, workoutId)) {
@@ -275,7 +291,9 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
 
   const targetWorkoutId = await getTargetWorkoutId(workoutId, id);
   if (!(await trainerCanTeachWorkout(trainerId, targetWorkoutId))) {
-    return res.status(HTTP_BAD_REQUEST).json({ error: 'Trainer does not match workout specialization' });
+    return res
+      .status(HTTP_BAD_REQUEST)
+      .json({ error: 'Trainer does not match workout specialization' });
   }
 
   // Фактичні дата й час після оновлення (якщо не передані — лишаються поточні).

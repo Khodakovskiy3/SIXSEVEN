@@ -185,7 +185,9 @@ async function pushToAdmins(assignedAdminId, title, body) {
     } else {
       const admins = await query(`select id from users where role = 'admin'`);
       const ids = admins.rows.map((r) => r.id);
-      if (ids.length) await sendPush(ids, title, body);
+      if (ids.length) {
+        await sendPush(ids, title, body);
+      }
     }
   } catch {}
 }

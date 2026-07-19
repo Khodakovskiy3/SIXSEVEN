@@ -311,8 +311,10 @@ router.get('/manager', async (req, res) => {
     const periodDays = Math.max(1,
       Math.round((new Date(endDate) - new Date(startDate)) / 86400000)
     );
-    const prevEnd   = new Date(new Date(startDate) - 86400000).toISOString().slice(0, 10);
-    const prevStart = new Date(new Date(prevEnd)   - (periodDays - 1) * 86400000).toISOString().slice(0, 10);
+    const prevEnd = new Date(new Date(startDate) - 86400000).toISOString().slice(0, 10);
+    const prevStart = new Date(new Date(prevEnd) - (periodDays - 1) * 86400000)
+      .toISOString()
+      .slice(0, 10);
 
     const prevSummary = await query(
       `select
@@ -445,7 +447,9 @@ router.get('/manager', async (req, res) => {
 // Список оплат для менеджера
 // ======================================================
 
-router.get('/payments-list', authRequired, requireRole(ROLE.MANAGER, ROLE.ADMIN), async (req, res) => {
+const canViewPaymentsList = requireRole(ROLE.MANAGER, ROLE.ADMIN);
+
+router.get('/payments-list', authRequired, canViewPaymentsList, async (req, res) => {
   try {
     const result = await query(`
       select
@@ -638,7 +642,9 @@ router.get('/pdf', async (req, res) => {
 
   } catch (err) {
     console.error('/reports/pdf error:', err);
-    if (!res.headersSent) res.status(500).json({ error: 'Report error' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Report error' });
+    }
   }
 });
 

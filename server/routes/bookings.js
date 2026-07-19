@@ -13,7 +13,11 @@ import { Router } from 'express';
 import { query, withClient } from '../db.js';
 import { logError } from '../utils/logger.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
-import { hasAvailableSlot } from '../utils/booking-logic.js';
+import {
+  hasAvailableSlot,
+  isBookingAllowedForAccessType,
+  bookingDeniedMessage,
+} from '../utils/booking-logic.js';
 import { getClientIdByUserId } from '../utils/identity.js';
 import { notifyUsers } from '../utils/notify.js';
 import {
@@ -150,7 +154,9 @@ async function notifyClientBookingConfirmed(userId, scheduleId) {
      where s.id = $1`,
     [scheduleId]
   );
-  if (!result.rows.length) return;
+  if (!result.rows.length) {
+    return;
+  }
   const { workout_name: workoutName, date, time } = result.rows[0];
   const slot = `${new Date(date).toLocaleDateString('uk-UA')} о ${String(time).slice(0, 5)}`;
   await notifyUsers([userId], `Запис підтверджено`, `Ви записані на «${workoutName}» ${slot}.`);
@@ -169,11 +175,24 @@ async function notifyTrainerIfClassFull(scheduleId) {
      where s.id = $1`,
     [scheduleId]
   );
-  if (!result.rows.length) return;
-  const { user_id: trainerUserId, workout_name: workoutName, date, time, max_clients: maxClients, booked } = result.rows[0];
+  if (!result.rows.length) {
+    return;
+  }
+  const {
+    user_id: trainerUserId,
+    workout_name: workoutName,
+    date,
+    time,
+    max_clients: maxClients,
+    booked,
+  } = result.rows[0];
   if (Number(booked) >= Number(maxClients)) {
     const slot = `${new Date(date).toLocaleDateString('uk-UA')} о ${String(time).slice(0, 5)}`;
-    await notifyUsers([trainerUserId], `Заняття «${workoutName}» заповнено`, `Усі місця на ${slot} зайняті.`);
+    await notifyUsers(
+      [trainerUserId],
+      `Заняття «${workoutName}» заповнено`,
+      `Усі місця на ${slot} зайняті.`
+    );
   }
 }
 
@@ -197,13 +216,17 @@ router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
     const bookingResult = await withClient(async (client) => {
       await client.query('begin');
 
-      // 1. Шукаємо активний абонемент клієнта, який ще не закінчився.
+      // 1. Шукаємо активний абонемент клієнта, який ще не закінчився,
+      // разом з access_type його тарифного плану (визначає, на які
+      // заняття він дозволяє записуватися — див. isBookingAllowedForAccessType).
       const subscription = await client.query(
-        `select id from subscriptions
-         where client_id = $1
-           and status = $2
-           and end_date >= $3
-         order by end_date desc
+        `select s.id, sp.access_type
+         from subscriptions s
+         left join subscription_plans sp on sp.id = s.plan_id
+         where s.client_id = $1
+           and s.status = $2
+           and s.end_date >= $3
+         order by s.end_date desc
          limit 1`,
         [clientId, SUBSCRIPTION_STATUS.ACTIVE, today]
       );
@@ -213,9 +236,11 @@ router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
         return { error: 'No active subscription' };
       }
 
-      // 2. Перевіряємо, чи залишилися вільні місця у групі.
+      const { access_type: accessType } = subscription.rows[0];
+
+      // 2. Перевіряємо, чи залишилися вільні місця у групі, і категорію заняття.
       const scheduleInfo = await client.query(
-        `select s.id, w.max_clients,
+        `select s.id, w.max_clients, w.category,
                 (select count(*) from bookings b
                  where b.schedule_id = s.id and b.status = $2) as booked
          from schedules s
@@ -229,13 +254,20 @@ router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
         return { error: 'Schedule not found' };
       }
 
-      const { max_clients: maxClients, booked } = scheduleInfo.rows[0];
+      const { max_clients: maxClients, booked, category } = scheduleInfo.rows[0];
+
+      // 3. Абонемент повинен відповідати категорії заняття (group/personal).
+      if (!isBookingAllowedForAccessType(accessType, category)) {
+        await client.query('rollback');
+        return { error: bookingDeniedMessage(accessType, category) };
+      }
+
       if (!hasAvailableSlot(booked, maxClients)) {
         await client.query('rollback');
         return { error: 'No available slots' };
       }
 
-      // 3. Створюємо саме бронювання.
+      // 4. Створюємо саме бронювання.
       const result = await client.query(
         `insert into bookings (client_id, schedule_id)
          values ($1, $2)
@@ -305,9 +337,18 @@ router.delete('/:id', authRequired, async (req, res) => {
   await query('delete from bookings where id = $1', [id]);
 
   if (bookingInfo.rows.length) {
-    const { client_user_id: clientUserId, workout_name: workoutName, date, time } = bookingInfo.rows[0];
+    const {
+      client_user_id: clientUserId,
+      workout_name: workoutName,
+      date,
+      time,
+    } = bookingInfo.rows[0];
     const slot = `${new Date(date).toLocaleDateString('uk-UA')} о ${String(time).slice(0, 5)}`;
-    notifyUsers([clientUserId], `Запис скасовано`, `Ваш запис на «${workoutName}» ${slot} скасовано адміністратором.`).catch(() => {});
+    notifyUsers(
+      [clientUserId],
+      `Запис скасовано`,
+      `Ваш запис на «${workoutName}» ${slot} скасовано адміністратором.`
+    ).catch(() => {});
   }
 
   return res.json({ ok: true });

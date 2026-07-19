@@ -31,7 +31,9 @@ const router = Router();
 router.use(authRequired);
 
 function normalizePhone(phone) {
-  if (!phone) return null;
+  if (!phone) {
+    return null;
+  }
   const digits = String(phone).replace(/\D/g, '');
   const normalized = digits.startsWith('380') ? digits : `380${digits.replace(/^0+/, '')}`;
   return `+${normalized.slice(0, 12)}`;

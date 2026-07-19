@@ -24,9 +24,11 @@ const router = Router();
 
 router.use(authRequired);
 
+const WORKOUT_CATEGORIES = ['group', 'personal'];
+
 router.get('/', async (req, res) => {
   const result = await query(
-    `select id, name, description, max_clients, duration_minutes, status, image_url
+    `select id, name, description, max_clients, duration_minutes, status, image_url, category
      from workouts
      order by id desc`
   );
@@ -41,16 +43,30 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
     duration_minutes: durationMinutes,
     status,
     image_url: imageUrl,
+    category,
   } = req.body || {};
   if (!name || !maxClients) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
   }
+  if (category && !WORKOUT_CATEGORIES.includes(category)) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid category' });
+  }
 
   const result = await query(
-    `insert into workouts (name, description, max_clients, duration_minutes, status, image_url)
-     values ($1, $2, $3, $4, $5, $6)
-     returning id, name, description, max_clients, duration_minutes, status, image_url`,
-    [name, description || null, maxClients, durationMinutes || 60, status || 'active', imageUrl || null]
+    `insert into workouts (
+       name, description, max_clients, duration_minutes, status, image_url, category
+     )
+     values ($1, $2, $3, $4, $5, $6, $7)
+     returning id, name, description, max_clients, duration_minutes, status, image_url, category`,
+    [
+      name,
+      description || null,
+      maxClients,
+      durationMinutes || 60,
+      status || 'active',
+      imageUrl || null,
+      category || 'group',
+    ]
   );
 
   return res.status(HTTP_CREATED).json(result.rows[0]);
@@ -65,7 +81,11 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
     duration_minutes: durationMinutes,
     status,
     image_url: imageUrl,
+    category,
   } = req.body || {};
+  if (category && !WORKOUT_CATEGORIES.includes(category)) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid category' });
+  }
 
   const result = await query(
     `update workouts
@@ -74,10 +94,20 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
          max_clients      = coalesce($3, max_clients),
          duration_minutes = coalesce($4, duration_minutes),
          status           = coalesce($5, status),
-         image_url        = coalesce($6, image_url)
-     where id = $7
-     returning id, name, description, max_clients, duration_minutes, status, image_url`,
-    [name || null, description || null, maxClients || null, durationMinutes || null, status || null, imageUrl ?? null, id]
+         image_url        = coalesce($6, image_url),
+         category         = coalesce($7, category)
+     where id = $8
+     returning id, name, description, max_clients, duration_minutes, status, image_url, category`,
+    [
+      name || null,
+      description || null,
+      maxClients || null,
+      durationMinutes || null,
+      status || null,
+      imageUrl ?? null,
+      category || null,
+      id,
+    ]
   );
 
   if (result.rows.length === 0) {
