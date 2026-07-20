@@ -6,6 +6,7 @@ import { initSidebar } from './sidebar.js';
 import { initTheme } from './theme.js';
 import { initNotifications } from './notifications.js';
 import { initHelpWidget } from './help-widget.js';
+import { initModalHotkeys } from './modal-hotkeys.js';
 
 const titles = {
   home: 'Головна',
@@ -1691,6 +1692,7 @@ initSidebar();
 initTheme();
 initNotifications();
 initHelpWidget('client');
+initModalHotkeys();
 
 const currentUser = await requireFreshAuth([ROLE.CLIENT]);
 if (currentUser) {

@@ -13,6 +13,7 @@ import { PAGE, ROLE } from './constants.js';
 import { initSidebar } from './sidebar.js';
 import { initTheme } from './theme.js';
 import { initNotifications } from './notifications.js';
+import { initModalHotkeys } from './modal-hotkeys.js';
 
 /**
  * Діалог підтвердження виходу з кабінету.
@@ -1634,6 +1635,7 @@ async function initManagerArm() {
   initSidebar();
   initTheme();
   initNotifications();
+  initModalHotkeys();
   await requireFreshAuth([ROLE.MANAGER]);
   hydrateAccount({ role: ROLE.MANAGER });
 

@@ -15,6 +15,7 @@ import { PAGE, ROLE } from './constants.js';
 import { initSidebar } from './sidebar.js';
 import { initTheme } from './theme.js';
 import { initNotifications } from './notifications.js';
+import { initModalHotkeys } from './modal-hotkeys.js';
 
 // Кількість днів у стрічці розкладу (тиждень наперед від сьогодні).
 const WEEK_LENGTH = 14;
@@ -680,6 +681,7 @@ async function loadTrainerData() {
 initSidebar();
 initTheme();
 initNotifications();
+initModalHotkeys();
 
 function normalizePhoneInput(value = '') {
   const digits = String(value).replace(/\D/g, '');

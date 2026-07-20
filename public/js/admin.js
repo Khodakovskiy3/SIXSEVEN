@@ -5,6 +5,7 @@ import { PAGE, ROLE } from './constants.js';
 import { initSidebar } from './sidebar.js';
 import { initTheme } from './theme.js';
 import { initNotifications } from './notifications.js';
+import { initModalHotkeys } from './modal-hotkeys.js';
 import { startChatListPolling, stopChatPolling } from "./admin/chat.js";
 import { subscribePush, unsubscribePush, getPushStatus } from './push.js';
 
@@ -4019,6 +4020,7 @@ passwordModal?.addEventListener('click', (event) => {
 initSidebar();
 initTheme();
 initNotifications();
+initModalHotkeys();
 
 // Звуковий сигнал при push-сповіщенні (незалежно від поточної вкладки)
 if ('serviceWorker' in navigator) {
