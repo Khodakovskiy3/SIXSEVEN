@@ -10,7 +10,11 @@ import {
   hasAvailableSlot,
   intervalsOverlap,
   timeToMinutes,
+  isBookingAllowedForAccessType,
+  bookingDeniedMessage,
 } from '../server/utils/booking-logic.js';
+
+// ── hasAvailableSlot ────────────────────────────────────────────────────────
 
 test('hasAvailableSlot: є місце, коли броней менше за місткість', () => {
   assert.equal(hasAvailableSlot(0, 10), true);
@@ -26,6 +30,70 @@ test('hasAvailableSlot: коректно працює з рядковими чи
   assert.equal(hasAvailableSlot('5', '10'), true);
   assert.equal(hasAvailableSlot('10', '10'), false);
 });
+
+// ── isBookingAllowedForAccessType ────────────────────────────────────────────
+
+test('isBookingAllowedForAccessType: gym_group дозволяє групові заняття', () => {
+  assert.equal(isBookingAllowedForAccessType('gym_group', 'group'), true);
+});
+
+test('isBookingAllowedForAccessType: gym_group забороняє персональні тренування', () => {
+  assert.equal(isBookingAllowedForAccessType('gym_group', 'personal'), false);
+});
+
+test('isBookingAllowedForAccessType: group дозволяє групові заняття', () => {
+  assert.equal(isBookingAllowedForAccessType('group', 'group'), true);
+});
+
+test('isBookingAllowedForAccessType: group забороняє персональні тренування', () => {
+  assert.equal(isBookingAllowedForAccessType('group', 'personal'), false);
+});
+
+test('isBookingAllowedForAccessType: personal дозволяє персональні тренування', () => {
+  assert.equal(isBookingAllowedForAccessType('personal', 'personal'), true);
+});
+
+test('isBookingAllowedForAccessType: personal забороняє групові заняття', () => {
+  assert.equal(isBookingAllowedForAccessType('personal', 'group'), false);
+});
+
+test('isBookingAllowedForAccessType: gym забороняє будь-який запис на заняття', () => {
+  assert.equal(isBookingAllowedForAccessType('gym', 'group'), false);
+  assert.equal(isBookingAllowedForAccessType('gym', 'personal'), false);
+});
+
+test('isBookingAllowedForAccessType: null (план видалено) забороняє запис', () => {
+  assert.equal(isBookingAllowedForAccessType(null, 'group'), false);
+  assert.equal(isBookingAllowedForAccessType(null, 'personal'), false);
+});
+
+test('isBookingAllowedForAccessType: невідомий тип забороняє запис', () => {
+  assert.equal(isBookingAllowedForAccessType('unknown', 'group'), false);
+});
+
+// ── bookingDeniedMessage ────────────────────────────────────────────────────
+
+test('bookingDeniedMessage: gym — повідомлення про тренажерний зал', () => {
+  const msg = bookingDeniedMessage('gym', 'group');
+  assert.ok(msg.includes('тренажерного залу'), `Отримано: "${msg}"`);
+});
+
+test('bookingDeniedMessage: null — повідомлення звернутися до адміністратора', () => {
+  const msg = bookingDeniedMessage(null, 'group');
+  assert.ok(msg.includes('адміністратора'), `Отримано: "${msg}"`);
+});
+
+test('bookingDeniedMessage: gym_group + personal — про персональні тренування', () => {
+  const msg = bookingDeniedMessage('gym_group', 'personal');
+  assert.ok(msg.includes('персональні'), `Отримано: "${msg}"`);
+});
+
+test('bookingDeniedMessage: personal + group — про групові заняття', () => {
+  const msg = bookingDeniedMessage('personal', 'group');
+  assert.ok(msg.includes('групові'), `Отримано: "${msg}"`);
+});
+
+// ── intervalsOverlap ────────────────────────────────────────────────────────
 
 test('intervalsOverlap: заняття, що накладаються, конфліктують', () => {
   // 10:00–11:00 і 10:30–11:30
@@ -46,6 +114,8 @@ test('intervalsOverlap: одне заняття повністю всереди�
   // 10:00–12:00 і 10:30–11:00
   assert.equal(intervalsOverlap(600, 120, 630, 30), true);
 });
+
+// ── timeToMinutes ───────────────────────────────────────────────────────────
 
 test('timeToMinutes: розбирає HH:MM і HH:MM:SS', () => {
   assert.equal(timeToMinutes('00:00'), 0);
