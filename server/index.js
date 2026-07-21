@@ -62,6 +62,16 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET === INSECURE_JWT_SECRET) {
 
 const app = express();
 
+// За замовчуванням Express не довіряє заголовку X-Forwarded-For — тоді
+// express-rate-limit не може коректно визначити реальну IP-адресу клієнта
+// і кидає ValidationError (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR), якщо цей
+// заголовок взагалі присутній у запиті (наприклад, від Caddy в проді або
+// від локального проксі/тулінгу в розробці). У проді перед застосунком
+// стоїть один реверс-проксі (Caddy, docker-compose), тож довіряємо рівно
+// одному хопу; це коректно й безпечно — заголовок від клієнта напряму
+// буде переписаний проксі, а не підмінений зловмисником.
+app.set('trust proxy', 1);
+
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
