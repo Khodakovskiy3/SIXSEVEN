@@ -351,11 +351,39 @@ function _unlockAudio() {
 }
 
 /**
+ * Мінімальний інтервал між сигналами, мс.
+ * Одну подію (нове повідомлення в чаті) незалежно помічають кілька джерел:
+ * полінг /notifications, полінг чату в кабінеті адміна, обробник PUSH_RECEIVED
+ * і сам чат-віджет. Без спільного вікна користувач чує 2–3 сигнали поспіль,
+ * що сприймається як «звук нізвідки».
+ */
+const SOUND_COOLDOWN_MS = 4000;
+
+/**
+ * Спільний для всіх джерел запобіжник від повторних сигналів.
+ * Лежить на window, бо chat-widget.js підключається звичайним скриптом
+ * (не модулем) і не може імпортувати цей файл.
+ *
+ * @returns {boolean} true, якщо сигнал дозволено відтворити.
+ */
+export function canPlayChime() {
+  const now = Date.now();
+  if (now - (window.__olimpLastChimeAt || 0) < SOUND_COOLDOWN_MS) {
+    return false;
+  }
+  window.__olimpLastChimeAt = now;
+  return true;
+}
+
+/**
  * Грає звук сповіщення.
  * Якщо аудіо ще не розблоковано — намагається напряму (спрацює якщо браузер
  * лояльний, або якщо є нещодавній жест).
  */
 function playNotificationSound() {
+  if (!canPlayChime()) {
+    return;
+  }
   if (_readyAudio) {
     // Клонуємо щоб одночасно могло грати кілька
     const clone = /** @type {HTMLAudioElement} */ (_readyAudio.cloneNode());

@@ -78,6 +78,75 @@ function showActionConfirm(message, okLabel = 'Підтвердити', okClass 
   });
 }
 
+/**
+ * Спливаюче вікно з одним повідомленням і кнопкою «Зрозуміло».
+ * Потрібне там, де inline-підказки (#schedule-feedback) немає — напр. на
+ * головній: інакше невдалий запис виглядав би так, ніби нічого не сталося.
+ *
+ * @param {string} message Текст помилки або пояснення.
+ * @param {string} [title] Заголовок вікна.
+ * @returns {Promise<void>} Резолвиться після закриття.
+ */
+function showAlert(message, title = '') {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'custom-confirm-overlay';
+    overlay.innerHTML = `
+      <div class="custom-confirm-box">
+        ${title ? `<h3 class="custom-confirm-title">${escapeHtml(title)}</h3>` : ''}
+        <p class="custom-confirm-msg">${escapeHtml(message)}</p>
+        <div class="custom-confirm-actions">
+          <button class="primary-btn custom-confirm-ok">Зрозуміло</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const cleanup = () => { overlay.remove(); resolve(); };
+    overlay.querySelector('.custom-confirm-ok').addEventListener('click', cleanup);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+  });
+}
+
+/**
+ * Спливаюче вікно з повідомленням і однією кнопкою.
+ * Потрібне там, де інлайн-фідбек недоступний: на головній сторінці немає
+ * блоку #schedule-feedback, тож без діалогу помилка запису була б невидимою.
+ *
+ * @param {string} message Текст повідомлення.
+ * @param {string} [title] Заголовок діалогу.
+ * @returns {Promise<void>} Резолвиться після закриття.
+ */
+function showAlert(message, title = '') {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'custom-confirm-overlay';
+    overlay.innerHTML = `
+      <div class="custom-confirm-box" role="alertdialog" aria-modal="true">
+        ${title ? `<h3 class="custom-confirm-title">${escapeHtml(title)}</h3>` : ''}
+        <p class="custom-confirm-msg">${escapeHtml(message)}</p>
+        <div class="custom-confirm-actions custom-confirm-actions--single">
+          <button class="primary-btn custom-confirm-ok">Зрозуміло</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const cleanup = () => {
+      document.removeEventListener('keydown', onKeydown);
+      overlay.remove();
+      resolve();
+    };
+    function onKeydown(event) {
+      if (event.key === 'Escape') {
+        cleanup();
+      }
+    }
+    overlay.querySelector('.custom-confirm-ok').addEventListener('click', cleanup);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+    document.addEventListener('keydown', onKeydown);
+    overlay.querySelector('.custom-confirm-ok').focus();
+  });
+}
+
 function showConfirm(message, okLabel = 'Видалити') {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
@@ -582,7 +651,10 @@ async function bookSchedule(scheduleId) {
     setScheduleFeedback('Запис створено', 'success');
     await Promise.all([loadSchedulePage(), loadHomePage()]);
   } catch (error) {
+    // Сервер пояснює причину відмови (невідповідний абонемент, немає місць
+    // тощо) — показуємо її вікном, бо inline-підказка є лише на «Розкладі».
     setScheduleFeedback(`Не вдалося записатися: ${error.message}`, 'error');
+    await showAlert(error.message, 'Не вдалося записатися');
   }
 }
 

@@ -55,7 +55,16 @@
     return token;
   }
 
+  // Спільне з notifications.js вікно між сигналами: одну й ту саму подію
+  // помічають кілька джерел, і без цього чути 2–3 сигнали поспіль.
+  const SOUND_COOLDOWN_MS = 4000;
+
   function _playChime() {
+    const now = Date.now();
+    if (now - (window.__olimpLastChimeAt || 0) < SOUND_COOLDOWN_MS) {
+      return;
+    }
+    window.__olimpLastChimeAt = now;
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const osc = ctx.createOscillator();

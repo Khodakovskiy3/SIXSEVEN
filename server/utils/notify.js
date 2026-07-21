@@ -75,6 +75,15 @@ export async function sendPush(userIds, title, body) {
 }
 
 /**
+ * Колонка налаштувань користувача, що вимикає категорію сповіщень.
+ * Білий список: значення підставляється в SQL як ідентифікатор.
+ */
+const CATEGORY_PREF_COLUMN = Object.freeze({
+  training: 'notif_training',
+  reminder: 'notif_hour_reminder',
+});
+
+/**
  * Надсилає сповіщення переліченим користувачам:
  * 1. Запис у messages + message_recipients (для дзвіночка в UI)
  * 2. Web Push для підписаних користувачів
@@ -82,9 +91,20 @@ export async function sendPush(userIds, title, body) {
  * @param {number[]} userIds
  * @param {string} subject
  * @param {string} [body]
+ * @param {object} [options]
+ * @param {'training'|'reminder'|'system'} [options.category] — категорія
+ *   сповіщення. Для 'training' і 'reminder' одержувачі фільтруються за
+ *   налаштуваннями профілю; 'system' (типово) надсилається завжди.
+ * @param {boolean} [options.onceToday] — не надсилати повторно, якщо
+ *   користувач уже отримав сьогодні сповіщення з таким самим subject.
  */
-export async function notifyUsers(userIds, subject, body = '') {
-  const ids = [...new Set(userIds)]
+export async function notifyUsers(
+  userIds,
+  subject,
+  body = '',
+  { category = 'system', onceToday = false } = {}
+) {
+  let ids = [...new Set(userIds)]
     .map(Number)
     .filter((id) => Number.isInteger(id) && id > 0);
   if (ids.length === 0 || !subject) {
@@ -92,6 +112,21 @@ export async function notifyUsers(userIds, subject, body = '') {
   }
 
   try {
+    // Налаштування «Сповіщення про тренування» / «Нагадування за годину»
+    // мають вимикати і дзвіночок у UI, а не лише Web Push — інакше вимкнений
+    // перемикач нічого не змінює для користувача.
+    const prefColumn = CATEGORY_PREF_COLUMN[category];
+    if (prefColumn) {
+      const allowed = await query(
+        `select id from users where id = any($1::int[]) and ${prefColumn} = true`,
+        [ids]
+      );
+      ids = allowed.rows.map((row) => row.id);
+      if (ids.length === 0) {
+        return;
+      }
+    }
+
     const message = await query(
       `insert into messages (subject, body, audience, status)
        values ($1, $2, 'custom', 'sent')

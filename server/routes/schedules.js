@@ -344,7 +344,8 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
         notifyIds,
         `Заняття «${audience.workoutName}» перенесено`,
         `Було: ${formatSlot(existing.date, existing.time)}.\n`
-          + `Нові дата і час: ${formatSlot(updated.date, updated.time)}.`
+          + `Нові дата і час: ${formatSlot(updated.date, updated.time)}.`,
+        { category: 'training' }
       ).catch(() => {});
     }
   }
@@ -370,7 +371,8 @@ router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
         notifyIds,
         `Заняття «${audience.workoutName}» скасовано`,
         `Заняття ${formatSlot(existing.date, existing.time)} не відбудеться. `
-          + 'Перепрошуємо за незручності.'
+          + 'Перепрошуємо за незручності.',
+        { category: 'training' }
       ).catch(() => {});
     }
   }

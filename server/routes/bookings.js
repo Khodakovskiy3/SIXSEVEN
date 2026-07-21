@@ -142,7 +142,8 @@ async function notifyTrainerAboutBooking(scheduleId, clientName) {
   await notifyUsers(
     [trainerUserId],
     `Новий запис на «${workoutName}»`,
-    `${clientName} записався(-лась) на ваше заняття ${slot}.`
+    `${clientName} записався(-лась) на ваше заняття ${slot}.`,
+    { category: 'training' }
   );
 }
 
@@ -159,7 +160,12 @@ async function notifyClientBookingConfirmed(userId, scheduleId) {
   }
   const { workout_name: workoutName, date, time } = result.rows[0];
   const slot = `${new Date(date).toLocaleDateString('uk-UA')} о ${String(time).slice(0, 5)}`;
-  await notifyUsers([userId], `Запис підтверджено`, `Ви записані на «${workoutName}» ${slot}.`);
+  await notifyUsers(
+    [userId],
+    `Запис підтверджено`,
+    `Ви записані на «${workoutName}» ${slot}.`,
+    { category: 'training' }
+  );
 }
 
 async function notifyTrainerIfClassFull(scheduleId) {
@@ -191,7 +197,8 @@ async function notifyTrainerIfClassFull(scheduleId) {
     await notifyUsers(
       [trainerUserId],
       `Заняття «${workoutName}» заповнено`,
-      `Усі місця на ${slot} зайняті.`
+      `Усі місця на ${slot} зайняті.`,
+      { category: 'training' }
     );
   }
 }
@@ -347,7 +354,8 @@ router.delete('/:id', authRequired, async (req, res) => {
     notifyUsers(
       [clientUserId],
       `Запис скасовано`,
-      `Ваш запис на «${workoutName}» ${slot} скасовано адміністратором.`
+      `Ваш запис на «${workoutName}» ${slot} скасовано адміністратором.`,
+      { category: 'training' }
     ).catch(() => {});
   }
 

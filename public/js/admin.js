@@ -4,7 +4,7 @@ import { hydrateAccount } from './account.js';
 import { PAGE, ROLE } from './constants.js';
 import { initSidebar } from './sidebar.js';
 import { initTheme } from './theme.js';
-import { initNotifications } from './notifications.js';
+import { initNotifications, canPlayChime } from './notifications.js';
 import { initModalHotkeys } from './modal-hotkeys.js';
 import { startChatListPolling, stopChatPolling } from "./admin/chat.js";
 import { subscribePush, unsubscribePush, getPushStatus } from './push.js';
@@ -4104,6 +4104,10 @@ if ('serviceWorker' in navigator) {
 }
 
 function _playAdminChime() {
+  // Спільне вікно з рештою джерел: одна подія — один сигнал.
+  if (!canPlayChime()) {
+    return;
+  }
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
