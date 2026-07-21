@@ -42,6 +42,9 @@ export const PG_UNIQUE_VIOLATION = '23505';
 /** Код помилки PostgreSQL для порушення зовнішнього ключа (foreign_key_violation). */
 export const PG_FOREIGN_KEY_VIOLATION = '23503';
 
+/** Код помилки PostgreSQL для порушення CHECK-обмеження (check_violation). */
+export const PG_CHECK_VIOLATION = '23514';
+
 // ─── HTTP-сервер ─────────────────────────────────────────────────────────────
 
 /** Порт HTTP-сервера за замовчуванням. */

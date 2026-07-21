@@ -1407,12 +1407,23 @@ async function renderTrainerCreateForm() {
   return { html, clientOptions };
 }
 
-// Ініціалізація пошуку клієнтів у формі тренера (викликається після openModal)
-function initTrainerClientSearch(clientOptions) {
-  const searchInput = document.querySelector('#tcf-search');
-  const resultsBox = document.querySelector('#tcf-results');
-  const selectedBox = document.querySelector('#tcf-selected');
-  const hiddenInput = document.querySelector('#tcf-client-id');
+/**
+ * Оживляє пошук людини з випадним списком (аватар + ім'я + email).
+ * Спільна реалізація для форм тренера й призначення абонемента, щоб віджет
+ * виглядав і поводився однаково в усьому кабінеті.
+ *
+ * @param {object} options
+ * @param {string} options.prefix — префікс id елементів віджета (напр. 'tcf').
+ * @param {Array<object>} options.people — кандидати (id, name, email, phone).
+ * @returns {void}
+ */
+function initPersonSearch({ prefix, people }) {
+  const searchInput = document.querySelector(`#${prefix}-search`);
+  const resultsBox = document.querySelector(`#${prefix}-results`);
+  const selectedBox = document.querySelector(`#${prefix}-selected`);
+  const searchRow = document.querySelector(`#${prefix}-search-row`);
+  const hiddenInput = document.querySelector(`#${prefix}-client-id`);
+  const clientOptions = people;
   if (!searchInput) return;
 
   const norm = (s) => String(s || '').toLowerCase().trim();
@@ -1433,13 +1444,13 @@ function initTrainerClientSearch(clientOptions) {
         </button>
       </div>`;
     selectedBox.hidden = false;
-    document.querySelector('#tcf-search-row').hidden = true;
+    searchRow.hidden = true;
     resultsBox.hidden = true;
 
     selectedBox.querySelector('.tcf-clear-btn').addEventListener('click', () => {
       hiddenInput.value = '';
       selectedBox.hidden = true;
-      document.querySelector('#tcf-search-row').hidden = false;
+      searchRow.hidden = false;
       searchInput.value = '';
       searchInput.focus();
     });
@@ -1476,6 +1487,16 @@ function initTrainerClientSearch(clientOptions) {
     }
     resultsBox.hidden = false;
   });
+}
+
+/**
+ * Пошук клієнта у формі створення тренера.
+ *
+ * @param {Array<object>} clientOptions — кандидати з renderTrainerForm.
+ * @returns {void}
+ */
+function initTrainerClientSearch(clientOptions) {
+  initPersonSearch({ prefix: 'tcf', people: clientOptions });
 }
 
 function renderTrainerEditForm(trainer) {
@@ -1740,11 +1761,6 @@ function updatePlanFormFields(form) {
 
 function renderAssignPlanForm() {
   const activePlans = plans.filter((plan) => plan.status === 'active');
-  const clientOptions = clients.map((client) => `
-    <option value="${client.id}">
-      ${escapeHtml(client.name)} · ${escapeHtml(client.email)}
-    </option>
-  `).join('');
   const planOptions = activePlans.map((plan) => `
     <option value="${plan.id}">
       ${escapeHtml(plan.name)} · ${formatMoney(plan.price)}
@@ -1753,12 +1769,16 @@ function renderAssignPlanForm() {
 
   return `
     <form id="assign-plan-form" class="admin-form">
-      <label>Клієнт
-        <select name="client_id" required>
-          <option value="">Оберіть клієнта</option>
-          ${clientOptions}
-        </select>
-      </label>
+      <div class="person-search">
+        <input type="hidden" name="client_id" id="apf-client-id">
+        <div id="apf-search-row">
+          <label for="apf-search">Клієнт</label>
+          <input id="apf-search" type="search" placeholder="Ім'я, email або телефон"
+            autocomplete="off">
+        </div>
+        <div id="apf-results" class="tcf-results" hidden></div>
+        <div id="apf-selected" class="tcf-selected" hidden></div>
+      </div>
       <label>Абонемент / тариф
         <select name="plan_id" required>
           <option value="">Оберіть тариф</option>
@@ -2703,6 +2723,8 @@ document.addEventListener('click', async (event) => {
     if (!clients.length) await loadClients();
     if (!plans.length) await loadPlans();
     openModal('Призначити абонемент клієнту', renderAssignPlanForm());
+    initPersonSearch({ prefix: 'apf', people: clients });
+    document.querySelector('#apf-search')?.focus();
     return;
   }
 
@@ -3710,7 +3732,7 @@ async function loadRecipientOptions(group) {
   const rows = await apiFetch(group === 'clients' ? '/clients' : '/trainers');
   const options = rows
     .filter((row) => row.user_id)
-    .map((row) => ({ userId: row.user_id, name: row.name }));
+    .map((row) => ({ userId: row.user_id, name: row.name, email: row.email || '' }));
   recipientListCache[group] = options;
   return options;
 }
@@ -3726,17 +3748,65 @@ function renderRecipientCheckboxes(options, checkedIds = []) {
   if (options.length === 0) {
     return '<div class="recipients-hint">У цій групі поки нікого немає.</div>';
   }
+  // data-search тримає рядок для пошуку в нижньому регістрі, щоб не рахувати
+  // його заново на кожне натискання клавіші.
   const items = options.map((option) => `
-    <label class="recipient-item">
+    <label class="recipient-item" data-search="${escapeHtml(
+      `${option.name} ${option.email || ''}`.toLowerCase()
+    )}">
       <input type="checkbox" name="recipient" value="${option.userId}"
         ${checkedIds.includes(option.userId) ? 'checked' : ''}>
-      <span>${escapeHtml(option.name)}</span>
+      <div class="client-avatar" style="background:${getAvatarColor(option.name)}">
+        ${escapeHtml(getInitials(option.name))}
+      </div>
+      <div class="recipient-name-block">
+        <strong>${escapeHtml(option.name)}</strong>
+        ${option.email ? `<small>${escapeHtml(option.email)}</small>` : ''}
+      </div>
     </label>`).join('');
   return `
     <div class="recipients-hint">
       Кому саме. Нікого не обрано — повідомлення отримає вся група.
     </div>
-    <div class="recipient-list">${items}</div>`;
+    <input type="search" class="recipient-search" id="recipient-search"
+      placeholder="Ім'я або email" autocomplete="off">
+    <div class="tcf-results recipient-list" id="recipient-list">${items}</div>
+    <div class="tcf-no-results" id="recipient-empty" hidden>
+      Нічого не знайдено
+    </div>`;
+}
+
+/**
+ * Фільтрує список отримувачів за пошуковим запитом.
+ * Уже позначені отримувачі лишаються видимими завжди, інакше зняти позначку
+ * після зміни запиту було б неможливо.
+ *
+ * @param {HTMLElement} box Контейнер із полем пошуку та списком.
+ * @returns {void}
+ */
+function bindRecipientSearch(box) {
+  const search = box.querySelector('#recipient-search');
+  const list = box.querySelector('#recipient-list');
+  const empty = box.querySelector('#recipient-empty');
+  if (!search || !list) {
+    return;
+  }
+
+  search.addEventListener('input', () => {
+    const term = search.value.trim().toLowerCase();
+    let visibleCount = 0;
+    list.querySelectorAll('.recipient-item').forEach((item) => {
+      const isChecked = item.querySelector('input')?.checked;
+      const isMatch = !term || item.dataset.search.includes(term) || isChecked;
+      item.hidden = !isMatch;
+      if (isMatch) {
+        visibleCount += 1;
+      }
+    });
+    if (empty) {
+      empty.hidden = visibleCount > 0;
+    }
+  });
 }
 
 /**
@@ -3765,6 +3835,7 @@ function bindRecipientPicker(message = null) {
         .map((recipient) => ({ userId: recipient.id, name: recipient.name }));
       box.hidden = false;
       box.innerHTML = renderRecipientCheckboxes(options, checkedIds);
+      bindRecipientSearch(box);
       return;
     }
 
@@ -3779,6 +3850,7 @@ function bindRecipientPicker(message = null) {
     try {
       const options = await loadRecipientOptions(group);
       box.innerHTML = renderRecipientCheckboxes(options, checkedIds);
+      bindRecipientSearch(box);
     } catch (error) {
       box.innerHTML = `<div class="recipients-hint">Не вдалося завантажити список: ${escapeHtml(error.message)}</div>`;
     }

@@ -138,8 +138,14 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
       );
 
       await client.query('commit');
+      // Ресурс цього маршруту — клієнт, тому id у відповіді — це clients.id:
+      // саме його очікують GET/PUT/DELETE /api/clients/:id. Ідентифікатор
+      // облікового запису віддаємо окремо як user_id (client_id залишено
+      // для сумісності з наявними викликами).
       return {
         ...user,
+        id: clientResult.rows[0].id,
+        user_id: user.id,
         client_id: clientResult.rows[0].id,
       };
     });
@@ -188,8 +194,11 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
     );
 
     await client.query('commit');
+    // Форма відповіді така сама, як у POST: id — це clients.id.
     return {
       ...userResult.rows[0],
+      id: clientRowId,
+      user_id: userId,
       client_id: clientRowId,
     };
   });

@@ -13,12 +13,15 @@ import { Router } from 'express';
 import { query, withClient } from '../db.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import { getClientIdByUserId } from '../utils/identity.js';
+import { logError } from '../utils/logger.js';
 import { notifyUsers } from '../utils/notify.js';
 import {
   HTTP_BAD_REQUEST,
   HTTP_CONFLICT,
   HTTP_CREATED,
   HTTP_NOT_FOUND,
+  HTTP_SERVER_ERROR,
+  PG_CHECK_VIOLATION,
   PG_FOREIGN_KEY_VIOLATION,
   ROLE,
   SUBSCRIPTION_STATUS,
@@ -81,6 +84,50 @@ function validatePlanPayload(plan) {
     return 'Usage count is required';
   }
   return '';
+}
+
+/**
+ * Перевіряє коректність періоду дії абонемента до звернення до БД.
+ * Без цієї перевірки порушення CHECK (end_date > start_date) спливало б лише
+ * як помилка драйвера вже після відкриття транзакції.
+ *
+ * @param {string} startDate — дата початку (YYYY-MM-DD).
+ * @param {string} endDate — дата завершення (YYYY-MM-DD).
+ * @returns {string} текст помилки або порожній рядок, якщо період коректний.
+ */
+function validateSubscriptionRange(startDate, endDate) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return 'Invalid subscription dates';
+  }
+  if (end <= start) {
+    return 'End date must be later than start date';
+  }
+  return '';
+}
+
+/**
+ * Перетворює помилку PostgreSQL на HTTP-відповідь.
+ * Потрібна, щоб порушення обмежень БД не залишало запит без відповіді:
+ * необроблене відхилення промісу в Express 4 «вішає» з'єднання.
+ *
+ * @param {import('express').Response} res — відповідь Express.
+ * @param {Error & { code?: string }} error — помилка драйвера pg.
+ * @param {number|undefined} userId — автор запиту (для журналу).
+ * @returns {import('express').Response} надіслана відповідь.
+ */
+function respondToSubscriptionDbError(res, error, userId) {
+  if (error.code === PG_CHECK_VIOLATION) {
+    return res
+      .status(HTTP_BAD_REQUEST)
+      .json({ error: 'End date must be later than start date' });
+  }
+  if (error.code === PG_FOREIGN_KEY_VIOLATION) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Client or plan not found' });
+  }
+  logError('Помилка операції з абонементом', error, { userId });
+  return res.status(HTTP_SERVER_ERROR).json({ error: 'Subscription operation failed' });
 }
 
 /**
@@ -312,56 +359,88 @@ router.post('/assign', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) =
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
   }
 
-  const assigned = await withClient(async (client) => {
-    await client.query('begin');
+  // Дату перевіряємо до звернення до БД: некоректне значення інакше дало б
+  // Invalid Date і виняток уже під час формування end_date.
+  if (Number.isNaN(new Date(startDate).getTime())) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid start date' });
+  }
 
-    const planResult = await client.query(
-      `select id, name, plan_type, duration_days, usage_count, price, status
-       from subscription_plans
-       where id = $1`,
-      [planId]
-    );
-    const plan = planResult.rows[0];
-    if (!plan || plan.status !== PLAN_STATUS.ACTIVE) {
-      await client.query('rollback');
-      return null;
-    }
+  let assigned;
+  try {
+    assigned = await withClient(async (client) => {
+      await client.query('begin');
 
-    const start = new Date(startDate);
-    const end = new Date(start);
-    const days = plan.plan_type === PLAN_TYPE.SUBSCRIPTION
-      ? Number(plan.duration_days || 30)
-      : 30;
-    end.setDate(end.getDate() + days);
+      const planResult = await client.query(
+        `select id, name, plan_type, duration_days, usage_count, price, status
+         from subscription_plans
+         where id = $1`,
+        [planId]
+      );
+      const plan = planResult.rows[0];
+      if (!plan || plan.status !== PLAN_STATUS.ACTIVE) {
+        await client.query('rollback');
+        return { reason: 'plan_unavailable' };
+      }
 
-    const subscriptionResult = await client.query(
-      `insert into subscriptions (client_id, plan_id, type, start_date, end_date, status)
-       values ($1, $2, $3, $4, $5, $6)
-       returning id, client_id, plan_id, type, start_date, end_date, status`,
-      [
-        clientId,
-        plan.id,
-        plan.name,
-        startDate,
-        end.toISOString().slice(0, 10),
-        status || SUBSCRIPTION_STATUS.ACTIVE,
-      ]
-    );
+      // Дублювання чинного абонемента того самого тарифу заборонено (ТЗ 4.1.3):
+      // перевірка в межах транзакції захищає і від паралельних запитів.
+      const duplicateResult = await client.query(
+        `select id from subscriptions
+         where client_id = $1 and plan_id = $2 and status = $3
+           and end_date >= current_date
+         limit 1`,
+        [clientId, plan.id, SUBSCRIPTION_STATUS.ACTIVE]
+      );
+      if (duplicateResult.rows.length > 0) {
+        await client.query('rollback');
+        return { reason: 'duplicate_active' };
+      }
 
-    const subscription = subscriptionResult.rows[0];
-    const paymentResult = await client.query(
-      `insert into payments (client_id, subscription_id, amount, status)
-       values ($1, $2, $3, 'completed')
-       returning id, client_id, subscription_id, amount, date, status`,
-      [clientId, subscription.id, plan.price]
-    );
+      const start = new Date(startDate);
+      const end = new Date(start);
+      const days = plan.plan_type === PLAN_TYPE.SUBSCRIPTION
+        ? Number(plan.duration_days || 30)
+        : 30;
+      end.setDate(end.getDate() + days);
 
-    await client.query('commit');
-    return { subscription, payment: paymentResult.rows[0] || null };
-  });
+      const subscriptionResult = await client.query(
+        `insert into subscriptions (client_id, plan_id, type, start_date, end_date, status)
+         values ($1, $2, $3, $4, $5, $6)
+         returning id, client_id, plan_id, type, start_date, end_date, status`,
+        [
+          clientId,
+          plan.id,
+          plan.name,
+          startDate,
+          end.toISOString().slice(0, 10),
+          status || SUBSCRIPTION_STATUS.ACTIVE,
+        ]
+      );
 
-  if (!assigned) {
+      const subscription = subscriptionResult.rows[0];
+      const paymentResult = await client.query(
+        `insert into payments (client_id, subscription_id, amount, status)
+         values ($1, $2, $3, 'completed')
+         returning id, client_id, subscription_id, amount, date, status`,
+        [clientId, subscription.id, plan.price]
+      );
+
+      await client.query('commit');
+      return { subscription, payment: paymentResult.rows[0] || null };
+    });
+  } catch (error) {
+    // Порушення обмежень БД не має «вішати» запит: без цього блоку проміс
+    // відхилявся б необробленим і клієнт не отримував би відповіді взагалі.
+    return respondToSubscriptionDbError(res, error, req.user?.id);
+  }
+
+  if (assigned.reason === 'plan_unavailable') {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Plan is not available' });
+  }
+  if (assigned.reason === 'duplicate_active') {
+    return res
+      .status(HTTP_CONFLICT)
+      .json({ error: 'Client already has an active subscription of this plan' });
   }
 
   await notifyClientAboutSubscription(
@@ -521,12 +600,22 @@ router.post('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
   }
 
-  const result = await query(
-    `insert into subscriptions (client_id, plan_id, type, start_date, end_date, status)
-     values ($1, $2, $3, $4, $5, $6)
-     returning id, client_id, plan_id, type, start_date, end_date, status`,
-    [clientId, planId || null, type, startDate, endDate, status || SUBSCRIPTION_STATUS.ACTIVE]
-  );
+  const dateError = validateSubscriptionRange(startDate, endDate);
+  if (dateError) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: dateError });
+  }
+
+  let result;
+  try {
+    result = await query(
+      `insert into subscriptions (client_id, plan_id, type, start_date, end_date, status)
+       values ($1, $2, $3, $4, $5, $6)
+       returning id, client_id, plan_id, type, start_date, end_date, status`,
+      [clientId, planId || null, type, startDate, endDate, status || SUBSCRIPTION_STATUS.ACTIVE]
+    );
+  } catch (error) {
+    return respondToSubscriptionDbError(res, error, req.user?.id);
+  }
 
   await notifyClientAboutSubscription(clientId, type, endDate);
 
@@ -542,16 +631,30 @@ router.put('/:id', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
     status,
   } = req.body || {};
 
-  const result = await query(
-    `update subscriptions
-     set type = coalesce($1, type),
-         start_date = coalesce($2, start_date),
-         end_date = coalesce($3, end_date),
-         status = coalesce($4, status)
-     where id = $5
-     returning id, client_id, type, start_date, end_date, status`,
-    [type || null, startDate || null, endDate || null, status || null, id]
-  );
+  // Перевіряємо лише коли задано обидві дати: часткове оновлення звіряється
+  // з наявними значеннями вже на рівні CHECK-обмеження БД.
+  if (startDate && endDate) {
+    const dateError = validateSubscriptionRange(startDate, endDate);
+    if (dateError) {
+      return res.status(HTTP_BAD_REQUEST).json({ error: dateError });
+    }
+  }
+
+  let result;
+  try {
+    result = await query(
+      `update subscriptions
+       set type = coalesce($1, type),
+           start_date = coalesce($2, start_date),
+           end_date = coalesce($3, end_date),
+           status = coalesce($4, status)
+       where id = $5
+       returning id, client_id, type, start_date, end_date, status`,
+      [type || null, startDate || null, endDate || null, status || null, id]
+    );
+  } catch (error) {
+    return respondToSubscriptionDbError(res, error, req.user?.id);
+  }
 
   if (result.rows.length === 0) {
     return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });

@@ -2176,6 +2176,118 @@
     font-size: 13px;
 }
 
+.form-hint {
+    display: block;
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* ─── Пошук людей у модальних формах (tcf-віджет) ─────────────────── */
+
+.recipients-hint {
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* Поле пошуку отримувачів і клієнта — той самий вигляд, що й #tcf-search. */
+.recipient-search,
+.person-search input[type="search"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+}
+
+.recipient-search:focus,
+.person-search input[type="search"]:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.person-search {
+    position: relative;
+}
+
+/* .tcf-selected має відступи під layout форми тренера (.cmf-section),
+   у звичайній модалці картка має йти врівень із полем пошуку. */
+.person-search .tcf-selected {
+    margin: 6px 0 0;
+}
+
+.recipient-list {
+    margin-top: 6px;
+    max-height: 260px;
+}
+
+/* Селектор із .admin-form — щоб перебити загальне `.admin-form label`
+   (display: grid), інакше чекбокс і підписи стають окремими рядками. */
+.admin-form .recipient-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s;
+}
+
+.admin-form .recipient-item:hover {
+    background: rgba(255, 255, 255, .06);
+}
+
+.admin-form .recipient-item[hidden] {
+    display: none;
+}
+
+.admin-form .recipient-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.recipient-name-block {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.recipient-name-block strong {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.recipient-name-block small {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.recipient-item .client-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+}
+
+[data-theme="light"] .admin-form .recipient-item:hover,
+[data-theme="light"] .tcf-result-item:hover {
+    background: rgba(0, 0, 0, .05);
+}
+
 .form-error {
     min-height: 0;
     margin: 0;
