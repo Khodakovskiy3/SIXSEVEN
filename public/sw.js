@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sports-club-v9';
+const CACHE_NAME = 'sports-club-v11';
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -19,7 +19,16 @@ const CORE_ASSETS = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)).then(() => self.skipWaiting())
+    caches
+      .open(CACHE_NAME)
+      .then((cache) =>
+        // addAll падає цілком, якщо хоч один файл недоступний, і тоді
+        // Service Worker взагалі не встановлюється. Кладемо поштучно.
+        Promise.all(
+          CORE_ASSETS.map((asset) => cache.add(asset).catch(() => {}))
+        )
+      )
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -67,18 +76,66 @@ self.addEventListener('notificationclick', (event) => {
 
 // ── Fetch cache ───────────────────────────────────────────────────────────────
 
+/**
+ * Чи можна класти відповідь у кеш.
+ * Кешуємо лише успішні (200) власні відповіді без редіректу — інакше
+ * у кеш потрапляли 404/500 і потім віддавалися замість робочої сторінки,
+ * а redirected-відповідь на навігацію взагалі кидає помилку.
+ */
+function isCacheable(response) {
+  return response && response.status === 200 && response.type === 'basic' && !response.redirected;
+}
+
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
-  const url = new URL(event.request.url);
+  const request = event.request;
+  if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+  // Чужі домени та API не кешуємо і не перехоплюємо.
+  if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api')) return;
 
   event.respondWith(
-    fetch(event.request)
+    fetch(request)
       .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        if (isCacheable(response)) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
+        }
         return response;
       })
-      .catch(() => caches.match(event.request))
+      .catch(async () => {
+        // Мережа недоступна — віддаємо копію з кешу.
+        const cached = await caches.match(request);
+        if (cached) return cached;
+
+        // Сторінки кабінетів у CORE_ASSETS не входять, тож при першому
+        // офлайн-заході кеш порожній. Раніше тут повертався undefined,
+        // і respondWith(undefined) валив навігацію жорсткою помилкою —
+        // у встановленому PWA (без адресного рядка) користувач лишався
+        // на порожньому екрані без можливості повернутись.
+        if (request.mode === 'navigate') {
+          const shell =
+            (await caches.match('/pages/home/index.html')) ||
+            (await caches.match('/index.html'));
+          if (shell) return shell;
+
+          return new Response(
+            '<!doctype html><meta charset="utf-8">' +
+              '<title>OLIMP — немає зв\'язку</title>' +
+              '<div style="font:16px system-ui;padding:40px;text-align:center">' +
+              '<h1>Немає зв\'язку</h1>' +
+              '<p>Перевірте підключення до інтернету та спробуйте ще раз.</p>' +
+              '<button onclick="location.reload()" ' +
+              'style="padding:10px 20px;font:inherit;cursor:pointer">Оновити</button>' +
+              '</div>',
+            { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+          );
+        }
+
+        // Для решти ресурсів (css/js/зображення) — коректна порожня
+        // відповідь замість undefined, щоб не ламати сторінку.
+        return new Response('', { status: 504, statusText: 'Offline' });
+      })
   );
 });

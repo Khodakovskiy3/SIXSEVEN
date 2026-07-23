@@ -4,8 +4,37 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OLIMP</title>
-    <meta http-equiv="refresh" content="0; url=pages/home/index.html">
     <link rel="canonical" href="pages/home/index.html">
+    <link rel="manifest" href="/manifest.json">
+    <script>
+      // Вхідна точка PWA (start_url). Якщо користувач уже авторизований —
+      // одразу відкриваємо його кабінет, інакше публічну головну.
+      // Без цього встановлений застосунок завжди відкривав лендінг, і
+      // користувачу доводилось логінитись при кожному запуску.
+      (function () {
+        var HOME = '/pages/home/index.html';
+        var BY_ROLE = {
+          admin:   '/pages/admin/index.html',
+          manager: '/pages/manager/index.html',
+          trainer: '/pages/trainer/index.html',
+          client:  '/pages/client/index.html',
+        };
+
+        var target = HOME;
+        try {
+          var token = localStorage.getItem('token');
+          var raw = localStorage.getItem('user');
+          if (token && raw) {
+            var role = JSON.parse(raw).role;
+            target = BY_ROLE[role] || HOME;
+          }
+        } catch (e) {
+          target = HOME;
+        }
+
+        window.location.replace(target);
+      })();
+    </script>
 </head>
 <body>
     <a href="pages/home/index.html">Перейти на головну OLIMP</a>
