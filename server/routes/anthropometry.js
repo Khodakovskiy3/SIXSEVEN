@@ -10,6 +10,8 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { logError } from '../utils/logger.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
+import { validateBody } from '../middleware/validate.js';
+import { anthropometryCreateSchema } from '../schemas/anthropometry.js';
 import { getClientIdByUserId } from '../utils/identity.js';
 import {
   HTTP_BAD_REQUEST,
@@ -18,6 +20,9 @@ import {
   HTTP_SERVER_ERROR,
   ROLE,
 } from '../utils/constants.js';
+
+/** Код помилки Postgres «порушення CHECK-обмеження». */
+const PG_CHECK_VIOLATION = '23514';
 
 const router = Router();
 router.use(authRequired);
@@ -41,7 +46,18 @@ async function ensureAnthroTable() {
       bicep       numeric(5,1),
       thigh       numeric(5,1),
       note        text not null default '',
-      created_at  timestamptz not null default now()
+      created_at  timestamptz not null default now(),
+      -- Межі мають збігатися з db/schema.sql і міграцією 021. Саме через їх
+      -- відсутність тут таблиця у робочій БД лишилася без жодного CHECK:
+      -- create table if not exists спрацював раніше за schema.sql і нічого
+      -- потім не додав.
+      constraint anthro_weight_check check (weight is null or (weight > 0  and weight < 400)),
+      constraint anthro_height_check check (height is null or (height > 40 and height < 260)),
+      constraint anthro_chest_check  check (chest  is null or (chest  > 20 and chest  < 250)),
+      constraint anthro_waist_check  check (waist  is null or (waist  > 20 and waist  < 250)),
+      constraint anthro_hips_check   check (hips   is null or (hips   > 20 and hips   < 250)),
+      constraint anthro_bicep_check  check (bicep  is null or (bicep  > 5  and bicep  < 100)),
+      constraint anthro_thigh_check  check (thigh  is null or (thigh  > 10 and thigh  < 150))
     );
     create index if not exists client_anthropometry_client_idx
       on client_anthropometry(client_id, recorded_at desc);
@@ -73,45 +89,55 @@ router.get('/me', requireRole(ROLE.CLIENT), async (req, res) => {
 });
 
 // ── POST /api/anthropometry/me ────────────────────────────────────────────────
-router.post('/me', requireRole(ROLE.CLIENT), async (req, res) => {
-  try {
-    await ensureAnthroTable();
-    const clientId = await getClientIdByUserId(req.user.id);
-    if (!clientId) {
-      return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
+router.post(
+  '/me',
+  requireRole(ROLE.CLIENT),
+  validateBody(anthropometryCreateSchema),
+  async (req, res) => {
+    try {
+      await ensureAnthroTable();
+      const clientId = await getClientIdByUserId(req.user.id);
+      if (!clientId) {
+        return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
+      }
+
+      // Схема вже привела значення до чисел або null і перевірила межі.
+      const {
+        recorded_at,
+        weight, height,
+        chest, waist, hips,
+        bicep, thigh,
+        note,
+      } = req.body;
+
+      const result = await query(
+        `insert into client_anthropometry
+           (client_id, recorded_at, weight, height, chest, waist, hips, bicep, thigh, note)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         returning id, recorded_at, weight, height, chest, waist, hips, bicep, thigh, note`,
+        [
+          clientId,
+          recorded_at || new Date().toISOString().slice(0, 10),
+          weight, height,
+          chest, waist, hips,
+          bicep, thigh,
+          note,
+        ]
+      );
+      return res.status(HTTP_CREATED).json(result.rows[0]);
+    } catch (err) {
+      logError('[anthro POST]', err, { userId: req.user?.id });
+      // Якщо БД відхилила значення власним CHECK — це помилка введення, а не
+      // збій сервера: віддаємо 400 і зрозумілий текст замість сирого pg-повідомлення.
+      if (err.code === PG_CHECK_VIOLATION) {
+        return res
+          .status(HTTP_BAD_REQUEST)
+          .json({ error: 'Значення виміру виходить за допустимі межі' });
+      }
+      return res.status(HTTP_SERVER_ERROR).json({ error: err.message });
     }
-
-    const {
-      recorded_at,
-      weight, height,
-      chest, waist, hips,
-      bicep, thigh,
-      note = '',
-    } = req.body || {};
-
-    const toNum = (v) => (v !== undefined && v !== '' && v !== null ? Number(v) : null);
-
-    const result = await query(
-      `insert into client_anthropometry
-         (client_id, recorded_at, weight, height, chest, waist, hips, bicep, thigh, note)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-       returning id, recorded_at, weight, height, chest, waist, hips, bicep, thigh, note`,
-      [
-        clientId,
-        recorded_at || new Date().toISOString().slice(0, 10),
-        toNum(weight), toNum(height),
-        toNum(chest), toNum(waist), toNum(hips),
-        toNum(bicep), toNum(thigh),
-        String(note).trim(),
-      ]
-    );
-    return res.status(HTTP_CREATED).json(result.rows[0]);
-  } catch (err) {
-    logError('[anthro POST]', err, { userId: req.user?.id });
-    // Повертаємо реальну помилку, щоб було видно в UI
-    return res.status(HTTP_SERVER_ERROR).json({ error: err.message });
   }
-});
+);
 
 // ── GET /api/anthropometry/client/:clientId ──────────────────────────────────
 // Тренер переглядає повну історію антропометрії клієнта (лише читання)

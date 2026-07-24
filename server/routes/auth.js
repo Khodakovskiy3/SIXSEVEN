@@ -6,6 +6,7 @@
  * POST /api/auth/register/resend — повторне надсилання коду підтвердження реєстрації.
  * POST /api/auth/login         — перевіряє пароль; за увімкненої 2FA надсилає код.
  * POST /api/auth/login/verify  — другий крок входу: перевірка email-коду 2FA.
+ * POST /api/auth/login/resend  — повторне надсилання коду 2FA для входу.
  * POST /api/auth/2fa/request   — надіслати код для увімкнення 2FA.
  * POST /api/auth/2fa/enable    — підтвердити код і увімкнути 2FA.
  * POST /api/auth/2fa/disable   — вимкнути 2FA (за паролем).
@@ -24,10 +25,17 @@ import {
   registerSchema,
   registerVerifySchema,
   registerResendSchema,
+  loginResendSchema,
   profileUpdateSchema,
   passwordChangeSchema,
 } from '../schemas/auth.js';
-import { issueCode, verifyCode, getResendWaitSeconds, generateCode } from '../utils/otp.js';
+import {
+  issueCode,
+  verifyCode,
+  getResendWaitSeconds,
+  hasPendingCode,
+  generateCode,
+} from '../utils/otp.js';
 import { sendOtpEmail, isMailConfigured } from '../utils/mailer.js';
 import {
   BCRYPT_SALT_ROUNDS,
@@ -485,6 +493,50 @@ router.post('/login/verify', validateBody(loginVerifySchema), async (req, res) =
   }
 
   return res.json(authResponse(user));
+});
+
+// Повторне надсилання коду 2FA для входу (антиспам той самий, що й у реєстрації).
+router.post('/login/resend', validateBody(loginResendSchema), async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Вкажіть email' });
+  }
+  const emailLc = email.toLowerCase();
+
+  const result = await query(
+    'select id, email, role, twofa_enabled from users where email = $1',
+    [emailLc]
+  );
+  const user = result.rows[0];
+  if (!user || !(user.twofa_enabled || isMandatory2faRole(user.role))) {
+    return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний запит' });
+  }
+
+  // Ключова умова: код повторно надсилаємо лише тим, у кого потік входу вже
+  // розпочато (тобто пароль уже перевірено на кроці POST /login). Інакше
+  // будь-хто міг би слати листи на чужу адресу, знаючи самий лише email.
+  const isLoginStarted = await hasPendingCode(user.id, OTP_PURPOSE.LOGIN);
+  if (!isLoginStarted) {
+    return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний запит' });
+  }
+
+  const wait = await getResendWaitSeconds(user.id, OTP_PURPOSE.LOGIN);
+  if (wait > 0) {
+    return res.status(HTTP_TOO_MANY_REQUESTS).json({
+      error: `Зачекайте ${wait} с перед повторним запитом коду.`,
+      retryAfter: wait,
+    });
+  }
+
+  const code = await issueCode(user.id, OTP_PURPOSE.LOGIN);
+  sendOtpEmail(user.email, code, OTP_PURPOSE.LOGIN)
+    .catch((e) => logError('[2FA] помилка повторного надсилання коду входу', e));
+  return res.json({
+    ok: true,
+    email: user.email,
+    resendIn: OTP_RESEND_COOLDOWN_SEC,
+    ...devCodePayload(code),
+  });
 });
 
 // Надіслати код для увімкнення 2FA на email поточного користувача.

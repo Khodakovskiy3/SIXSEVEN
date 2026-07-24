@@ -73,13 +73,16 @@
     <div class="modal-backdrop" id="password-modal">
         <div class="modal">
             <h2>Змінити пароль</h2>
-            <label>Поточний пароль<input type="password"></label>
-            <label>Новий пароль<input type="password"></label>
-            <label>Підтвердити пароль<input type="password"></label>
-            <div class="modal-actions">
-                <button class="ghost-btn modal-close">Скасувати</button>
-                <button class="primary-btn modal-close">Зберегти</button>
-            </div>
+            <form id="password-form">
+                <label>Поточний пароль<input type="password" name="currentPassword" required autocomplete="current-password"></label>
+                <label>Новий пароль<input type="password" name="newPassword" required autocomplete="new-password"></label>
+                <label>Підтвердити пароль<input type="password" name="confirmPassword" required autocomplete="new-password"></label>
+                <p class="form-note" id="password-feedback" role="status"></p>
+                <div class="modal-actions">
+                    <button type="button" class="ghost-btn modal-close">Скасувати</button>
+                    <button type="submit" class="primary-btn">Зберегти</button>
+                </div>
+            </form>
         </div>
     </div>
 

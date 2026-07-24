@@ -1570,7 +1570,7 @@
     cursor: pointer;
     transition: background .12s;
 }
-.mu-role-option:hover { background: rgba(255,255,255,0.07); }
+.mu-role-option:hover { background: var(--overlay); }
 
 .mu-actions {
     display: flex;

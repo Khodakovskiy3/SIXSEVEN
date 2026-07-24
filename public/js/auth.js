@@ -8,6 +8,35 @@
 import { apiFetch, setAuth } from './api.js';
 import { PAGE, ROLE } from './constants.js';
 
+const MS_PER_SEC = 1000;
+const MIN_PASSWORD_LENGTH = 8;
+const LOWERCASE_PATTERN = /[a-zа-яїієґ]/;
+const UPPERCASE_PATTERN = /[A-ZА-ЯЇІЄҐ]/;
+const DIGIT_PATTERN = /\d/;
+
+/**
+ * Перевіряє пароль на мінімальну стійкість (дублює серверні правила
+ * registerSchema, щоб показати помилку без зайвого запиту до API).
+ *
+ * @param {string} password — пароль у відкритому вигляді.
+ * @returns {string|null} текст помилки або null, якщо пароль прийнятний.
+ */
+function getPasswordError(password) {
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `Пароль має бути мінімум ${MIN_PASSWORD_LENGTH} символів`;
+  }
+  if (!LOWERCASE_PATTERN.test(password)) {
+    return 'Пароль має містити малу літеру';
+  }
+  if (!UPPERCASE_PATTERN.test(password)) {
+    return 'Пароль має містити велику літеру';
+  }
+  if (!DIGIT_PATTERN.test(password)) {
+    return 'Пароль має містити цифру';
+  }
+  return null;
+}
+
 /**
  * Відображає повідомлення у DOM-елементі з заданим кольором.
  *
@@ -91,9 +120,47 @@ function redirectByRole(role) {
   }
 }
 
+/** Активні відліки затримки за кнопкою, щоб не плодити паралельні таймери. */
+const resendTimers = new WeakMap();
+
+/**
+ * Блокує кнопку повторного надсилання на час антиспам-затримки і показує
+ * зворотний відлік, щоб користувач не тиснув її даремно (сервер усе одно
+ * відповість 429).
+ *
+ * @param {HTMLButtonElement|null} button — кнопка «надіслати повторно».
+ * @param {number} seconds — скільки секунд лишилося чекати.
+ */
+function startResendCooldown(button, seconds) {
+  if (!button || !(seconds > 0)) return;
+  const label = button.dataset.label || button.textContent;
+  button.dataset.label = label;
+  let left = Math.ceil(seconds);
+
+  // Попередній відлік міг ще тривати (напр. повторний вхід у тій самій вкладці) —
+  // інакше два інтервали переписували б підпис кнопки навперемін.
+  clearInterval(resendTimers.get(button));
+
+  button.disabled = true;
+  button.textContent = `${label} (${left})`;
+  const timerId = setInterval(() => {
+    left -= 1;
+    if (left <= 0) {
+      clearInterval(timerId);
+      resendTimers.delete(button);
+      button.disabled = false;
+      button.textContent = label;
+      return;
+    }
+    button.textContent = `${label} (${left})`;
+  }, MS_PER_SEC);
+  resendTimers.set(button, timerId);
+}
+
 // ─── Форма входу ─────────────────────────────────────────────────────────────
 const loginForm = document.querySelector('#login-form');
 const login2faForm = document.querySelector('#login-2fa-form');
+const login2faResendBtn = document.querySelector('#login-2fa-resend');
 let pending2faEmail = null; // email, для якого очікується код 2FA
 
 if (loginForm) {
@@ -120,6 +187,9 @@ if (loginForm) {
             ? `Код надіслано. DEV-режим: код ${data.devCode}`
             : 'Код надіслано на вашу пошту.';
         showMessage(messageEl, hint, false);
+        // Якщо код надіслано щойно (або ще діє попередній) — тримаємо кнопку
+        // повторного надсилання заблокованою рівно стільки, скільки скаже сервер.
+        startResendCooldown(login2faResendBtn, data.resendIn);
         document.querySelector('#login-code')?.focus();
         return;
       }
@@ -151,6 +221,28 @@ if (login2faForm) {
     }
   });
 
+  login2faResendBtn?.addEventListener('click', async () => {
+    const messageEl = document.querySelector('#login-message');
+    try {
+      const data = await apiFetch('/auth/login/resend', {
+        method: 'POST',
+        body: JSON.stringify({ email: pending2faEmail }),
+      });
+      showMessage(
+        messageEl,
+        data.devCode
+          ? `Новий код надіслано. DEV-режим: код ${data.devCode}`
+          : 'Новий код надіслано на вашу пошту.',
+        false
+      );
+      startResendCooldown(login2faResendBtn, data.resendIn);
+    } catch (error) {
+      showMessage(messageEl, error.message, true);
+      // 429 повертає retryAfter — блокуємо кнопку до кінця затримки.
+      startResendCooldown(login2faResendBtn, error.retryAfter);
+    }
+  });
+
   document.querySelector('#login-2fa-back')?.addEventListener('click', () => {
     pending2faEmail = null;
     login2faForm.style.display = 'none';
@@ -174,6 +266,12 @@ if (registerForm) {
     const password = document.querySelector('#password').value;
     const confirmPassword = document.querySelector('#confirm-password').value;
     const phone = document.querySelector('#phone')?.value.trim();
+
+    const passwordError = getPasswordError(password);
+    if (passwordError) {
+      showMessage(messageEl, passwordError, true);
+      return;
+    }
 
     if (password !== confirmPassword) {
       showMessage(messageEl, 'Паролі не співпадають', true);
@@ -207,6 +305,7 @@ if (registerForm) {
           : 'Код підтвердження надіслано на вашу пошту.',
         false
       );
+      startResendCooldown(register2faResendBtn, data.resendIn);
       document.querySelector('#register-code')?.focus();
     } catch (error) {
       showMessage(messageEl, error.message, true);
@@ -216,6 +315,7 @@ if (registerForm) {
 
 // ─── Другий крок реєстрації: підтвердження коду 2FA ──────────────────────────
 const register2faForm = document.querySelector('#register-2fa-form');
+const register2faResendBtn = document.querySelector('#register-2fa-resend');
 let pendingRegisterEmail = null; // email, для якого очікується код підтвердження
 
 if (register2faForm) {
@@ -236,7 +336,7 @@ if (register2faForm) {
     }
   });
 
-  document.querySelector('#register-2fa-resend')?.addEventListener('click', async () => {
+  register2faResendBtn?.addEventListener('click', async () => {
     const messageEl = document.querySelector('#register-message');
     try {
       const data = await apiFetch('/auth/register/resend', {
@@ -250,8 +350,11 @@ if (register2faForm) {
           : 'Новий код надіслано на вашу пошту.',
         false
       );
+      startResendCooldown(register2faResendBtn, data.resendIn);
     } catch (error) {
       showMessage(messageEl, error.message, true);
+      // 429 повертає retryAfter — блокуємо кнопку до кінця затримки.
+      startResendCooldown(register2faResendBtn, error.retryAfter);
     }
   });
 

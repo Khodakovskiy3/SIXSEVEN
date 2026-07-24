@@ -1112,15 +1112,51 @@ async function loadActivityPage() {
 
 // ── Антропометрія ─────────────────────────────────────────────────────────────
 
+// Межі min/max мають збігатися з server/schemas/anthropometry.js і CHECK-
+// обмеженнями БД. Дублювання свідоме: тут воно потрібне лише для дружнього
+// повідомлення, авторитетна перевірка лишається на сервері.
 const ANTHRO_FIELDS = [
-  { key: 'weight', label: 'Вага', unit: 'кг' },
-  { key: 'height', label: 'Зріст', unit: 'см' },
-  { key: 'chest',  label: 'Груди', unit: 'см' },
-  { key: 'waist',  label: 'Талія', unit: 'см' },
-  { key: 'hips',   label: 'Стегна', unit: 'см' },
-  { key: 'bicep',  label: 'Біцепс', unit: 'см' },
-  { key: 'thigh',  label: 'Стегно', unit: 'см' },
+  { key: 'weight', label: 'Вага', unit: 'кг', min: 0, max: 400 },
+  { key: 'height', label: 'Зріст', unit: 'см', min: 40, max: 260 },
+  { key: 'chest',  label: 'Груди', unit: 'см', min: 20, max: 250 },
+  { key: 'waist',  label: 'Талія', unit: 'см', min: 20, max: 250 },
+  { key: 'hips',   label: 'Стегна', unit: 'см', min: 20, max: 250 },
+  { key: 'bicep',  label: 'Біцепс', unit: 'см', min: 5, max: 100 },
+  { key: 'thigh',  label: 'Стегно', unit: 'см', min: 10, max: 150 },
 ];
+
+/**
+ * Перевіряє заповнені поля виміру на числовий формат і розумні межі.
+ *
+ * Атрибути min/max у розмітці самі нічого не блокують: збереження висить на
+ * click звичайної кнопки, а не на submit форми, тож браузерна перевірка
+ * ніколи не запускається — саме через це у базу потрапляли від'ємні значення.
+ *
+ * @param {object} values — значення полів у вигляді рядків.
+ * @returns {string|null} текст помилки або null, якщо все гаразд.
+ */
+function getAnthroError(values) {
+  for (const field of ANTHRO_FIELDS) {
+    const raw = values[field.key];
+    if (raw === '') {
+      continue;
+    }
+    const num = Number(String(raw).replace(',', '.'));
+    if (!Number.isFinite(num)) {
+      return `${field.label}: введіть число`;
+    }
+    if (num <= field.min) {
+      return `${field.label}: значення має бути більшим за ${field.min} ${field.unit}`;
+    }
+    if (num >= field.max) {
+      return `${field.label}: значення має бути меншим за ${field.max} ${field.unit}`;
+    }
+  }
+  if (values.recorded_at && values.recorded_at > new Date().toISOString().slice(0, 10)) {
+    return 'Дата виміру не може бути в майбутньому';
+  }
+  return null;
+}
 
 function fmtAnthroDate(dateStr) {
   if (!dateStr) return '';
@@ -1185,9 +1221,14 @@ async function loadAnthropometryPage() {
   const saveBtn = document.querySelector('#anthro-save-btn');
   if (!saveBtn) return;
 
-  // Встановити сьогоднішню дату за замовчуванням
+  // Встановити сьогоднішню дату за замовчуванням; вона ж — максимально
+  // допустима, бо вимір заднім числом можливий, а наперед — ні.
   const dateInput = document.querySelector('#anthro-date');
-  if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  if (dateInput) {
+    dateInput.value = today;
+    dateInput.max = today;
+  }
 
   async function reload() {
     try {
@@ -1215,6 +1256,12 @@ async function loadAnthropometryPage() {
     const hasValue = ANTHRO_FIELDS.some((f) => body[f.key] !== '');
     if (!hasValue) {
       setFormNote(document.querySelector('#anthro-feedback'), 'Заповніть хоча б одне поле', 'error');
+      return;
+    }
+
+    const rangeError = getAnthroError(body);
+    if (rangeError) {
+      setFormNote(document.querySelector('#anthro-feedback'), rangeError, 'error');
       return;
     }
     saveBtn.disabled = true;

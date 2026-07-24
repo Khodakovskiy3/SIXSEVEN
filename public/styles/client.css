@@ -1,6 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Stalinist+One&display=swap');
 
 :root {
+    /* Випадні списки select і вікна вибору дати/часу малює операційна система,
+       а не наш CSS. Без color-scheme вона завжди бере світлу схему: у темній
+       темі список опцій виходив білим, а текст успадковував світлий --text —
+       тобто був майже невидимим. */
+    color-scheme: dark;
+
     --bg: #000000;
     --surface: #0d0d0d;
     --surface-2: #1a1a1a;
@@ -12,9 +18,17 @@
     --danger: #e04444;
     --radius: 14px;
     --shadow: 0 18px 50px rgba(0, 0, 0, 0.50);
+    /* Тло опцій має бути непрозорим: системне вікно не має нашого фону, і
+       напівпрозорий колір змішався б із білим тлом платформи. */
+    --option-bg: #1a1a1a;
+    /* Напівпрозора накладка для ховерів. Світла накладка на світлій темі
+       стає невидимою, тому колір теж прив'язаний до теми. */
+    --overlay: rgba(255, 255, 255, 0.07);
 }
 
 [data-theme="light"] {
+    color-scheme: light;
+
     --bg: #f2f3f7;
     --surface: #ffffff;
     --surface-2: #eaedf5;
@@ -23,6 +37,8 @@
     --muted: #5e6278;
     --accent-soft: rgba(232, 80, 2, 0.10);
     --shadow: 0 18px 50px rgba(0, 0, 0, 0.10);
+    --option-bg: #ffffff;
+    --overlay: rgba(0, 0, 0, 0.06);
 }
 
 * {
@@ -41,6 +57,14 @@ body {
 button,
 input {
     font: inherit;
+}
+
+/* Chrome на Windows/Linux успадковує для option колір самого select, тож
+   задаємо кольори явно — інакше опції зливаються з тлом системного списку. */
+option,
+optgroup {
+    background-color: var(--option-bg);
+    color: var(--text);
 }
 
 button {

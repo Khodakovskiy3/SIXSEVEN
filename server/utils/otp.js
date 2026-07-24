@@ -43,6 +43,27 @@ export async function getResendWaitSeconds(userId, purpose) {
 }
 
 /**
+ * Чи є для користувача розпочатий OTP-потік цього призначення.
+ *
+ * Навмисно НЕ вимагаємо, щоб код був ще чинним: саме прострочений код —
+ * головна причина натиснути «надіслати повторно». Наявність рядка означає,
+ * що попередній крок (напр. перевірка пароля) уже пройдено, тож ендпоінт
+ * повторного надсилання не можна використати для розсилки листів на чужі
+ * адреси.
+ *
+ * @param {number} userId
+ * @param {string} purpose — OTP_PURPOSE.*
+ * @returns {Promise<boolean>} true — потік розпочато.
+ */
+export async function hasPendingCode(userId, purpose) {
+  const result = await query(
+    'select 1 from email_codes where user_id = $1 and purpose = $2 limit 1',
+    [userId, purpose]
+  );
+  return Boolean(result.rows[0]);
+}
+
+/**
  * Генерує випадковий числовий код фіксованої довжини.
  *
  * @returns {string} код, напр. "043915".

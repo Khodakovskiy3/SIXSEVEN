@@ -155,7 +155,13 @@ export async function apiFetch(path, options = {}) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = data.error || 'Request failed';
-    throw new Error(message);
+    const error = new Error(message);
+    // Антиспам-відповіді (429) містять retryAfter — пробрасуємо його далі,
+    // щоб форма могла заблокувати кнопку на потрібний час.
+    if (data.retryAfter) {
+      error.retryAfter = data.retryAfter;
+    }
+    throw error;
   }
 
   return data;

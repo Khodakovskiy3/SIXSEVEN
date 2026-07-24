@@ -20,6 +20,9 @@ import { initModalHotkeys } from './modal-hotkeys.js';
 // Кількість днів у стрічці розкладу (тиждень наперед від сьогодні).
 const WEEK_LENGTH = 14;
 
+// Скільки показувати підтвердження про зміну пароля перед закриттям модалки.
+const PASSWORD_MODAL_CLOSE_DELAY_MS = 1200;
+
 const titles = {
   home: 'Головна',
   schedule: 'Розклад',
@@ -631,17 +634,84 @@ document.addEventListener('click', async (event) => {
 
 const passwordModal = document.querySelector('#password-modal');
 
+/** Ховає модалку і чистить введене, щоб пароль не лишався у полях. */
+function closeTrainerPasswordModal() {
+  if (!passwordModal) {
+    return;
+  }
+  passwordModal.classList.remove('active');
+  passwordModal.querySelector('form')?.reset();
+  setTrainerPasswordNote('', '');
+}
+
+/**
+ * Показує повідомлення у модалці зміни пароля.
+ *
+ * @param {string} message — текст повідомлення.
+ * @param {string} type — 'error' | 'success' | '' (порожній очищає).
+ */
+function setTrainerPasswordNote(message, type) {
+  const feedback = document.querySelector('#password-feedback');
+  if (!feedback) {
+    return;
+  }
+  feedback.textContent = message;
+  feedback.dataset.type = type;
+}
+
+/**
+ * Змінює пароль тренера через PUT /auth/password.
+ *
+ * Локально звіряємо лише збіг підтвердження — вимоги до стійкості перевіряє
+ * сервер і повертає готове повідомлення, тож правила не дублюються.
+ *
+ * @param {HTMLFormElement} form
+ */
+async function changeTrainerPassword(form) {
+  const formData = new FormData(form);
+  const newPassword = formData.get('newPassword');
+
+  if (newPassword !== formData.get('confirmPassword')) {
+    setTrainerPasswordNote('Паролі не співпадають', 'error');
+    return;
+  }
+
+  try {
+    await apiFetch('/auth/password', {
+      method: 'PUT',
+      body: JSON.stringify({
+        currentPassword: formData.get('currentPassword'),
+        newPassword,
+      }),
+      // Невірний поточний пароль повертає 401; без цього прапорця apiFetch
+      // сприйняв би це як протерміновану сесію й розлогінив би тренера.
+      skipAuthRedirect: true,
+    });
+    // На сторінках тренера немає повідомлення поза модалкою, тож показуємо
+    // підтвердження в ній і закриваємо з невеликою затримкою.
+    setTrainerPasswordNote('Пароль змінено ✓', 'success');
+    setTimeout(closeTrainerPasswordModal, PASSWORD_MODAL_CLOSE_DELAY_MS);
+  } catch (error) {
+    setTrainerPasswordNote(`Не вдалося змінити пароль: ${error.message}`, 'error');
+  }
+}
+
 document.querySelectorAll('.modal-open').forEach((button) => {
   button.addEventListener('click', () => passwordModal?.classList.add('active'));
 });
 
 document.querySelectorAll('.modal-close').forEach((button) => {
-  button.addEventListener('click', () => passwordModal?.classList.remove('active'));
+  button.addEventListener('click', closeTrainerPasswordModal);
+});
+
+document.querySelector('#password-form')?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  changeTrainerPassword(event.currentTarget);
 });
 
 passwordModal?.addEventListener('click', (event) => {
   if (event.target === passwordModal) {
-    passwordModal.classList.remove('active');
+    closeTrainerPasswordModal();
   }
 });
 
