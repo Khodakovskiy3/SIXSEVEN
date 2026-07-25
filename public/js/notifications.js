@@ -446,6 +446,9 @@ export async function initNotifications() {
       if (newItems.length > 0) {
         newItems.forEach((i) => knownIds.add(i.id));
         playNotificationSound();
+        document.dispatchEvent(new CustomEvent('olimp:notifications:new', {
+          detail: { items: newItems },
+        }));
       }
 
       data = fresh;

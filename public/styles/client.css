@@ -786,6 +786,20 @@ p {
     flex: 1;
     min-width: 0;
 }
+.sub-card__header,
+.current-plan__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+}
+.subscription-history-btn {
+    flex-shrink: 0;
+    padding: 7px 12px;
+    font-size: 12px;
+}
 .sub-card__badge {
     display: inline-flex;
     align-items: center;
@@ -2317,6 +2331,161 @@ dd {
         flex-direction: column;
         height: calc(100dvh - 72px); /* app-shell: padding-top 32px + padding-bottom 40px */
         overflow: hidden;
+    }
+
+    /* Сторінка абонементів вища за один екран. Даємо їй власний скрол,
+       бо загальний desktop-layout навмисно блокує overflow для дашбордів. */
+    .client-app--subscription {
+        overflow-x: hidden;
+        overflow-y: hidden;
+        min-width: 0;
+        padding-bottom: 28px;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(232, 80, 2, .35) transparent;
+    }
+
+    .client-app--subscription::-webkit-scrollbar {
+        width: 7px;
+    }
+
+    .client-app--subscription::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: rgba(232, 80, 2, .35);
+    }
+
+    /* Flex-картки не повинні збільшувати мінімальну ширину grid-панелі. */
+    .client-app--subscription .detail-screen,
+    .client-app--subscription .detail-screen > .panel,
+    .client-app--subscription .subscription-detail,
+    .client-app--subscription .current-plan,
+    .client-app--subscription .plans-grid {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .client-app--subscription .detail-screen > .panel {
+        overflow: hidden;
+    }
+
+    .client-app--subscription .back-btn {
+        width: 100%;
+        justify-self: stretch;
+    }
+
+    .client-app--subscription .plans-grid {
+        display: flex;
+        align-items: stretch;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(232, 80, 2, .35) transparent;
+    }
+
+    .client-app--subscription .plans-grid .manage-card {
+        flex: 0 0 280px;
+        width: 280px;
+        min-width: 280px;
+        max-width: 280px;
+        scroll-snap-align: start;
+    }
+
+    .client-app--subscription .plans-grid::-webkit-scrollbar {
+        display: block;
+        height: 7px;
+    }
+
+    .client-app--subscription .plans-grid::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background: rgba(232, 80, 2, .35);
+    }
+
+    /* Компактний активний абонемент на великих екранах. */
+    .client-app--subscription .sub-card {
+        padding: 8px 10px 8px 12px;
+        gap: 6px;
+    }
+
+    .client-app--subscription .sub-card__content {
+        gap: 3px;
+    }
+
+    .client-app--subscription .sub-card__name {
+        font-size: 15px;
+    }
+
+    .client-app--subscription .sub-date-row {
+        padding: 3px 0;
+    }
+
+    .client-app--subscription .sub-date-icon {
+        width: 22px;
+        height: 22px;
+    }
+
+    .client-app--subscription .sub-card .form-note {
+        font-size: 11px;
+        line-height: 1.2;
+    }
+
+    .client-app--subscription .sub-card .danger-btn {
+        padding: 7px 10px;
+        font-size: 12px;
+    }
+
+    .client-app--subscription .sub-card__illo {
+        display: none;
+    }
+
+    /* Стискаємо картки тарифів, щоб сторінка поміщалася без вертикального
+       скролу; прокрутка між тарифами залишається горизонтальною. */
+    .client-app--subscription .manage-card__dark {
+        padding: 14px 16px 12px;
+    }
+
+    .client-app--subscription .manage-card__topline {
+        margin-bottom: 6px;
+    }
+
+    .client-app--subscription .manage-card__desc {
+        padding-bottom: 6px;
+        font-size: 11px;
+        line-height: 1.3;
+    }
+
+    .client-app--subscription .manage-card h3 {
+        font-size: 16px;
+        line-height: 1.15;
+    }
+
+    .client-app--subscription .manage-card__price {
+        margin-bottom: 6px;
+    }
+
+    .client-app--subscription .manage-card__price strong {
+        font-size: 34px;
+    }
+
+    .client-app--subscription .manage-card__currency,
+    .client-app--subscription .manage-card__period {
+        padding-bottom: 6px;
+    }
+
+    .client-app--subscription .manage-card__cta .primary-btn {
+        padding: 10px;
+        font-size: 13px;
+    }
+
+    .client-app--subscription .manage-card__features {
+        padding: 7px 12px;
+        gap: 4px;
+    }
+
+    .client-app--subscription .manage-card__features li {
+        gap: 5px;
+        font-size: 10px;
+        line-height: 1.2;
     }
 
     /* Schedule page on desktop — match sidebar bottom edge */

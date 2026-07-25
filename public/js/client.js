@@ -1,5 +1,5 @@
 import { apiFetch, clearAuth, formatDate, requireFreshAuth, setAuth } from './api.js';
-import { escapeHtml, getInitials, getAvatarColor, AVATAR_PALETTE, formatMoney } from './utils.js';
+import { escapeHtml, getInitials, getAvatarColor, AVATAR_PALETTE } from './utils.js';
 import { hydrateAccount } from './account.js';
 import { PAGE, ROLE, STORAGE_KEY } from './constants.js';
 import { initSidebar } from './sidebar.js';
@@ -22,9 +22,6 @@ const titles = {
 
 let activePlans = [];
 let allClientSubscriptions = [];
-// Чинний абонемент блокує купівлю нового: спершу його треба скасувати.
-let hasActiveSubscription = false;
-let currentPlanForPurchase = null;
 let schedules = [];
 let bookings = [];
 let selectedScheduleDate = '';
@@ -41,6 +38,8 @@ const accessTypeLabels = {
   personal: 'Персональне',
   gym_group: 'Зал + групові',
 };
+
+const SUBSCRIPTION_ADMIN_ONLY_MESSAGE = 'Послуга тимчасово недоступна, зверніться до адміністратора';
 
 /**
  * Кастомний діалог підтвердження замість window.confirm()
@@ -313,13 +312,15 @@ function renderCurrentSubscription(subscriptions = []) {
   if (!container) return;
 
   const activeSubscription = subscriptions.find((item) => item.status === 'active' && new Date(item.end_date) >= new Date());
-  hasActiveSubscription = Boolean(activeSubscription);
 
   if (!activeSubscription) {
     container.innerHTML = `
-      <span class="chip">Немає активного</span>
+      <div class="current-plan__header">
+        <span class="chip">Немає активного</span>
+        <button class="ghost-btn subscription-history-btn" id="subscription-history-btn" hidden>Історія</button>
+      </div>
       <h3>Активний абонемент відсутній</h3>
-      <p>Оберіть один із доступних тарифів нижче.</p>
+      <p>Оберіть тариф нижче та зверніться до адміністратора для оформлення.</p>
     `;
     return;
   }
@@ -332,8 +333,11 @@ function renderCurrentSubscription(subscriptions = []) {
   container.innerHTML = `
     <div class="sub-card">
       <div class="sub-card__content">
-        <div class="sub-card__badge">
-          <span class="sub-card__dot"></span>Активний
+        <div class="sub-card__header">
+          <div class="sub-card__badge">
+            <span class="sub-card__dot"></span>Активний
+          </div>
+          <button class="ghost-btn subscription-history-btn" id="subscription-history-btn" hidden>Історія</button>
         </div>
         <h3 class="sub-card__name">${escapeHtml(activeSubscription.type || activeSubscription.plan_name || 'Абонемент')}</h3>
         <div class="sub-card__usage">
@@ -358,7 +362,7 @@ function renderCurrentSubscription(subscriptions = []) {
             <span class="sub-date-val">${fmtLocalDate(activeSubscription.end_date)}</span>
           </div>
         </div>
-        <p class="form-note">Щоб придбати інший тариф, спершу скасуйте поточний абонемент.</p>
+        <p class="form-note">Для зміни або скасування абонемента зверніться до адміністратора.</p>
         <button class="danger-btn" data-cancel-subscription>Скасувати абонемент</button>
       </div>
       <div class="sub-card__illo" aria-hidden="true">
@@ -417,10 +421,7 @@ function renderAvailablePlans() {
             <span class="manage-card__period">${period}</span>
           </div>
           <div class="manage-card__cta">
-            ${hasActiveSubscription
-              ? `<button class="primary-btn" disabled
-                   title="Спершу скасуйте поточний абонемент">Придбати</button>`
-              : `<button class="primary-btn" data-purchase-plan="${plan.id}">Придбати</button>`}
+            <button class="primary-btn" data-purchase-plan="${plan.id}">Придбати</button>
           </div>
         </div>
         <div class="manage-card__light">
@@ -1460,63 +1461,6 @@ async function loadSubscriptionPage() {
   }
 }
 
-function openPurchaseModal(plan) {
-  currentPlanForPurchase = plan;
-  const content = document.querySelector('#purchase-modal-content');
-  if (!content || !modal) return;
-
-  content.innerHTML = `
-    <p>${escapeHtml(plan.name)}</p>
-    <p>Ціна: ${formatMoney(plan.price)}</p>
-    <p>${escapeHtml(describePlan(plan))}</p>
-    <div class="modal-actions">
-      <button class="ghost-btn modal-close">Скасувати</button>
-      <button class="primary-btn" id="confirm-purchase">Підтвердити</button>
-    </div>
-  `;
-  modal.classList.add('active');
-}
-
-/**
- * Скасовує чинний абонемент клієнта після підтвердження.
- * Після успіху сторінка перезавантажує дані, і кнопки «Придбати» розблоковуються.
- *
- * @returns {Promise<void>}
- */
-async function cancelCurrentSubscription() {
-  const confirmed = await showConfirm(
-    'Скасувати поточний абонемент? Після цього ви зможете придбати новий.',
-    'Скасувати абонемент'
-  );
-  if (!confirmed) {
-    return;
-  }
-
-  try {
-    await apiFetch('/subscriptions/me/cancel', { method: 'POST' });
-    setSubscriptionFeedback('Абонемент скасовано. Тепер можна придбати новий.', 'success');
-    await loadSubscriptionPage();
-  } catch (error) {
-    setSubscriptionFeedback(`Не вдалося скасувати абонемент: ${error.message}`, 'error');
-  }
-}
-
-async function purchaseSelectedPlan() {
-  if (!currentPlanForPurchase) return;
-
-  try {
-    await apiFetch('/subscriptions/purchase', {
-      method: 'POST',
-      body: JSON.stringify({ plan_id: currentPlanForPurchase.id }),
-    });
-    modal.classList.remove('active');
-    setSubscriptionFeedback('Абонемент придбано. Оплату створено.', 'success');
-    await loadSubscriptionPage();
-  } catch (error) {
-    setSubscriptionFeedback(`Не вдалося придбати абонемент: ${error.message}`, 'error');
-  }
-}
-
 document.querySelectorAll('[data-screen], [data-screen-link]').forEach((button) => {
   button.addEventListener('click', () => {
     setScreen(button.dataset.screen || button.dataset.screenLink);
@@ -1625,19 +1569,13 @@ document.addEventListener('click', (event) => {
   }
 
   if (event.target.closest('[data-cancel-subscription]')) {
-    cancelCurrentSubscription();
+    showAlert(SUBSCRIPTION_ADMIN_ONLY_MESSAGE);
     return;
   }
 
   const purchaseButton = event.target.closest('[data-purchase-plan]');
   if (purchaseButton) {
-    const plan = activePlans.find((item) => String(item.id) === purchaseButton.dataset.purchasePlan);
-    if (plan) openPurchaseModal(plan);
-    return;
-  }
-
-  if (event.target.closest('#confirm-purchase')) {
-    purchaseSelectedPlan();
+    showAlert(SUBSCRIPTION_ADMIN_ONLY_MESSAGE);
     return;
   }
 
@@ -1780,6 +1718,19 @@ passwordModal?.addEventListener('click', (event) => {
 
 initSidebar();
 initTheme();
+
+// Коли адміністратор надає або замінює абонемент, модуль сповіщень
+// повідомляє про новий запис. Оновлюємо відкритий кабінет без перезавантаження.
+document.addEventListener('olimp:notifications:new', (event) => {
+  const hasSubscriptionUpdate = event.detail?.items?.some((item) =>
+    String(item.subject || '').startsWith('Вам надано абонемент')
+  );
+  if (hasSubscriptionUpdate) {
+    loadHomePage();
+    loadSubscriptionPage();
+  }
+});
+
 initNotifications();
 initHelpWidget('client');
 initModalHotkeys();

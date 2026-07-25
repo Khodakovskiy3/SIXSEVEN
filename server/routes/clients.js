@@ -63,7 +63,9 @@ router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
        select id, plan_id, type, end_date, status
        from subscriptions
        where client_id = c.id
-       order by end_date desc
+       order by (status = 'active' and end_date >= current_date) desc,
+                end_date desc,
+                id desc
        limit 1
      ) s on true
      left join subscription_plans sp on sp.id = s.plan_id
@@ -93,7 +95,9 @@ router.get('/me', requireRole(ROLE.CLIENT), async (req, res) => {
     `select id, type, start_date, end_date, status
      from subscriptions
      where client_id = $1
-     order by end_date desc
+     order by (status = 'active' and end_date >= current_date) desc,
+              end_date desc,
+              id desc
      limit 1`,
     [clientId]
   );
@@ -247,7 +251,9 @@ router.get('/:id', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
        select id, plan_id, type, start_date, end_date, status
        from subscriptions
        where client_id = c.id
-       order by end_date desc
+       order by (status = 'active' and end_date >= current_date) desc,
+                end_date desc,
+                id desc
        limit 1
      ) s on true
      left join subscription_plans sp on sp.id = s.plan_id

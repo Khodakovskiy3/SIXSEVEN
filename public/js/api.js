@@ -156,6 +156,9 @@ export async function apiFetch(path, options = {}) {
   if (!response.ok) {
     const message = data.error || 'Request failed';
     const error = new Error(message);
+    if (data.code) {
+      error.code = data.code;
+    }
     // Антиспам-відповіді (429) містять retryAfter — пробрасуємо його далі,
     // щоб форма могла заблокувати кнопку на потрібний час.
     if (data.retryAfter) {

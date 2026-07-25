@@ -552,6 +552,98 @@
     .analytics-tabs .tab {
         font-size: 13px;
     }
+
+    /* Компактна аналітика для розширеного desktop-вікна. */
+    .manager-app--analytics {
+        height: calc(100dvh - 72px);
+        min-height: 0;
+        overflow: hidden;
+        padding: 14px 18px 18px;
+    }
+
+    .manager-app--analytics .topbar {
+        margin-bottom: 10px;
+        flex-shrink: 0;
+    }
+
+    .manager-app--analytics .screen.active[data-screen-panel="analytics"],
+    .manager-app--analytics .manager-section {
+        min-height: 0;
+    }
+
+    .manager-app--analytics .manager-section {
+        gap: 8px;
+        padding: 12px;
+    }
+
+    .manager-app--analytics .manager-stats-grid {
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .manager-app--analytics .manager-stats-grid article {
+        padding: 10px 12px;
+        border-radius: 12px;
+    }
+
+    .manager-app--analytics .manager-stats-grid span {
+        font-size: 11px;
+        margin-bottom: 4px;
+    }
+
+    .manager-app--analytics .manager-stats-grid strong {
+        font-size: 22px;
+    }
+
+    .manager-app--analytics .manager-two-columns {
+        gap: 8px;
+        margin-top: 8px !important;
+    }
+
+    .manager-app--analytics .manager-two-columns > .panel {
+        padding: 10px;
+    }
+
+    .manager-app--analytics .manager-two-columns > .panel > div:first-child {
+        margin-bottom: 6px !important;
+    }
+
+    .manager-app--analytics .finance-line-chart,
+    .manager-app--analytics .visit-line-chart {
+        min-height: 132px !important;
+        padding: 8px 9px 6px;
+    }
+
+    .manager-app--analytics .finance-line-chart svg,
+    .manager-app--analytics .visit-line-chart svg {
+        height: 104px;
+    }
+
+    .manager-app--analytics .chart-labels {
+        height: 12px;
+        margin-top: 2px;
+        font-size: 9px;
+    }
+
+    .manager-app--analytics .manager-section > section.panel {
+        margin-top: 8px !important;
+        padding: 10px;
+    }
+
+    .manager-app--analytics .manager-section > section.panel > div:first-child {
+        margin-bottom: 7px !important;
+    }
+
+    .manager-app--analytics .manager-table {
+        gap: 5px;
+        margin-top: 8px;
+    }
+
+    .manager-app--analytics .manager-table-row,
+    .manager-app--analytics .manager-table-head {
+        padding: 6px 8px;
+        font-size: 11px;
+    }
 }
 .manager-page-head {
   display: flex;
@@ -1851,3 +1943,115 @@
 /* ══════════════════════════════════════════════════
    СВІТЛА ТЕМА
 ══════════════════════════════════════════════════ */
+
+/* Компактний адаптивний дашборд менеджера для desktop-вікон. */
+@media (min-width: 900px) {
+    .manager-app--dashboard {
+        height: calc(100dvh - 10px);
+        min-height: 0;
+        overflow: hidden;
+        padding: 8px 14px 12px;
+    }
+
+    .manager-app--dashboard .topbar {
+        margin-bottom: 6px;
+        flex-shrink: 0;
+    }
+
+    .manager-app--dashboard .topbar .brand { display: none; }
+    .manager-app--dashboard .topbar h1 {
+        margin-top: 0;
+        font-size: clamp(19px, 2vw, 28px);
+    }
+
+    .manager-app--dashboard .screen.active[data-screen-panel="dashboard"] {
+        min-height: 0;
+    }
+
+    .manager-app--dashboard .screen.active[data-screen-panel="dashboard"] > p {
+        margin-bottom: 7px !important;
+        font-size: 12px;
+    }
+
+    .manager-app--dashboard .dash-kpi-grid {
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .manager-app--dashboard .dash-kpi-card {
+        min-height: 68px;
+        padding: 10px 12px;
+        border-radius: 12px;
+    }
+
+    .manager-app--dashboard .dash-kpi-card__left { gap: 9px; }
+    .manager-app--dashboard .dash-kpi-card__ico {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+    }
+    .manager-app--dashboard .dash-kpi-card__ico svg {
+        width: 17px;
+        height: 17px;
+    }
+    .manager-app--dashboard .dash-kpi-card__body { gap: 2px; }
+    .manager-app--dashboard .dash-kpi-card__body > span { font-size: 10px; }
+    .manager-app--dashboard .dash-kpi-card__body > strong {
+        font-size: clamp(20px, 2.2vw, 25px);
+    }
+    .manager-app--dashboard .dash-trend--up,
+    .manager-app--dashboard .dash-trend--down { font-size: 10px; }
+    .manager-app--dashboard .dash-kpi-card__deco svg {
+        width: 42px;
+        height: 23px;
+    }
+
+    .manager-app--dashboard .dash-chart-panel {
+        margin-bottom: 8px;
+        padding: 9px 11px;
+        border-radius: 12px;
+    }
+    .manager-app--dashboard .dash-chart-head { margin-bottom: 4px; }
+    .manager-app--dashboard .dash-chart-title { font-size: 14px; }
+    .manager-app--dashboard .dash-chart-wrap {
+        height: clamp(150px, 24vh, 205px);
+    }
+
+    .manager-app--dashboard .manager-two-columns { gap: 8px; }
+    .manager-app--dashboard .manager-two-columns > .panel {
+        padding: 10px;
+        border-radius: 12px;
+    }
+    .manager-app--dashboard .dbar-head { margin-bottom: 8px; }
+    .manager-app--dashboard .dbar-list { gap: 8px; }
+    .manager-app--dashboard .dbar-item { gap: 7px; }
+    .manager-app--dashboard .dbar-track { height: 6px; }
+
+    /* Аналітика може бути вищою за viewport — дозволяємо прокрутку,
+       але зберігаємо компактні картки й графіки. */
+    .manager-app--analytics {
+        height: calc(100dvh - 10px);
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .manager-app--analytics .screen.active[data-screen-panel="analytics"] {
+        min-height: max-content;
+    }
+}
+
+@media (min-width: 900px) and (max-width: 1250px) {
+    .manager-app--analytics .manager-stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .manager-app--analytics .manager-two-columns {
+        grid-template-columns: 1fr;
+    }
+
+    .manager-app--analytics .finance-line-chart,
+    .manager-app--analytics .visit-line-chart {
+        min-height: 150px !important;
+    }
+}

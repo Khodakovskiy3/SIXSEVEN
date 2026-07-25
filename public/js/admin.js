@@ -1813,6 +1813,9 @@ async function openClientDetails(clientId) {
         <div><dt>Статус</dt><dd>${statusLabels[status] || status}</dd></div>
         <div><dt>Діє до</dt><dd>${formatDate(client.subscription_end_date) || '—'}</dd></div>
       </dl>
+      ${status === 'active' && client.subscription_id
+        ? `<button class="danger-btn" style="width:100%;margin-top:8px" data-client-cancel-subscription="${client.subscription_id}" data-client-id="${clientId}">Скасувати абонемент</button>`
+        : ''}
       <button class="ghost-btn" style="width:100%;margin-top:8px" data-open-client-history="${clientId}">Історія</button>
     `;
     sheet.classList.add('active');
@@ -1822,6 +1825,28 @@ async function openClientDetails(clientId) {
     });
   } catch (error) {
     setFeedback(`Не вдалося відкрити деталі: ${error.message}`, 'error');
+  }
+}
+
+async function cancelClientSubscription(subscriptionId, clientId) {
+  const isConfirmed = await openConfirmModal({
+    title: 'Скасувати абонемент?',
+    message: 'У клієнта буде скасовано поточний активний абонемент.',
+    note: 'Запис залишиться в історії, але доступ за абонементом буде припинено.',
+    confirmLabel: 'Так, скасувати',
+    isDanger: true,
+  });
+  if (!isConfirmed) return;
+
+  try {
+    await apiFetch(`/subscriptions/${subscriptionId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'cancelled' }),
+    });
+    await Promise.all([loadClients(), openClientDetails(clientId)]);
+    setFeedback('Абонемент клієнта скасовано', 'success');
+  } catch (error) {
+    setFeedback(`Не вдалося скасувати абонемент: ${error.message}`, 'error');
   }
 }
 
@@ -2364,13 +2389,47 @@ async function assignPlan(form) {
 
   try {
     setModalError('');
-    await apiFetch('/subscriptions/assign', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+    let replacedActivePlan = false;
+    try {
+      await apiFetch('/subscriptions/assign', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    } catch (error) {
+      const activeSubscriptionExists = error.code === 'ACTIVE_SUBSCRIPTION_EXISTS'
+        || error.message.includes('Підтвердьте його заміну');
+      if (!activeSubscriptionExists) {
+        throw error;
+      }
+
+      const selectedClient = clients.find((client) => Number(client.id) === payload.client_id);
+      const selectedPlan = plans.find((plan) => Number(plan.id) === payload.plan_id);
+      const isConfirmed = await openConfirmModal({
+        title: 'Увага: діючий абонемент',
+        message: 'У клієнта вже є діючий абонемент. Ви впевнені, що хочете замінити його?',
+        note: `Поточний абонемент${selectedClient?.subscription_type ? ` «${escapeHtml(selectedClient.subscription_type)}»` : ''} буде скасовано, а замість нього надано «${escapeHtml(selectedPlan?.name || 'новий абонемент')}».`,
+        confirmLabel: 'Так, замінити',
+        isDanger: false,
+      });
+      if (!isConfirmed) {
+        return;
+      }
+
+      await apiFetch('/subscriptions/assign', {
+        method: 'POST',
+        body: JSON.stringify({ ...payload, replace_active: true }),
+      });
+      replacedActivePlan = true;
+    }
+
     closeModal();
     await Promise.all([loadSubscriptions(), loadClients()]);
-    setPlansFeedback('Абонемент призначено клієнту, оплату створено', 'success');
+    setPlansFeedback(
+      replacedActivePlan
+        ? 'Абонемент клієнта замінено, оплату створено'
+        : 'Абонемент призначено клієнту, оплату створено',
+      'success'
+    );
   } catch (error) {
     setModalError(error.message);
     setPlansFeedback(`Не вдалося призначити абонемент: ${error.message}`, 'error');
@@ -2737,6 +2796,15 @@ document.addEventListener('click', async (event) => {
   const detailsButton = event.target.closest('[data-client-details]');
   if (detailsButton) {
     openClientDetails(detailsButton.dataset.clientDetails);
+    return;
+  }
+
+  const clientCancelSubscriptionButton = event.target.closest('[data-client-cancel-subscription]');
+  if (clientCancelSubscriptionButton) {
+    cancelClientSubscription(
+      clientCancelSubscriptionButton.dataset.clientCancelSubscription,
+      clientCancelSubscriptionButton.dataset.clientId
+    );
     return;
   }
 

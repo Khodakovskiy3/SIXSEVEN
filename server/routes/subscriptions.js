@@ -353,6 +353,7 @@ router.post('/assign', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) =
     plan_id: planId,
     start_date: startDate,
     status,
+    replace_active: replaceActive = false,
   } = req.body || {};
 
   if (!clientId || !planId || !startDate) {
@@ -382,18 +383,33 @@ router.post('/assign', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) =
         return { reason: 'plan_unavailable' };
       }
 
-      // Дублювання чинного абонемента того самого тарифу заборонено (ТЗ 4.1.3):
-      // перевірка в межах транзакції захищає і від паралельних запитів.
-      const duplicateResult = await client.query(
-        `select id from subscriptions
-         where client_id = $1 and plan_id = $2 and status = $3
-           and end_date >= current_date
-         limit 1`,
-        [clientId, plan.id, SUBSCRIPTION_STATUS.ACTIVE]
+      // Блокуємо чинні абонементи клієнта до завершення транзакції. Новий
+      // тариф може замінити старий лише після явного підтвердження в адмінці.
+      const activeResult = await client.query(
+        `select id, plan_id from subscriptions
+         where client_id = $1 and status = $2 and end_date >= current_date
+         for update`,
+        [clientId, SUBSCRIPTION_STATUS.ACTIVE]
       );
-      if (duplicateResult.rows.length > 0) {
+      const hasSameActivePlan = activeResult.rows.some(
+        (subscription) => Number(subscription.plan_id) === Number(plan.id)
+      );
+      if (hasSameActivePlan) {
         await client.query('rollback');
         return { reason: 'duplicate_active' };
+      }
+      if (activeResult.rows.length > 0 && replaceActive !== true) {
+        await client.query('rollback');
+        return { reason: 'active_exists' };
+      }
+
+      if (activeResult.rows.length > 0) {
+        await client.query(
+          `update subscriptions
+           set status = $1
+           where client_id = $2 and status = $3 and end_date >= current_date`,
+          [SUBSCRIPTION_STATUS.CANCELLED, clientId, SUBSCRIPTION_STATUS.ACTIVE]
+        );
       }
 
       const start = new Date(startDate);
@@ -426,7 +442,11 @@ router.post('/assign', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) =
       );
 
       await client.query('commit');
-      return { subscription, payment: paymentResult.rows[0] || null };
+      return {
+        subscription,
+        payment: paymentResult.rows[0] || null,
+        replaced: activeResult.rows.length > 0,
+      };
     });
   } catch (error) {
     // Порушення обмежень БД не має «вішати» запит: без цього блоку проміс
@@ -441,6 +461,12 @@ router.post('/assign', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) =
     return res
       .status(HTTP_CONFLICT)
       .json({ error: 'Client already has an active subscription of this plan' });
+  }
+  if (assigned.reason === 'active_exists') {
+    return res.status(HTTP_CONFLICT).json({
+      code: 'ACTIVE_SUBSCRIPTION_EXISTS',
+      error: 'У клієнта вже є діючий абонемент. Підтвердьте його заміну.',
+    });
   }
 
   await notifyClientAboutSubscription(
