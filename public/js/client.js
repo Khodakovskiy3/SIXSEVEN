@@ -39,7 +39,7 @@ const accessTypeLabels = {
   gym_group: 'Зал + групові',
 };
 
-const SUBSCRIPTION_ADMIN_ONLY_MESSAGE = 'Послуга тимчасово недоступна, зверніться до адміністратора';
+const SUBSCRIPTION_ADMIN_ONLY_MESSAGE = 'Оформлення абонемента здійснює адміністратор клубу. Зверніться до адміністратора через чат або рецепцію клубу.';
 
 /**
  * Кастомний діалог підтвердження замість window.confirm()
@@ -421,7 +421,7 @@ function renderAvailablePlans() {
             <span class="manage-card__period">${period}</span>
           </div>
           <div class="manage-card__cta">
-            <button class="primary-btn" data-purchase-plan="${plan.id}">Придбати</button>
+            <button class="primary-btn" data-purchase-plan="${plan.id}">Оформити абонемент</button>
           </div>
         </div>
         <div class="manage-card__light">
