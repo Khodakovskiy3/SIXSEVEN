@@ -2246,6 +2246,12 @@
     display: none;
 }
 
+/* Загальне правило .admin-form label задає display:grid, тому стандартний
+   hidden треба явно перебити для умовного поля часу розсилки. */
+.admin-form #message-send-time-field[hidden] {
+    display: none !important;
+}
+
 .admin-form .recipient-item input[type="checkbox"] {
     width: 16px;
     height: 16px;

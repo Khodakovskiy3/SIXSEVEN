@@ -115,38 +115,6 @@ router.get(
   }
 );
 
-/**
- * Сповіщає тренера про новий запис клієнта на його заняття.
- * Якщо заняття без тренера — сповіщати нікого, тихо виходимо.
- *
- * @param {string|number} scheduleId Ідентифікатор запису розкладу.
- * @param {string} clientName Ім'я клієнта, який записався.
- * @returns {Promise<void>}
- */
-async function notifyTrainerAboutBooking(scheduleId, clientName) {
-  const result = await query(
-    `select u.id as user_id, w.name as workout_name, s.date, s.time
-     from schedules s
-     join workouts w on w.id = s.workout_id
-     join trainers t on t.id = s.trainer_id
-     join users u on u.id = t.user_id
-     where s.id = $1`,
-    [scheduleId]
-  );
-  if (result.rows.length === 0) {
-    return;
-  }
-
-  const { user_id: trainerUserId, workout_name: workoutName, date, time } = result.rows[0];
-  const slot = `${new Date(date).toLocaleDateString('uk-UA')} о ${String(time).slice(0, 5)}`;
-  await notifyUsers(
-    [trainerUserId],
-    `Новий запис на «${workoutName}»`,
-    `${clientName} записався(-лась) на ваше заняття ${slot}.`,
-    { category: 'training' }
-  );
-}
-
 async function notifyClientBookingConfirmed(userId, scheduleId) {
   const result = await query(
     `select w.name as workout_name, s.date, s.time
@@ -164,7 +132,7 @@ async function notifyClientBookingConfirmed(userId, scheduleId) {
     [userId],
     `Запис підтверджено`,
     `Ви записані на «${workoutName}» ${slot}.`,
-    { category: 'training' }
+    { category: 'training', link: `/pages/client/schedule.html?schedule=${scheduleId}` }
   );
 }
 
@@ -198,7 +166,7 @@ async function notifyTrainerIfClassFull(scheduleId) {
       [trainerUserId],
       `Заняття «${workoutName}» заповнено`,
       `Усі місця на ${slot} зайняті.`,
-      { category: 'training' }
+      { category: 'training', link: `/pages/trainer/schedule.html?schedule=${scheduleId}` }
     );
   }
 }
@@ -290,7 +258,6 @@ router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
       return res.status(HTTP_CONFLICT).json({ error: bookingResult.error });
     }
 
-    notifyTrainerAboutBooking(scheduleId, req.user.name).catch(() => {});
     notifyClientBookingConfirmed(req.user.id, scheduleId).catch(() => {});
     notifyTrainerIfClassFull(scheduleId).catch(() => {});
 
@@ -331,7 +298,7 @@ router.delete('/:id', authRequired, async (req, res) => {
   }
 
   const bookingInfo = await query(
-    `select u.id as client_user_id, w.name as workout_name, s.date, s.time
+    `select u.id as client_user_id, w.name as workout_name, s.id as schedule_id, s.date, s.time
      from bookings b
      join clients c on c.id = b.client_id
      join users u on u.id = c.user_id
@@ -355,7 +322,7 @@ router.delete('/:id', authRequired, async (req, res) => {
       [clientUserId],
       `Запис скасовано`,
       `Ваш запис на «${workoutName}» ${slot} скасовано адміністратором.`,
-      { category: 'training' }
+      { category: 'training', link: `/pages/client/schedule.html?schedule=${bookingInfo.rows[0].schedule_id || ''}` }
     ).catch(() => {});
   }
 

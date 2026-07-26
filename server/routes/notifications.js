@@ -28,7 +28,8 @@ function audiencesForRole(role) {
   if (role === 'trainer') {
     return ['trainers', 'all'];
   }
-  return ['clients', 'trainers', 'all']; // admin, manager
+  if (role === 'admin') return ['clients', 'trainers', 'admins', 'all'];
+  return ['clients', 'trainers', 'all']; // manager
 }
 
 /**
@@ -47,6 +48,7 @@ router.get('/', async (req, res) => {
        m.id,
        m.subject,
        m.body,
+       m.link,
        m.audience,
        m.created_at,
        exists(

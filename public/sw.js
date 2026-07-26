@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sports-club-v11';
+const CACHE_NAME = 'sports-club-v12';
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -54,6 +54,7 @@ self.addEventListener('push', (event) => {
         badge: '/assets/icons/icon-192.png',
         tag: 'olimp-notification',
         renotify: true,
+        data: { link: data.link || '/' },
       }),
       // Сповіщаємо відкриті вкладки щоб зіграли звук
       self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
@@ -66,10 +67,11 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
+    const target = event.notification.data?.link || '/';
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      const existing = list.find((c) => c.url.includes('/pages/'));
+      const existing = list.find((c) => c.url.includes(target));
       if (existing) return existing.focus();
-      return clients.openWindow('/');
+      return clients.openWindow(target);
     })
   );
 });

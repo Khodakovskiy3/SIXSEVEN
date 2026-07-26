@@ -131,6 +131,7 @@ let messagesFilter = 'all';
 const messageAudienceLabels = {
   clients: 'Клієнтам',
   trainers: 'Тренерам',
+  admins: 'Адміністраторам',
   all: 'Усім',
   custom: 'Вибраним',
 };
@@ -2744,6 +2745,7 @@ document.addEventListener('click', async (event) => {
   if (addMessageButton) {
     openModal('Створити повідомлення', renderMessageForm());
     bindRecipientPicker();
+    bindMessageScheduleFields();
     return;
   }
 
@@ -2759,6 +2761,7 @@ document.addEventListener('click', async (event) => {
     if (message) {
       openModal('Редагувати повідомлення', renderMessageForm(message));
       bindRecipientPicker(message);
+      bindMessageScheduleFields();
     }
     return;
   }
@@ -3749,6 +3752,7 @@ function renderMessageForm(message = null) {
   const isEdit = Boolean(message);
   const audience = message?.audience || 'clients';
   const status = message?.status || 'sent';
+  const isPlanned = status === 'planned';
   return `
     <form id="message-form" class="admin-form" data-message-id="${message?.id || ''}">
       <label>Тема
@@ -3762,6 +3766,7 @@ function renderMessageForm(message = null) {
           <option value="all" ${audience === 'all' ? 'selected' : ''}>Усім</option>
           <option value="clients" ${audience === 'clients' ? 'selected' : ''}>Клієнтам</option>
           <option value="trainers" ${audience === 'trainers' ? 'selected' : ''}>Тренерам</option>
+          <option value="admins" ${audience === 'admins' ? 'selected' : ''}>Адміністраторам</option>
           ${audience === 'custom' ? '<option value="custom" selected>Вибраним</option>' : ''}
         </select>
       </label>
@@ -3775,12 +3780,30 @@ function renderMessageForm(message = null) {
       <label>Дата надсилання
         <input name="send_date" type="date" value="${message?.send_date ? formatDate(message.send_date) : ''}">
       </label>
+      <label id="message-send-time-field" ${isPlanned ? '' : 'hidden'}>Час надсилання
+        <input name="send_time" type="time" value="${message?.send_time ? String(message.send_time).slice(0, 5) : ''}">
+      </label>
       <div class="modal-actions">
         <button type="button" class="ghost-btn modal-close">Скасувати</button>
         <button type="submit" class="primary-btn">${isEdit ? 'Зберегти зміни' : 'Створити'}</button>
       </div>
     </form>
   `;
+}
+
+/** Показує вибір часу лише для запланованої розсилки. */
+function bindMessageScheduleFields() {
+  const statusSelect = document.querySelector('#message-form select[name="status"]');
+  const timeField = document.querySelector('#message-send-time-field');
+  if (!statusSelect || !timeField) return;
+
+  const update = () => {
+    const planned = statusSelect.value === 'planned';
+    timeField.hidden = !planned;
+    timeField.querySelector('input').required = planned;
+  };
+  statusSelect.addEventListener('change', update);
+  update();
 }
 
 // Кеш списків отримувачів, щоб не смикати API при кожному
@@ -3948,11 +3971,16 @@ async function saveMessage(form) {
     audience: audienceValue === 'custom' ? undefined : audienceValue,
     status: formData.get('status'),
     send_date: formData.get('send_date') || null,
+    send_time: formData.get('send_time') || null,
     recipient_ids: recipientIds,
   };
 
   if (!payload.subject) {
     setModalError('Вкажіть тему повідомлення');
+    return;
+  }
+  if (payload.status === 'planned' && (!payload.send_date || !payload.send_time)) {
+    setModalError('Для запланованого повідомлення вкажіть дату й час');
     return;
   }
 

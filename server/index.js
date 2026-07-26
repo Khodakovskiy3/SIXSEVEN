@@ -37,8 +37,10 @@ import { logError } from './utils/logger.js';
 import { authLimiter } from './middleware/rateLimit.js';
 import { runMigrations } from './migrate.js';
 import { runSubscriptionReminders } from './utils/subscription-reminders.js';
+import { runTrainingHourReminders } from './utils/training-reminders.js';
+import { activatePlannedMessages } from './routes/messages.js';
 import { query } from './db.js';
-import { sendPush } from './utils/notify.js';
+import { notifyUsers } from './utils/notify.js';
 console.log('SERVER INDEX JS STARTED');
 dotenv.config();
 
@@ -149,10 +151,10 @@ process.on('uncaughtException', (error) => {
 
 async function notifyManagers(title, body) {
   try {
-    const result = await query(`select id from users where role = 'manager'`);
+    const result = await query(`select id from users where role in ('admin', 'manager')`);
     const ids = result.rows.map((r) => r.id);
     if (ids.length) {
-      await sendPush(ids, title, body);
+      await notifyUsers(ids, title, body, { link: '/pages/manager/index.html' });
     }
   } catch {}
 }
@@ -160,6 +162,8 @@ async function notifyManagers(title, body) {
 console.log('ROUTES REGISTERED');
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MS_PER_FIVE_MINUTES = 5 * 60 * 1000;
+const MS_PER_MINUTE = 60 * 1000;
 
 runMigrations()
   .then(() => {
@@ -169,6 +173,11 @@ runMigrations()
     // Нагадування про абонементи: запускаємо одразу й потім щодня.
     runSubscriptionReminders();
     setInterval(runSubscriptionReminders, MS_PER_DAY);
+    // Окремі фонові процеси: планові оголошення та нагадування про заняття.
+    activatePlannedMessages().catch((error) => logError('Планові повідомлення', error));
+    setInterval(() => activatePlannedMessages().catch((error) => logError('Планові повідомлення', error)), MS_PER_MINUTE);
+    runTrainingHourReminders();
+    setInterval(runTrainingHourReminders, MS_PER_FIVE_MINUTES);
   })
   .catch((err) => {
     logError('Не вдалося застосувати міграції', err);

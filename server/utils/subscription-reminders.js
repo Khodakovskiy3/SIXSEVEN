@@ -48,13 +48,14 @@ async function markAndNotifyExpired() {
      set status = 'expired'
      where status = 'active'
        and end_date < current_date
-     returning id, client_id, plan_id`
+     returning id, client_id, plan_id, end_date`
   );
 
   if (!result.rows.length) {
     return;
   }
 
+  const expiredClients = [];
   for (const row of result.rows) {
     const userResult = await query(
       `select u.id as user_id, p.name as plan_name
@@ -68,11 +69,29 @@ async function markAndNotifyExpired() {
       continue;
     }
     const { user_id: userId, plan_name: planName } = userResult.rows[0];
+    const clientName = await query(
+      `select u.name from clients c join users u on u.id = c.user_id where c.id = $1`,
+      [row.client_id]
+    );
+    expiredClients.push(clientName.rows[0]?.name || 'Клієнт');
     await notifyUsers(
       [userId],
       `Абонемент закінчився`,
       `Ваш абонемент${planName ? ` «${planName}»` : ''} більше не активний. ` +
-        `Зверніться до адміністратора для продовження.`
+      `Зверніться до адміністратора для продовження.`,
+      { link: '/pages/client/subscription.html' }
+    );
+  }
+
+  const admins = await query(`select id from users where role = 'admin'`);
+  if (admins.rows.length) {
+    const preview = expiredClients.slice(0, 5).join(', ');
+    const rest = expiredClients.length > 5 ? ` та ще ${expiredClients.length - 5}` : '';
+    await notifyUsers(
+      admins.rows.map((row) => row.id),
+      `Завершилися абонементи: ${expiredClients.length}`,
+      `Сьогодні завершилися ${expiredClients.length} абонементи: ${preview}${rest}.`,
+      { link: '/pages/admin/plans.html', onceToday: true }
     );
   }
 }

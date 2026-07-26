@@ -347,6 +347,31 @@ async function notifyClientAboutSubscription(clientId, planName, endDate) {
   );
 }
 
+async function notifyClientAboutSubscriptionChange(previous, updated) {
+  const user = await query(
+    'select u.id from clients c join users u on u.id = c.user_id where c.id = $1',
+    [updated.client_id]
+  );
+  if (!user.rows.length) return;
+
+  const changes = [];
+  if (previous.type !== updated.type) changes.push(`тип змінено на «${updated.type}»`);
+  if (String(previous.end_date) !== String(updated.end_date)) {
+    changes.push(`строк дії змінено до ${new Date(updated.end_date).toLocaleDateString('uk-UA')}`);
+  }
+  if (previous.status !== updated.status) {
+    const labels = { active: 'активовано', cancelled: 'скасовано', expired: 'завершено', paused: 'призупинено' };
+    changes.push(`статус: ${labels[updated.status] || updated.status}`);
+  }
+  if (!changes.length) return;
+  await notifyUsers(
+    [user.rows[0].id],
+    'Ваш абонемент змінено',
+    `Адміністратор оновив абонемент «${updated.type}»: ${changes.join('; ')}.`,
+    { link: '/pages/client/subscription.html' }
+  );
+}
+
 router.post('/assign', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const {
     client_id: clientId,
@@ -666,6 +691,14 @@ router.put('/:id', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
     }
   }
 
+  const previousResult = await query(
+    'select id, client_id, type, start_date, end_date, status from subscriptions where id = $1',
+    [id]
+  );
+  if (!previousResult.rows.length) {
+    return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
+  }
+  const previous = previousResult.rows[0];
   let result;
   try {
     result = await query(
@@ -682,9 +715,7 @@ router.put('/:id', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
     return respondToSubscriptionDbError(res, error, req.user?.id);
   }
 
-  if (result.rows.length === 0) {
-    return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
-  }
+  await notifyClientAboutSubscriptionChange(previous, result.rows[0]);
   return res.json(result.rows[0]);
 });
 

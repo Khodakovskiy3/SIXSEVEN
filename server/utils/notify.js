@@ -28,7 +28,7 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
  * @param {string} title
  * @param {string} body
  */
-export async function sendPush(userIds, title, body) {
+export async function sendPush(userIds, title, body, link = '') {
   if (!VAPID_PUBLIC || !VAPID_PRIVATE || userIds.length === 0) {
     return;
   }
@@ -43,7 +43,7 @@ export async function sendPush(userIds, title, body) {
       [userIds]
     );
 
-    const payload = JSON.stringify({ title, body });
+    const payload = JSON.stringify({ title, body, link });
     const expired = [];
 
     await Promise.allSettled(
@@ -102,7 +102,7 @@ export async function notifyUsers(
   userIds,
   subject,
   body = '',
-  { category = 'system', onceToday = false } = {}
+  { category = 'system', onceToday = false, optional = false, link = '' } = {}
 ) {
   let ids = [...new Set(userIds)]
     .map(Number)
@@ -112,11 +112,10 @@ export async function notifyUsers(
   }
 
   try {
-    // Налаштування «Сповіщення про тренування» / «Нагадування за годину»
-    // мають вимикати і дзвіночок у UI, а не лише Web Push — інакше вимкнений
-    // перемикач нічого не змінює для користувача.
+    // Нагадування — необов'язкові: за вимкненого перемикача їх не створюємо
+    // взагалі. Важливі зміни завжди лишаються у дзвіночку.
     const prefColumn = CATEGORY_PREF_COLUMN[category];
-    if (prefColumn) {
+    if (optional && prefColumn) {
       const allowed = await query(
         `select id from users where id = any($1::int[]) and ${prefColumn} = true`,
         [ids]
@@ -127,11 +126,26 @@ export async function notifyUsers(
       }
     }
 
+    if (onceToday) {
+      const pending = await query(
+        `select distinct mr.user_id
+         from messages m
+         join message_recipients mr on mr.message_id = m.id
+         where mr.user_id = any($1::int[])
+           and m.subject = $2
+           and m.created_at::date = current_date`,
+        [ids, subject]
+      );
+      const alreadyNotified = new Set(pending.rows.map((row) => row.user_id));
+      ids = ids.filter((id) => !alreadyNotified.has(id));
+      if (ids.length === 0) return;
+    }
+
     const message = await query(
-      `insert into messages (subject, body, audience, status)
-       values ($1, $2, 'custom', 'sent')
+      `insert into messages (subject, body, audience, status, link)
+       values ($1, $2, 'custom', 'sent', $3)
        returning id`,
-      [subject, body || null]
+      [subject, body || null, link || null]
     );
 
     await query(
@@ -141,8 +155,16 @@ export async function notifyUsers(
       [message.rows[0].id, ids]
     );
 
-    // Асинхронно надсилаємо push (не блокуємо відповідь)
-    sendPush(ids, subject, body).catch(() => {});
+    // Налаштування категорії керують Push, але не записом у дзвіночку.
+    let pushIds = ids;
+    if (prefColumn) {
+      const allowed = await query(
+        `select id from users where id = any($1::int[]) and ${prefColumn} = true`,
+        [ids]
+      );
+      pushIds = allowed.rows.map((row) => row.id);
+    }
+    sendPush(pushIds, subject, body, link).catch(() => {});
   } catch (error) {
     logError('Не вдалося створити системне сповіщення', error);
   }

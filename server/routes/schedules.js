@@ -275,6 +275,15 @@ async function getTrainerUserId(scheduleId) {
   return result.rows[0]?.id || null;
 }
 
+async function getTrainerUserIdByTrainerId(trainerId) {
+  if (!trainerId) return null;
+  const result = await query(
+    'select u.id from trainers t join users u on u.id = t.user_id where t.id = $1',
+    [trainerId]
+  );
+  return result.rows[0]?.id || null;
+}
+
 router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   const { id } = req.params;
   const {
@@ -317,7 +326,7 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   // Аудиторію збираємо ДО оновлення, а порівнюємо дату/час ПІСЛЯ —
   // сповіщаємо лише тоді, коли заняття реально перенесено.
   const audience = await getBookedAudience(id);
-  const trainerUserId = await getTrainerUserId(id);
+  const previousTrainerUserId = await getTrainerUserId(id);
 
   const result = await query(
     `update schedules
@@ -335,17 +344,48 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   }
 
   const updated = result.rows[0];
-  const wasSlotChanged = formatSlot(existing.date, existing.time)
-    !== formatSlot(updated.date, updated.time);
+  const wasSlotChanged = String(existing.date) !== String(updated.date)
+    || String(existing.time) !== String(updated.time);
+  const wasTrainerChanged = Number(existing.trainer_id || 0) !== Number(updated.trainer_id || 0);
   if (wasSlotChanged) {
-    const notifyIds = [...new Set([...audience.userIds, trainerUserId].filter(Boolean))];
+    const newTrainerUserId = await getTrainerUserIdByTrainerId(updated.trainer_id);
+    const notifyIds = [...new Set([...audience.userIds, previousTrainerUserId, newTrainerUserId].filter(Boolean))];
     if (notifyIds.length > 0) {
       notifyUsers(
         notifyIds,
         `Заняття «${audience.workoutName}» перенесено`,
         `Було: ${formatSlot(existing.date, existing.time)}.\n`
           + `Нові дата і час: ${formatSlot(updated.date, updated.time)}.`,
-        { category: 'training' }
+        { category: 'training', link: `/pages/client/schedule.html?schedule=${id}` }
+      ).catch(() => {});
+    }
+  }
+
+  if (wasTrainerChanged) {
+    const newTrainerUserId = await getTrainerUserIdByTrainerId(updated.trainer_id);
+    const slot = formatSlot(updated.date, updated.time);
+    if (previousTrainerUserId) {
+      notifyUsers(
+        [previousTrainerUserId],
+        `Вас знято із заняття «${audience.workoutName}»`,
+        `Ви більше не проводите заняття ${slot}.`,
+        { category: 'training', link: `/pages/trainer/schedule.html?schedule=${id}` }
+      ).catch(() => {});
+    }
+    if (newTrainerUserId) {
+      notifyUsers(
+        [newTrainerUserId],
+        `Вас призначено на заняття «${audience.workoutName}»`,
+        `Ви проводите заняття ${slot}.`,
+        { category: 'training', link: `/pages/trainer/schedule.html?schedule=${id}` }
+      ).catch(() => {});
+    }
+    if (audience.userIds.length) {
+      notifyUsers(
+        audience.userIds,
+        `Змінено тренера заняття «${audience.workoutName}»`,
+        `Для заняття ${slot} призначено іншого тренера.`,
+        { category: 'training', link: `/pages/client/schedule.html?schedule=${id}` }
       ).catch(() => {});
     }
   }
@@ -372,7 +412,7 @@ router.delete('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
         `Заняття «${audience.workoutName}» скасовано`,
         `Заняття ${formatSlot(existing.date, existing.time)} не відбудеться. `
           + 'Перепрошуємо за незручності.',
-        { category: 'training' }
+      { category: 'training', link: `/pages/client/schedule.html?schedule=${id}` }
       ).catch(() => {});
     }
   }

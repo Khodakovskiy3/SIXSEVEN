@@ -45,7 +45,7 @@ import {
   publishConversationsChange,
 } from '../utils/chat-events.js';
 import { issueTicket, redeemTicket } from '../utils/stream-ticket.js';
-import { sendPush } from '../utils/notify.js';
+import { sendPush, notifyUsers } from '../utils/notify.js';
 import {
   HTTP_BAD_REQUEST,
   HTTP_CONFLICT,
@@ -221,6 +221,19 @@ async function createConversationRequest(token, guestName = null, userId = null)
   });
 }
 
+async function notifyAdminsAboutRequest(conversationId, guestName = 'Користувач') {
+  const admins = await query(`select id from users where role = 'admin'`);
+  const ids = admins.rows.map((row) => row.id);
+  publishConversationsChange();
+  if (!ids.length) return;
+  await notifyUsers(
+    ids,
+    'Новий запит у чаті',
+    `${guestName || 'Користувач'} очікує на відповідь адміністратора.`,
+    { link: `/pages/admin/messages.html?tab=chat&conversation=${conversationId}` }
+  );
+}
+
 // ─── Гостьова частина ─────────────────────────────────────────────────────────
 
 router.post('/guest/request', async (req, res) => {
@@ -229,7 +242,8 @@ router.post('/guest/request', async (req, res) => {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing guest token' });
   }
 
-  await createConversationRequest(token);
+  const conversationId = await createConversationRequest(token);
+  notifyAdminsAboutRequest(conversationId).catch(() => {});
   return res.status(HTTP_CREATED).json({ state: CHAT_STATE.PENDING });
 });
 
@@ -331,7 +345,8 @@ function clientToken(user) {
 router.post('/client/request', async (req, res) => {
   // Ім'я зберігаємо при створенні запиту, щоб адміністратор бачив, хто звернувся.
   // user_id — явний FK (П7), а не лише кодування в токені.
-  await createConversationRequest(clientToken(req.user), req.user.name, req.user.id);
+  const conversationId = await createConversationRequest(clientToken(req.user), req.user.name, req.user.id);
+  notifyAdminsAboutRequest(conversationId, req.user.name).catch(() => {});
   return res.status(HTTP_CREATED).json({ state: CHAT_STATE.PENDING });
 });
 
