@@ -18,29 +18,18 @@ import {
   HTTP_NOT_FOUND,
   ROLE,
 } from '../utils/constants.js';
+import {
+  normalizeRecipientIds,
+  normalizeAudience,
+  normalizeStatus,
+  resolveAudience,
+  audienceToRoleFilter,
+  validateMessageFields,
+} from '../utils/message-logic.js';
 
 const router = Router();
 
 router.use(authRequired);
-
-// Допустимі значення для аудиторії та статусу оголошення (білий список).
-// 'custom' — адресне повідомлення конкретним користувачам (message_recipients);
-// напряму з форми не приймається, а виводиться з наявності recipient_ids.
-const VALID_AUDIENCES = ['clients', 'trainers', 'admins', 'all'];
-const VALID_STATUSES = ['sent', 'planned'];
-
-/**
- * Зводить перелік отримувачів до масиву додатних цілих id користувачів.
- *
- * @param {unknown} value Сирі дані з тіла запиту.
- * @returns {number[]} Порожній масив, якщо отримувачів не передано.
- */
-function normalizeRecipientIds(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return [...new Set(value.map(Number))].filter((id) => Number.isInteger(id) && id > 0);
-}
 
 /**
  * Повністю замінює перелік отримувачів повідомлення.
@@ -72,16 +61,10 @@ async function replaceRecipients(messageId, recipientIds) {
 export async function sendPushForMessage(audience, customIds, title, body, link = '') {
   let userIds = [];
 
-  if (audience === 'custom') {
+  const roleFilter = audienceToRoleFilter(audience);
+  if (roleFilter === null) {
     userIds = customIds;
   } else {
-    // Вибираємо user_id з потрібною роллю
-    const roleFilter =
-      audience === 'clients'  ? `role = 'client'` :
-      audience === 'trainers' ? `role = 'trainer'` :
-      audience === 'admins' ? `role = 'admin'` :
-      `role in ('client', 'trainer', 'admin', 'manager')`;
-
     const result = await query(`select id from users where ${roleFilter}`);
     userIds = result.rows.map((r) => r.id);
   }
@@ -92,33 +75,11 @@ export async function sendPushForMessage(audience, customIds, title, body, link 
 }
 
 /**
- * Зводить аудиторію до допустимого значення, інакше повертає 'clients'.
- *
- * @param {string} value
- * @returns {string}
- */
-function normalizeAudience(value) {
-  return VALID_AUDIENCES.includes(value) ? value : 'clients';
-}
-
-/**
- * Зводить статус до допустимого значення, інакше повертає 'sent'.
- *
- * @param {string} value
- * @returns {string}
- */
-function normalizeStatus(value) {
-  return VALID_STATUSES.includes(value) ? value : 'sent';
-}
-
-/**
  * Активує заплановані оголошення, дата й час яких настали: 'planned' → 'sent'.
  * Виконується лазиво при кожному запиті — так само, як протермінування
- * абонементів у subscriptions.js — щоб не тримати окремого cron-job
- * (П9, АУДИТ_БД.md): раніше 'planned' ніколи не переходив у 'sent' і
- * розсилка мовчки не з'являлась у сповіщеннях.
+ * абонементів у subscriptions.js — щоб не тримати окремого cron-job.
  *
- * @returns {Promise<void>}
+ * @returns {Promise<number>}
  */
 export async function activatePlannedMessages() {
   const activated = await query(
@@ -147,8 +108,6 @@ export async function activatePlannedMessages() {
 
 router.get('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   await activatePlannedMessages();
-  // recipients потрібні формі редагування, щоб показати, кому саме
-  // адресовано повідомлення з audience='custom'.
   const result = await query(
     `select m.id, m.subject, m.body, m.audience, m.status, m.send_date, m.send_time, m.created_at,
             m.created_by, cu.name as created_by_name,
@@ -176,16 +135,14 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
     send_time: sendTime,
     recipient_ids: rawRecipientIds,
   } = req.body || {};
-  if (!subject) {
-    return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing subject' });
-  }
-  if (normalizeStatus(status) === 'planned' && (!sendDate || !sendTime)) {
-    return res.status(HTTP_BAD_REQUEST).json({ error: 'Для запланованого повідомлення вкажіть дату і час' });
+
+  const validationError = validateMessageFields({ subject, status, send_date: sendDate, send_time: sendTime });
+  if (validationError) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: validationError });
   }
 
-  // Обрані конкретні отримувачі мають пріоритет над широкою аудиторією.
   const recipientIds = normalizeRecipientIds(rawRecipientIds);
-  const effectiveAudience = recipientIds.length > 0 ? 'custom' : normalizeAudience(audience);
+  const effectiveAudience = resolveAudience(recipientIds, audience);
 
   const result = await query(
     `insert into messages (subject, body, audience, status, send_date, send_time, created_by)
@@ -206,7 +163,6 @@ router.post('/', requireRole(ROLE.ADMIN), async (req, res) => {
     await replaceRecipients(result.rows[0].id, recipientIds);
   }
 
-  // Надіслати Web Push негайно якщо повідомлення відправлено зараз
   if (normalizeStatus(status) === 'sent') {
     sendPushForMessage(
       effectiveAudience,
@@ -231,8 +187,6 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
     recipient_ids: rawRecipientIds,
   } = req.body || {};
 
-  // Передані отримувачі повністю замінюють попередній перелік і переводять
-  // повідомлення в адресний режим; без них аудиторія редагується як раніше.
   const recipientIds = normalizeRecipientIds(rawRecipientIds);
   const effectiveAudience = recipientIds.length > 0
     ? 'custom'
@@ -266,7 +220,6 @@ router.put('/:id', requireRole(ROLE.ADMIN), async (req, res) => {
   if (recipientIds.length > 0) {
     await replaceRecipients(Number(id), recipientIds);
   } else if (effectiveAudience && effectiveAudience !== 'custom') {
-    // Повернення до широкої аудиторії — адресний перелік більше не актуальний.
     await query('delete from message_recipients where message_id = $1', [id]);
   }
 
