@@ -660,6 +660,95 @@ function setTrainerPasswordNote(message, type) {
 }
 
 /**
+ * Сторінка «Налаштування» тренера: push-сповіщення та їх категорія
+ * «Нагадування про заняття» (notif_training) — та сама механіка,
+ * що вже працює на сторінці налаштувань клієнта.
+ */
+async function loadTrainerSettingsPage() {
+  const settingsList = document.querySelector('#trainer-settings-list');
+  if (!settingsList) {
+    return;
+  }
+
+  const feedback = document.querySelector('#trainer-settings-feedback');
+  let pushModule = null;
+  try {
+    pushModule = await import('./push.js');
+  } catch {
+    /* push не підтримується в цьому браузері */
+  }
+
+  try {
+    const prefs = await apiFetch('/push/prefs');
+    if (prefs) {
+      const trainingEl = settingsList.querySelector('[data-setting="trainingNotifications"]');
+      const pushEl = settingsList.querySelector('[data-setting="pushNotifications"]');
+      if (trainingEl) {
+        trainingEl.checked = Boolean(prefs.notif_training);
+      }
+      if (pushEl && pushModule) {
+        pushEl.checked = await pushModule.getPushStatus();
+      } else if (pushEl) {
+        pushEl.checked = Boolean(prefs.notif_push);
+      }
+    }
+  } catch {
+    /* лишаємо значення за замовчуванням з HTML */
+  }
+
+  settingsList.addEventListener('change', async (event) => {
+    const input = event.target.closest('[data-setting]');
+    if (!input) {
+      return;
+    }
+    const key = input.dataset.setting;
+    const checked = input.checked;
+
+    try {
+      if (key === 'pushNotifications') {
+        if (!pushModule) {
+          if (feedback) {
+            feedback.textContent = 'Push не підтримується в цьому браузері';
+          }
+          input.checked = !checked;
+          return;
+        }
+        if (checked) {
+          const result = await pushModule.subscribePush();
+          if (!result.ok) {
+            if (feedback) {
+              feedback.textContent = result.error || 'Не вдалось підписатись';
+            }
+            input.checked = false;
+            return;
+          }
+        } else {
+          await pushModule.unsubscribePush();
+        }
+        if (feedback) {
+          feedback.textContent = checked ? 'Push-сповіщення увімкнено' : 'Push-сповіщення вимкнено';
+        }
+      } else {
+        await apiFetch('/push/prefs', {
+          method: 'PUT',
+          body: JSON.stringify({
+            notif_training: key === 'trainingNotifications' ? checked : undefined,
+          }),
+        });
+        if (feedback) {
+          feedback.textContent = 'Налаштування збережено';
+        }
+      }
+    } catch (e) {
+      if (feedback) {
+        feedback.textContent = 'Помилка збереження: ' + e.message;
+      }
+      input.checked = !checked;
+    }
+  });
+}
+
+/**
  * Змінює пароль тренера через PUT /auth/password.
  *
  * Локально звіряємо лише збіг підтвердження — вимоги до стійкості перевіряє
@@ -807,6 +896,7 @@ if (currentUser) {
   hydrateAccount({ role: ROLE.TRAINER });
   loadTrainerData();
   attachPhoneMasks(document);
+  loadTrainerSettingsPage();
 
   document.querySelector('#trainer-personal-save')?.addEventListener('click', savePersonalData);
 }

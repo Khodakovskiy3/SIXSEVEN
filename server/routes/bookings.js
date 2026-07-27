@@ -195,7 +195,7 @@ router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
       // разом з access_type його тарифного плану (визначає, на які
       // заняття він дозволяє записуватися — див. isBookingAllowedForAccessType).
       const subscription = await client.query(
-        `select s.id, sp.access_type
+        `select s.id, s.created_at, sp.access_type, sp.plan_type, sp.usage_count
          from subscriptions s
          left join subscription_plans sp on sp.id = s.plan_id
          where s.client_id = $1
@@ -208,10 +208,34 @@ router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
 
       if (subscription.rows.length === 0) {
         await client.query('rollback');
-        return { error: 'No active subscription' };
+        return { error: 'Немає активного абонемента. Зверніться до адміністратора.' };
       }
 
-      const { access_type: accessType } = subscription.rows[0];
+      const {
+        id: subscriptionId,
+        created_at: subscriptionCreatedAt,
+        access_type: accessType,
+        plan_type: planType,
+        usage_count: usageCount,
+      } = subscription.rows[0];
+
+      // Для разових абонементів перевіряємо ліміт використань.
+      // Рахуємо лише активні бронювання, зроблені після видачі цього абонемента
+      // (b.created_at >= sub.created_at), щоб бронювання з попередніх абонементів
+      // не впливали на ліміт нового.
+      if (planType === 'single' && usageCount != null) {
+        const usedResult = await client.query(
+          `select count(*) as used
+           from bookings b
+           where b.client_id = $1 and b.status = $2 and b.created_at >= $3`,
+          [clientId, BOOKING_STATUS.ACTIVE, subscriptionCreatedAt]
+        );
+        const used = Number(usedResult.rows[0].used);
+        if (used >= Number(usageCount)) {
+          await client.query('rollback');
+          return { error: 'Разовий абонемент вичерпано. Зверніться до адміністратора для оформлення нового.' };
+        }
+      }
 
       // 2. Перевіряємо, чи залишилися вільні місця у групі, і категорію заняття.
       const scheduleInfo = await client.query(
@@ -250,6 +274,23 @@ router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
         [clientId, scheduleId]
       );
 
+      // Після успішного бронювання: якщо разовий абонемент вичерпав ліміт —
+      // одразу переводимо його в 'expired', щоб клієнт не міг записатися ще раз.
+      if (planType === 'single' && usageCount != null) {
+        const usedAfter = await client.query(
+          `select count(*) as used
+           from bookings b
+           where b.client_id = $1 and b.status = $2 and b.created_at >= $3`,
+          [clientId, BOOKING_STATUS.ACTIVE, subscriptionCreatedAt]
+        );
+        if (Number(usedAfter.rows[0].used) >= Number(usageCount)) {
+          await client.query(
+            `update subscriptions set status = $1 where id = $2`,
+            [SUBSCRIPTION_STATUS.EXPIRED, subscriptionId]
+          );
+        }
+      }
+
       await client.query('commit');
       return { booking: result.rows[0] };
     });
@@ -271,6 +312,44 @@ router.post('/', requireRole(ROLE.CLIENT), async (req, res) => {
   }
 });
 
+/**
+ * Якщо клієнт скасував запис, перевіряємо чи треба відновити разовий абонемент.
+ * Абонемент повертається в 'active' якщо:
+ *  - він ще в межах терміну дії (end_date >= сьогодні),
+ *  - тип плану = 'single',
+ *  - кількість активних бронювань після видачі абонемента стала < ліміту.
+ */
+async function restoreSingleSubscriptionIfNeeded(clientId) {
+  const subs = await query(
+    `select sub.id, sub.created_at, sp.usage_count
+     from subscriptions sub
+     join subscription_plans sp on sp.id = sub.plan_id
+     where sub.client_id = $1
+       and sub.status = $2
+       and sub.end_date >= current_date
+       and sp.plan_type = 'single'
+       and sp.usage_count is not null
+     order by sub.created_at desc
+     limit 1`,
+    [clientId, SUBSCRIPTION_STATUS.EXPIRED]
+  );
+  if (subs.rows.length === 0) return;
+
+  const sub = subs.rows[0];
+  const usedResult = await query(
+    `select count(*) as used
+     from bookings b
+     where b.client_id = $1 and b.status = $2 and b.created_at >= $3`,
+    [clientId, BOOKING_STATUS.ACTIVE, sub.created_at]
+  );
+  if (Number(usedResult.rows[0].used) < Number(sub.usage_count)) {
+    await query(
+      `update subscriptions set status = $1 where id = $2`,
+      [SUBSCRIPTION_STATUS.ACTIVE, sub.id]
+    );
+  }
+}
+
 router.delete('/:id', authRequired, async (req, res) => {
   const { id } = req.params;
 
@@ -290,6 +369,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(HTTP_NOT_FOUND).json({ error: 'Not found' });
     }
+    restoreSingleSubscriptionIfNeeded(clientId).catch(() => {});
     return res.json({ ok: true });
   }
 
@@ -298,7 +378,7 @@ router.delete('/:id', authRequired, async (req, res) => {
   }
 
   const bookingInfo = await query(
-    `select u.id as client_user_id, w.name as workout_name, s.id as schedule_id, s.date, s.time
+    `select b.client_id, u.id as client_user_id, w.name as workout_name, s.id as schedule_id, s.date, s.time
      from bookings b
      join clients c on c.id = b.client_id
      join users u on u.id = c.user_id
@@ -309,6 +389,10 @@ router.delete('/:id', authRequired, async (req, res) => {
   );
 
   await query('delete from bookings where id = $1', [id]);
+
+  if (bookingInfo.rows[0]?.client_id) {
+    restoreSingleSubscriptionIfNeeded(bookingInfo.rows[0].client_id).catch(() => {});
+  }
 
   if (bookingInfo.rows.length) {
     const {

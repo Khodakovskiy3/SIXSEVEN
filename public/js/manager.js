@@ -1504,7 +1504,6 @@ function bindBaseActions() {
 
 // ─── Особисті дані та налаштування менеджера ────────────────────────────────
 
-const MANAGER_SETTINGS_KEY = 'managerSettings';
 const managerPasswordModal = document.querySelector('#password-modal');
 
 function setManagerNote(selector, message, type = 'info') {
@@ -1604,30 +1603,46 @@ function bindManagerPersonal() {
 }
 
 /**
- * Відновлює та зберігає налаштування сповіщень менеджера у localStorage
- * (окремого серверного сховища налаштувань немає).
+ * Відновлює стан і підключає реальну підписку/відписку Web Push для
+ * менеджера — та сама механіка, що на сторінках клієнта й тренера.
  */
-function loadManagerSettings() {
+async function loadManagerSettings() {
   const list = document.querySelector('#manager-settings-list');
   if (!list) {
     return;
   }
 
-  const saved = JSON.parse(localStorage.getItem(MANAGER_SETTINGS_KEY) || '{}');
-  list.querySelectorAll('[data-setting]').forEach((input) => {
-    const key = input.dataset.setting;
-    if (key in saved) {
-      input.checked = Boolean(saved[key]);
-    }
-  });
+  const feedback = '#manager-settings-feedback';
+  const pushEl = list.querySelector('[data-setting="push"]');
 
-  document.querySelector('#save-manager-settings')?.addEventListener('click', () => {
-    const next = {};
-    list.querySelectorAll('[data-setting]').forEach((input) => {
-      next[input.dataset.setting] = input.checked;
-    });
-    localStorage.setItem(MANAGER_SETTINGS_KEY, JSON.stringify(next));
-    setManagerNote('#manager-settings-feedback', 'Налаштування збережено', 'success');
+  let pushModule = null;
+  try {
+    pushModule = await import('./push.js');
+  } catch {
+    /* push не підтримується в цьому браузері */
+  }
+  if (pushEl && pushModule) {
+    pushEl.checked = await pushModule.getPushStatus();
+  }
+
+  pushEl?.addEventListener('change', async () => {
+    const checked = pushEl.checked;
+    if (!pushModule) {
+      setManagerNote(feedback, 'Push не підтримується в цьому браузері', 'error');
+      pushEl.checked = !checked;
+      return;
+    }
+    if (checked) {
+      const result = await pushModule.subscribePush();
+      if (!result.ok) {
+        setManagerNote(feedback, result.error || 'Не вдалось підписатись', 'error');
+        pushEl.checked = false;
+        return;
+      }
+    } else {
+      await pushModule.unsubscribePush();
+    }
+    setManagerNote(feedback, checked ? 'Push-сповіщення увімкнено' : 'Push-сповіщення вимкнено', 'success');
   });
 }
 

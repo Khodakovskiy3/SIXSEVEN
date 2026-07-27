@@ -146,6 +146,35 @@ async function refreshSubscriptionStatuses() {
      where end_date < CURRENT_DATE and status not in ($1, $2)`,
     [SUBSCRIPTION_STATUS.EXPIRED, SUBSCRIPTION_STATUS.CANCELLED]
   );
+
+  // Разові абонементи, де кількість активних бронювань (зроблених після видачі
+  // абонемента) досягла ліміту, позначаємо як expired — щоб UI показував
+  // правильний статус без зайвих запитів з боку клієнта.
+  // Використовуємо b.created_at >= sub.created_at, щоб бронювання з попередніх
+  // абонементів не враховувались у ліміт нового.
+  await query(
+    `update subscriptions sub
+     set status = $1
+     where sub.status = $2
+       and exists (
+         select 1 from subscription_plans sp
+         where sp.id = sub.plan_id
+           and sp.plan_type = 'single'
+           and sp.usage_count is not null
+       )
+       and (
+         select count(*)
+         from bookings b
+         where b.client_id = sub.client_id
+           and b.status = 'active'
+           and b.created_at >= sub.created_at
+       ) >= (
+         select sp.usage_count
+         from subscription_plans sp
+         where sp.id = sub.plan_id
+       )`,
+    [SUBSCRIPTION_STATUS.EXPIRED, SUBSCRIPTION_STATUS.ACTIVE]
+  );
 }
 
 router.get('/client/:clientId', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {

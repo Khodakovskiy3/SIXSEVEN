@@ -2945,6 +2945,14 @@
 }
 .sched-card:hover { border-color: rgba(232,80,2,.3); }
 
+.sched-card--past {
+    opacity: .5;
+}
+.sched-card--past .sched-card-time span:first-child {
+    text-decoration: line-through;
+    color: var(--text-muted, #999);
+}
+
 .sched-card-time {
     flex-shrink: 0;
     width: 52px;

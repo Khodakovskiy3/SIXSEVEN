@@ -199,6 +199,13 @@ function formatTime(value = '') {
   return String(value).slice(0, 5);
 }
 
+function isPastClass(dateStr, timeStr) {
+  const datePart = formatDate(dateStr); // 'YYYY-MM-DD'
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [h, m] = String(timeStr).split(':').map(Number);
+  return new Date(year, month - 1, day, h, m, 0) < new Date();
+}
+
 function formatShortDate(value) {
   const date = new Date(value);
   return date.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' });
@@ -488,6 +495,12 @@ function getBookingIdBySchedule(scheduleId) {
   return b ? b.id : null;
 }
 
+// Повертає статус бронювання для заняття незалежно від статусу ('active'|'cancelled'|null).
+function getBookingStatusForSchedule(scheduleId) {
+  const b = bookings.find((booking) => String(booking.schedule_id) === String(scheduleId));
+  return b ? b.status : null;
+}
+
 function renderScheduleList() {
   const list = document.querySelector('#client-schedule-list');
   if (!list) return;
@@ -515,6 +528,7 @@ function renderScheduleList() {
   }
 
   list.innerHTML = visibleSchedules.map((item) => {
+    const past = isPastClass(item.date, item.time);
     const booked = isAlreadyBooked(item.id);
     const bookingId = booked ? getBookingIdBySchedule(item.id) : null;
     const available = Number(item.available || 0);
@@ -527,12 +541,24 @@ function renderScheduleList() {
     const trainerInitials = getInitials(item.trainer_name || '?');
     const trainerColor = getAvatarColor(item.trainer_name || '');
 
-    const actionBtn = booked
-      ? `<button class="danger-btn" data-cancel-booking="${bookingId}">Скасувати</button>`
-      : `<button class="${available > 0 ? 'primary-btn' : 'ghost-btn'}" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${available > 0 ? 'Записатися' : 'Лист очікування'}</button>`;
+    let actionBtn;
+    if (past) {
+      const pastStatus = getBookingStatusForSchedule(item.id);
+      if (pastStatus === 'active') {
+        actionBtn = `<span class="sched-past-badge">Відвідано</span>`;
+      } else if (pastStatus === 'cancelled') {
+        actionBtn = `<span class="sched-past-badge sched-past-badge--cancelled">Скасовано</span>`;
+      } else {
+        actionBtn = `<span class="sched-past-badge">Завершено</span>`;
+      }
+    } else {
+      actionBtn = booked
+        ? `<button class="danger-btn" data-cancel-booking="${bookingId}">Скасувати</button>`
+        : `<button class="${available > 0 ? 'primary-btn' : 'ghost-btn'}" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${available > 0 ? 'Записатися' : 'Лист очікування'}</button>`;
+    }
 
     return `
-      <div class="sched-card${isFull && !booked ? ' sched-card--full' : ''}">
+      <div class="sched-card${past ? ' sched-card--past' : (isFull && !booked ? ' sched-card--full' : '')}">
         <div class="sched-card-time">
           <span>${formatTime(item.time)}</span>
           ${item.duration_minutes ? `<span class="sched-duration sched-duration--time">${item.duration_minutes} хв</span>` : ''}
@@ -645,9 +671,8 @@ function renderBookingsPage() {
   const historyList = document.querySelector('#history-bookings-list');
   if (!futureList || !historyList) return;
 
-  const today = new Date().toISOString().slice(0, 10);
-  const future = bookings.filter((b) => b.status === 'active' && formatDate(b.date) >= today);
-  const history = bookings.filter((b) => b.status !== 'active' || formatDate(b.date) < today);
+  const future = bookings.filter((b) => b.status === 'active' && !isPastClass(b.date, b.time));
+  const history = bookings.filter((b) => b.status !== 'active' || isPastClass(b.date, b.time));
 
   futureList.innerHTML = future.length ? future.map((b) => `
     <article class="record-card">
@@ -907,23 +932,39 @@ function renderTodaySchedule() {
   `;
 
   const items = todaySchedules.map((item) => {
+    const past = isPastClass(item.date, item.time);
     const isBooked = isAlreadyBooked(item.id);
     const bookingId = isBooked ? getBookingIdBySchedule(item.id) : null;
     const available = Number(item.available || 0);
     const disabled = available <= 0 && !isBooked;
 
-    const actionBtn = isBooked
-      ? `<button class="danger-btn small" data-cancel-booking="${bookingId}">Скасувати</button>`
-      : `<button class="primary-btn small" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${available > 0 ? 'Записатись' : 'Немає місць'}</button>`;
+    let actionBtn;
+    let pastStatusLabel = 'завершено';
+    if (past) {
+      const pastStatus = getBookingStatusForSchedule(item.id);
+      if (pastStatus === 'active') {
+        actionBtn = `<span class="sched-past-badge">Відвідано</span>`;
+        pastStatusLabel = 'відвідано';
+      } else if (pastStatus === 'cancelled') {
+        actionBtn = `<span class="sched-past-badge sched-past-badge--cancelled">Скасовано</span>`;
+        pastStatusLabel = 'скасовано';
+      } else {
+        actionBtn = `<span class="sched-past-badge">Завершено</span>`;
+      }
+    } else {
+      actionBtn = isBooked
+        ? `<button class="danger-btn small" data-cancel-booking="${bookingId}">Скасувати</button>`
+        : `<button class="primary-btn small" data-book-schedule="${item.id}" ${disabled ? 'disabled' : ''}>${available > 0 ? 'Записатись' : 'Немає місць'}</button>`;
+    }
 
     return `
-      <div class="tl-item${isBooked ? ' booked' : ''}">
+      <div class="tl-item${past ? ' past' : (isBooked ? ' booked' : '')}">
         <div class="tl-time">${formatTime(item.time)}</div>
         <div class="tl-dot"></div>
         <div class="tl-body">
           <strong>${escapeHtml(item.workout_name)}</strong>
           <span>
-            ${item.duration_minutes ? `${item.duration_minutes} хв · ` : ''}${escapeHtml(item.trainer_name || 'без тренера')} · ${available > 0 ? `${available} місць` : 'місць немає'}
+            ${item.duration_minutes ? `${item.duration_minutes} хв · ` : ''}${escapeHtml(item.trainer_name || 'без тренера')} · ${past ? pastStatusLabel : (available > 0 ? `${available} місць` : 'місць немає')}
           </span>
         </div>
         ${actionBtn}

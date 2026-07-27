@@ -7,7 +7,7 @@ import { initTheme } from './theme.js';
 import { initNotifications, canPlayChime } from './notifications.js';
 import { initModalHotkeys } from './modal-hotkeys.js';
 import { startChatListPolling, stopChatPolling } from "./admin/chat.js";
-import { subscribePush, unsubscribePush, getPushStatus } from './push.js';
+import { subscribePush } from './push.js'; // адмін завжди підписаний на пуш, перемикача немає
 
 const titles = {
   dashboard: 'Головна',
@@ -237,6 +237,13 @@ function formatTime(value) {
   return String(value).slice(0, 5);
 }
 
+function isPastClass(dateStr, timeStr) {
+  if (!dateStr || !timeStr) return false;
+  const [year, month, day] = String(dateStr).slice(0, 10).split('-').map(Number);
+  const [h, m] = String(timeStr).split(':').map(Number);
+  return new Date(year, month - 1, day, h, m, 0) < new Date();
+}
+
 function attachPhoneMasks(root = document) {
   root.querySelectorAll('[data-phone-input]').forEach((input) => {
     const updateValue = () => {
@@ -452,9 +459,10 @@ function renderScheduleDayList() {
 
     const trainerInitials = getInitials(schedule.trainer_name || '?');
     const trainerColor = getAvatarColor(schedule.trainer_name || '');
+    const isPast = isPastClass(schedule.date, schedule.time);
 
     return `
-      <div class="sched-card">
+      <div class="sched-card${isPast ? ' sched-card--past' : ''}">
         <div class="sched-card-time">
           <span>${formatTime(schedule.time)}</span>
           ${schedule.duration_minutes ? `<span class="sched-duration sched-duration--time">${schedule.duration_minutes} хв</span>` : ''}
@@ -2092,6 +2100,7 @@ async function saveSchedule(form) {
     trainer_id: formData.get('trainer_id') ? Number(formData.get('trainer_id')) : null,
     date: formData.get('date'),
     time: formData.get('time'),
+    ...getScheduleNotifyFlags(),
   };
 
   if (!payload.workout_id || !payload.date || !payload.time) {
@@ -2147,7 +2156,10 @@ async function deleteSchedule(scheduleId) {
   }
 
   try {
-    await apiFetch(`/schedules/${scheduleId}`, { method: 'DELETE' });
+    await apiFetch(`/schedules/${scheduleId}`, {
+      method: 'DELETE',
+      body: JSON.stringify(getScheduleNotifyFlags()),
+    });
     await loadSchedules();
     setScheduleFeedback('Заняття видалено', 'success');
   } catch (error) {
@@ -4038,6 +4050,20 @@ function openMessageDetails(messageId) {
 const ADMIN_SETTINGS_KEY = 'adminSettings';
 
 /**
+ * Поточний стан перемикачів «Нагадування клієнтам» / «Нагадування тренерам»
+ * зі сторінки налаштувань. Читається в момент дії (створення/перенесення/
+ * видалення заняття), а не зберігається на сервері — тому не потребує змін
+ * структури бази даних. За замовчуванням обидва увімкнені (як у розмітці).
+ */
+function getScheduleNotifyFlags() {
+  const saved = JSON.parse(localStorage.getItem(ADMIN_SETTINGS_KEY) || '{}');
+  return {
+    notify_clients: saved.remindClients !== false,
+    notify_trainers: saved.remindTrainers !== false,
+  };
+}
+
+/**
  * Встановлює текст і тип повідомлення у вказаному полі-нотатці.
  *
  * @param {string} selector
@@ -4152,29 +4178,6 @@ function loadAdminSettings() {
     localStorage.setItem(ADMIN_SETTINGS_KEY, JSON.stringify(next));
     setNote('#admin-settings-feedback', 'Налаштування збережено', 'success');
   });
-
-  // Push-перемикач
-  const pushToggle = panel.querySelector('#admin-push-toggle');
-  if (pushToggle && 'serviceWorker' in navigator) {
-    getPushStatus().then((active) => { pushToggle.checked = active; });
-
-    pushToggle.addEventListener('change', async () => {
-      if (pushToggle.checked) {
-        const result = await subscribePush();
-        if (!result.ok) {
-          pushToggle.checked = false;
-          setNote('#admin-settings-feedback', result.error || 'Не вдалося підписатися', 'error');
-        } else {
-          setNote('#admin-settings-feedback', 'Push-сповіщення увімкнено', 'success');
-        }
-      } else {
-        await unsubscribePush();
-        setNote('#admin-settings-feedback', 'Push-сповіщення вимкнено', 'success');
-      }
-    });
-  } else if (pushToggle) {
-    pushToggle.disabled = true;
-  }
 }
 
 document.querySelector('[data-change-password]')?.addEventListener('click', openPasswordModal);

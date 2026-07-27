@@ -44,10 +44,12 @@
                 <div class="panel narrow-panel">
                     <button class="back-btn" data-screen-link="profile">Назад</button>
                     <h2>Налаштування</h2>
-                    <div class="settings-list">
-                        <label>Push-сповіщення <input type="checkbox" checked></label>
-                        <label>Нагадування про заняття <input type="checkbox" checked></label>
+                    <div class="settings-list" id="trainer-settings-list">
+                        <label>Push-сповіщення <input type="checkbox" data-setting="pushNotifications"></label>
+                        <label>Нагадування про заняття <input type="checkbox" data-setting="trainingNotifications" checked></label>
                     </div>
+                    <p class="form-note" id="trainer-settings-feedback" role="status"></p>
+                    <div id="twofa-settings" style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,.1)"></div>
                 </div>
             </section>
         </main>
@@ -86,6 +88,7 @@
     </div>
 
     <script type="module" src="../../js/trainer.js"></script>
+    <script type="module" src="../../js/twofa.js"></script>
     <script type="module" src="../../js/pwa.js"></script>
 </body>
 </html>

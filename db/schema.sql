@@ -274,6 +274,8 @@ CREATE TABLE IF NOT EXISTS public.club_settings (
     email         varchar(100) NULL,
     weekday_hours varchar(50)  NOT NULL DEFAULT '07:00 - 22:00',
     weekend_hours varchar(50)  NOT NULL DEFAULT '09:00 - 20:00',
+    remind_clients  boolean NOT NULL DEFAULT true,   -- вимикає сповіщення категорії 'training' клієнтам
+    remind_trainers boolean NOT NULL DEFAULT true,   -- вимикає сповіщення категорії 'training' тренерам
     CONSTRAINT club_settings_singleton CHECK (id = 1)
 );
 

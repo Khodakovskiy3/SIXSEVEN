@@ -49,14 +49,12 @@
                 <div class="panel narrow-panel profile-settings-panel">
                     <button class="back-btn" data-screen-link="profile">Назад</button>
                     <h2>Налаштування</h2>
-                    <label>Понеділок-П’ятниця<input type="text" data-setting="weekdayHours" value="07:00 - 22:00"></label>
-                    <label>Субота-Неділя<input type="text" data-setting="weekendHours" value="09:00 - 20:00"></label>
                     <div class="settings-list">
                         <label>Нагадування клієнтам <input type="checkbox" data-setting="remindClients" checked></label>
                         <label>Нагадування тренерам <input type="checkbox" data-setting="remindTrainers" checked></label>
                         <label>Повідомлення при зміні розкладу <input type="checkbox" data-setting="scheduleChangeNotice" checked></label>
-                        <label>Push-сповіщення <input type="checkbox" id="admin-push-toggle"></label>
                     </div>
+                    <p class="form-note" style="opacity:.7">Push-сповіщення для адміністратора увімкнені завжди й не вимикаються.</p>
                     <p class="form-note" id="admin-settings-feedback" role="status"></p>
                     <button class="primary-btn" id="save-admin-settings">Зберегти зміни</button>
                 </div>

@@ -1190,6 +1190,18 @@ p {
     background: var(--accent);
     border-color: var(--accent);
 }
+.tl-item.past {
+    opacity: .5;
+    pointer-events: none;
+}
+.tl-item.past .tl-dot {
+    background: var(--muted);
+    border-color: var(--muted);
+}
+.tl-item.past .tl-time {
+    text-decoration: line-through;
+    text-decoration-color: var(--muted);
+}
 
 .tl-body strong {
     display: block;
@@ -3031,6 +3043,30 @@ dd {
 }
 .sched-card:hover { border-color: rgba(232,80,2,.3); }
 .sched-card--full { opacity: .75; }
+.sched-card--past {
+    opacity: .55;
+    pointer-events: none;
+}
+.sched-card--past .sched-card-time span:first-child {
+    text-decoration: line-through;
+    text-decoration-color: var(--muted);
+}
+.sched-past-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .03em;
+    color: var(--muted);
+    background: var(--surface2, rgba(128,128,128,.12));
+    white-space: nowrap;
+}
+.sched-past-badge--cancelled {
+    color: #c0392b;
+    background: rgba(192,57,43,.10);
+}
 
 .sched-card-time {
     flex-shrink: 0;
