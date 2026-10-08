@@ -25,7 +25,8 @@ export default defineRailway(() => {
 
   const web = service("cluvyra-web", {
     // Built from the repository Dockerfile (Node 24 + Python/reportlab).
-    source: github("Khodakovskiy3/SIXSEVEN", { branch: "main" }),
+    // Switch to "main" after merging feature/cluvyra-startup.
+    source: github("Khodakovskiy3/SIXSEVEN", { branch: "feature/cluvyra-startup" }),
     // Migrations run once per deploy before traffic switches; the runner is
     // idempotent and guarded by a PostgreSQL advisory lock.
     preDeploy: "npm run db:migrate",
