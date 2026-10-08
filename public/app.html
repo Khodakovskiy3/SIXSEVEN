@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cluvyra</title>
+    <meta name="theme-color" content="#131F2C">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/assets/brand/cluvyra-mark.svg" type="image/svg+xml">
+    <script>
+      // Вхідна точка застосунку (PWA start_url). Авторизованого користувача
+      // одразу ведемо в його кабінет, інших — на сторінку входу клубу.
+      (function () {
+        var LOGIN = '/pages/auth/login.html';
+        var BY_ROLE = {
+          admin:   '/pages/admin/index.html',
+          manager: '/pages/manager/index.html',
+          trainer: '/pages/trainer/index.html',
+          client:  '/pages/client/index.html',
+        };
+
+        var target = LOGIN;
+        try {
+          var token = localStorage.getItem('token');
+          var raw = localStorage.getItem('user');
+          if (token && raw) {
+            target = BY_ROLE[JSON.parse(raw).role] || LOGIN;
+          }
+        } catch (e) {
+          target = LOGIN;
+        }
+
+        window.location.replace(target);
+      })();
+    </script>
+</head>
+<body style="background:#131F2C;color:#fff;font-family:system-ui,sans-serif">
+    <a href="/pages/auth/login.html" style="color:#BEF45D">Відкрити Cluvyra</a>
+</body>
+</html>

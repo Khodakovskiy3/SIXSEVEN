@@ -1,7 +1,13 @@
-const CACHE_NAME = 'sports-club-v12';
+// Cluvyra service worker. Збільшуйте версію при кожній зміні CORE_ASSETS
+// чи стратегії кешування — activate видалить старі кеші.
+const CACHE_NAME = 'cluvyra-v1';
+const PRODUCT_NAME = 'Cluvyra';
 const CORE_ASSETS = [
   '/',
   '/index.html',
+  '/app',
+  '/styles/landing.css',
+  '/assets/brand/cluvyra-logo.svg',
   '/pages/home/index.html',
   '/styles/home.css',
   '/js/home.js',
@@ -43,16 +49,16 @@ self.addEventListener('activate', (event) => {
 // ── Web Push ──────────────────────────────────────────────────────────────────
 
 self.addEventListener('push', (event) => {
-  let data = { title: 'OLIMP', body: '' };
+  let data = { title: PRODUCT_NAME, body: '' };
   try { data = event.data?.json() ?? data; } catch {}
 
   event.waitUntil(
     Promise.all([
-      self.registration.showNotification(data.title || 'OLIMP', {
+      self.registration.showNotification(data.title || PRODUCT_NAME, {
         body: data.body || '',
         icon: '/assets/icons/icon-192.png',
         badge: '/assets/icons/icon-192.png',
-        tag: 'olimp-notification',
+        tag: 'cluvyra-notification',
         renotify: true,
         data: { link: data.link || '/' },
       }),
@@ -64,14 +70,27 @@ self.addEventListener('push', (event) => {
   );
 });
 
+/**
+ * Безпечне посилання зі сповіщення: лише відносний шлях нашого ж домену
+ * (payload push-повідомлення не повинен відкривати сторонні сайти).
+ */
+function resolveNotificationTarget(link) {
+  try {
+    const url = new URL(link || '/', self.location.origin);
+    return url.origin === self.location.origin ? url.href : self.location.origin + '/';
+  } catch {
+    return self.location.origin + '/';
+  }
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const target = resolveNotificationTarget(event.notification.data?.link);
   event.waitUntil(
-    const target = event.notification.data?.link || '/';
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      const existing = list.find((c) => c.url.includes(target));
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const existing = list.find((c) => c.url === target);
       if (existing) return existing.focus();
-      return clients.openWindow(target);
+      return self.clients.openWindow(target);
     })
   );
 });
@@ -93,9 +112,11 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  // Чужі домени та API не кешуємо і не перехоплюємо.
+  // Чужі домени, API (персональні дані) і завантаження користувачів
+  // не кешуємо і не перехоплюємо.
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api')) return;
+  if (url.pathname.startsWith('/assets/uploads/')) return;
 
   event.respondWith(
     fetch(request)
@@ -111,21 +132,13 @@ self.addEventListener('fetch', (event) => {
         const cached = await caches.match(request);
         if (cached) return cached;
 
-        // Сторінки кабінетів у CORE_ASSETS не входять, тож при першому
-        // офлайн-заході кеш порожній. Раніше тут повертався undefined,
-        // і respondWith(undefined) валив навігацію жорсткою помилкою —
-        // у встановленому PWA (без адресного рядка) користувач лишався
-        // на порожньому екрані без можливості повернутись.
+        // Сторінки, яких немає в кеші, отримують зрозумілу офлайн-сторінку
+        // замість порожнього екрана (у встановленому PWA немає адресного рядка).
         if (request.mode === 'navigate') {
-          const shell =
-            (await caches.match('/pages/home/index.html')) ||
-            (await caches.match('/index.html'));
-          if (shell) return shell;
-
           return new Response(
             '<!doctype html><meta charset="utf-8">' +
-              '<title>OLIMP — немає зв\'язку</title>' +
-              '<div style="font:16px system-ui;padding:40px;text-align:center">' +
+              '<title>' + PRODUCT_NAME + ' — немає зв\'язку</title>' +
+              '<div style="font:16px system-ui;padding:40px;text-align:center;background:#131F2C;color:#fff;min-height:100vh;box-sizing:border-box">' +
               '<h1>Немає зв\'язку</h1>' +
               '<p>Перевірте підключення до інтернету та спробуйте ще раз.</p>' +
               '<button onclick="location.reload()" ' +

@@ -201,7 +201,11 @@ router.put('/:id', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
       `update users
        set name = coalesce($1, name),
            email = coalesce($2, email),
-           role = coalesce($3, role)
+           role = coalesce($3, role),
+           -- Зміна ролі відкликає видані токени (claim tv), щоб старі права
+           -- не діяли до закінчення строку JWT.
+           token_version = token_version
+             + case when $3::varchar is not null and $3::varchar <> role then 1 else 0 end
        where id = $4
        returning id, name, email, role`,
       [name || null, email ? email.toLowerCase() : null, normalizedRole, id]

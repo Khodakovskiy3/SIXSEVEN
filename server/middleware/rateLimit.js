@@ -29,9 +29,45 @@ const limitMessage = {
  */
 export const authLimiter = rateLimit({
   windowMs: 60 * 1000,          // вікно: 1 хвилина
-  max: 100,                     // не більше 100 запитів на IP за вікно
+  max: 60,                      // не більше 60 запитів на IP за вікно
   standardHeaders: true,        // додає заголовки RateLimit-*
   legacyHeaders: false,         // без застарілих X-RateLimit-*
+  statusCode: HTTP_TOO_MANY_REQUESTS,
+  message: limitMessage,
+});
+
+/**
+ * Суворий ліміт для перевірки облікових даних і кодів: вхід, реєстрація,
+ * підтвердження OTP та повторне надсилання. Успішні запити не рахуються,
+ * тож звичайний користувач (навіть за спільним NAT залу) ліміт не відчує,
+ * а перебір пароля чи 6-значного коду стає непрактичним.
+ */
+export const credentialLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: HTTP_TOO_MANY_REQUESTS,
+  message: { error: 'Забагато невдалих спроб. Спробуйте ще раз за 15 хвилин.' },
+});
+
+/** Загальний ліміт для всього API (захист від зловживань і випадкових циклів). */
+export const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: HTTP_TOO_MANY_REQUESTS,
+  message: limitMessage,
+});
+
+/** Публічні ендпоінти без авторизації (гостьовий чат, публічні дані). */
+export const publicLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
   statusCode: HTTP_TOO_MANY_REQUESTS,
   message: limitMessage,
 });

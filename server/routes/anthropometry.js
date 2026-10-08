@@ -16,10 +16,12 @@ import { getClientIdByUserId } from '../utils/identity.js';
 import {
   HTTP_BAD_REQUEST,
   HTTP_CREATED,
+  HTTP_FORBIDDEN,
   HTTP_NOT_FOUND,
   HTTP_SERVER_ERROR,
   ROLE,
 } from '../utils/constants.js';
+import { todayInZone } from '../utils/time.js';
 
 /** Код помилки Postgres «порушення CHECK-обмеження». */
 const PG_CHECK_VIOLATION = '23514';
@@ -84,7 +86,7 @@ router.get('/me', requireRole(ROLE.CLIENT), async (req, res) => {
     return res.json(result.rows);
   } catch (err) {
     logError('[anthro GET /me]', err, { userId: req.user?.id });
-    return res.status(HTTP_SERVER_ERROR).json({ error: err.message });
+    return res.status(HTTP_SERVER_ERROR).json({ error: 'Не вдалося обробити дані антропометрії' });
   }
 });
 
@@ -117,7 +119,7 @@ router.post(
          returning id, recorded_at, weight, height, chest, waist, hips, bicep, thigh, note`,
         [
           clientId,
-          recorded_at || new Date().toISOString().slice(0, 10),
+          recorded_at || todayInZone(),
           weight, height,
           chest, waist, hips,
           bicep, thigh,
@@ -134,7 +136,7 @@ router.post(
           .status(HTTP_BAD_REQUEST)
           .json({ error: 'Значення виміру виходить за допустимі межі' });
       }
-      return res.status(HTTP_SERVER_ERROR).json({ error: err.message });
+      return res.status(HTTP_SERVER_ERROR).json({ error: 'Не вдалося обробити дані антропометрії' });
     }
   }
 );
@@ -149,6 +151,21 @@ router.get('/client/:clientId', requireRole(ROLE.TRAINER), async (req, res) => {
   }
 
   try {
+    // Тренер бачить виміри лише тих клієнтів, які записувалися на його
+    // заняття (інакше будь-який тренер міг би переглядати дані будь-кого).
+    const access = await query(
+      `select 1
+       from bookings b
+       join schedules s on s.id = b.schedule_id
+       join trainers t on t.id = s.trainer_id
+       where b.client_id = $1 and t.user_id = $2
+       limit 1`,
+      [clientId, req.user.id]
+    );
+    if (access.rows.length === 0) {
+      return res.status(HTTP_FORBIDDEN).json({ error: 'Forbidden' });
+    }
+
     const result = await query(
       `select id, recorded_at, weight, height, chest, waist, hips, bicep, thigh, note
        from client_anthropometry
@@ -159,7 +176,7 @@ router.get('/client/:clientId', requireRole(ROLE.TRAINER), async (req, res) => {
     return res.json(result.rows);
   } catch (err) {
     logError('[anthro GET /client]', err, { userId: req.user?.id });
-    return res.status(HTTP_SERVER_ERROR).json({ error: err.message });
+    return res.status(HTTP_SERVER_ERROR).json({ error: 'Не вдалося обробити дані антропометрії' });
   }
 });
 
@@ -182,7 +199,7 @@ router.delete('/me/:id', requireRole(ROLE.CLIENT), async (req, res) => {
     return res.json({ ok: true });
   } catch (err) {
     logError('[anthro DELETE]', err, { userId: req.user?.id });
-    return res.status(HTTP_SERVER_ERROR).json({ error: err.message });
+    return res.status(HTTP_SERVER_ERROR).json({ error: 'Не вдалося обробити дані антропометрії' });
   }
 });
 

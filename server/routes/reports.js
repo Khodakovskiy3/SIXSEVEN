@@ -24,6 +24,7 @@ import {
   ROLE,
   SUBSCRIPTION_STATUS,
 } from '../utils/constants.js';
+import { todayInZone, addDays } from '../utils/time.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PDF_SCRIPT = path.resolve(__dirname, '../../scripts/gen_pdf_report.py');
@@ -482,8 +483,8 @@ router.get('/payments-list', authRequired, canViewPaymentsList, async (req, res)
 
 router.get('/pdf', async (req, res) => {
   try {
-    const today = new Date().toISOString().slice(0, 10);
-    const dfltStart = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
+    const today = todayInZone();
+    const dfltStart = addDays(today, -29);
     const { start, end } = req.query;
     let startDate = start || dfltStart;
     let endDate   = end   || today;
@@ -623,7 +624,7 @@ router.get('/pdf', async (req, res) => {
         return;
       }
       const pdf = Buffer.concat(chunks);
-      const now = new Date().toISOString().slice(0, 10);
+      const now = todayInZone();
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="olimp-analytics-${now}.pdf"`);
       res.setHeader('Content-Length', pdf.length);

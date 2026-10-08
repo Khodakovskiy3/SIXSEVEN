@@ -1,10 +1,15 @@
 /**
- * Головний процес Electron-обгортки для «Системи обліку спортивного клубу».
+ * Головний процес Electron-обгортки Cluvyra (необов'язковий компонент,
+ * не входить у Railway-деплой).
  *
- * Не дублює бекенд — просто піднімає наявний Express-сервер (server/index.js)
- * усередині цього ж процесу і відкриває вікно на http://localhost:PORT.
- * PostgreSQL, .env та решта інфраструктури налаштовуються так само, як і
- * при звичайному запуску через `npm start`.
+ * Два режими:
+ *  • CLUVYRA_REMOTE_URL=https://… — тонкий клієнт: вікно відкриває вже
+ *    розгорнутий застосунок, жодних секретів на машині користувача;
+ *  • без неї — локальний режим розробника: піднімає server/index.js у цьому
+ *    процесі (конфігурація з оточення / локального .env розробника).
+ *
+ * Секрети (.env, ANTHROPIC_API_KEY, DATABASE_URL, JWT_SECRET, SMTP_PASS)
+ * НІКОЛИ не пакуються в інсталятор — див. "build.files" у package.json.
  */
 
 const { app, BrowserWindow } = require('electron');
@@ -63,13 +68,13 @@ function waitForPort(port) {
   });
 }
 
-function createWindow(port) {
+function createWindow(target) {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
     minWidth: 960,
     minHeight: 640,
-    title: 'OLIMP',
+    title: 'Cluvyra',
     icon: APP_ICON,
     webPreferences: {
       contextIsolation: true,
@@ -82,15 +87,26 @@ function createWindow(port) {
   mainWindow.webContents.on('did-fail-load', () => {
     setTimeout(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.loadURL(`http://localhost:${port}`);
+        mainWindow.loadURL(target);
       }
     }, RELOAD_DELAY_MS);
   });
 
-  mainWindow.loadURL(`http://localhost:${port}`);
+  mainWindow.loadURL(target);
 }
 
 app.whenReady().then(async () => {
+  const remoteUrl = process.env.CLUVYRA_REMOTE_URL;
+  if (remoteUrl && /^https:\/\//.test(remoteUrl)) {
+    createWindow(remoteUrl);
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow(remoteUrl);
+      }
+    });
+    return;
+  }
+
   const port = Number(process.env.PORT) || DEFAULT_PORT;
 
   try {
@@ -102,11 +118,12 @@ app.whenReady().then(async () => {
     return;
   }
 
-  createWindow(port);
+  const localUrl = `http://localhost:${port}/app`;
+  createWindow(localUrl);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow(port);
+      createWindow(localUrl);
     }
   });
 });

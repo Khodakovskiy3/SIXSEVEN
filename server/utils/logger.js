@@ -16,20 +16,29 @@ import { fileURLToPath } from 'node:url';
 
 const CURRENT_DIR = dirname(fileURLToPath(import.meta.url));
 
-/** Каталог журналів (налаштовується через LOG_DIR; типово — logs/ у корені проєкту). */
-const LOG_DIR = process.env.LOG_DIR || join(CURRENT_DIR, '..', '..', 'logs');
+/**
+ * Каталог журналів (LOG_DIR; типово — logs/ у корені проєкту).
+ * У production без явного LOG_DIR пишемо лише в stdout: на Railway файлова
+ * система контейнера ефемерна, а логи збирає сама платформа.
+ */
+const LOG_DIR = process.env.LOG_DIR
+  || (process.env.NODE_ENV === 'production' ? '' : join(CURRENT_DIR, '..', '..', 'logs'));
 
 /** Файл журналу серверних помилок. */
-const ERROR_LOG_FILE = join(LOG_DIR, 'error.log');
+const ERROR_LOG_FILE = LOG_DIR ? join(LOG_DIR, 'error.log') : '';
 
 /** Рівень запису журналу. */
 const LOG_LEVEL_ERROR = 'ERROR';
 
 // Каталог створюємо один раз при завантаженні модуля. Якщо не вдалося —
 // логер не має «вбивати» сервер, тож лише попереджаємо в консоль.
+let isFileLogEnabled = Boolean(LOG_DIR);
 try {
-  mkdirSync(LOG_DIR, { recursive: true });
+  if (isFileLogEnabled) {
+    mkdirSync(LOG_DIR, { recursive: true });
+  }
 } catch (error) {
+  isFileLogEnabled = false;
   console.error('Не вдалося створити каталог журналу:', error.message);
 }
 
@@ -73,6 +82,10 @@ export function logError(message, error, meta) {
 
   // У консоль — без завершального переносу (console його додасть сам).
   console.error(entry.trimEnd());
+
+  if (!isFileLogEnabled) {
+    return;
+  }
 
   try {
     appendFileSync(ERROR_LOG_FILE, entry);

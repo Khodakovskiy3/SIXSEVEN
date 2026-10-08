@@ -1,186 +1,97 @@
 /**
- * Точка входу серверної частини «Системи обліку спортивного клубу».
+ * Точка входу серверної частини Cluvyra.
  *
- * Налаштовує Express-застосунок:
- *  • CORS і JSON-парсер;
- *  • роздачу статичних файлів із public/;
- *  • маршрути API /api/* (по одному модулю на доменну сутність).
+ * Порядок запуску:
+ *  1. перевірка конфігурації (у production небезпечна конфігурація = відмова);
+ *  2. міграції БД (або перевірка, що їх уже застосувала pre-deploy команда);
+ *  3. HTTP-сервер на PORT (Railway передає PORT автоматично);
+ *  4. фонові задачі під advisory lock;
+ *  5. коректне завершення за SIGTERM/SIGINT (редеплой Railway).
  */
 
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-
-import authRoutes from './routes/auth.js';
-import usersRoutes from './routes/users.js';
-import clientsRoutes from './routes/clients.js';
-import trainersRoutes from './routes/trainers.js';
-import workoutsRoutes from './routes/workouts.js';
-import schedulesRoutes from './routes/schedules.js';
-import bookingsRoutes from './routes/bookings.js';
-import subscriptionsRoutes from './routes/subscriptions.js';
-import paymentsRoutes from './routes/payments.js';
-import visitsRoutes from './routes/visits.js';
-import reportsRoutes from './routes/reports.js';
-import publicRoutes from './routes/public.js';
-import clubRoutes from './routes/club.js';
-import messagesRoutes from './routes/messages.js';
-import chatRoutes from './routes/chat.js';
-import uploadRoutes from './routes/upload.js';
-import anthropometryRoutes from './routes/anthropometry.js';
-import notificationsRoutes from './routes/notifications.js';
-import pushRoutes from './routes/push.js';
-import aiRoutes from './routes/ai.js';
-
-import { DEFAULT_HTTP_PORT, HTTP_SERVER_ERROR } from './utils/constants.js';
+import { config, validateConfig } from './config.js';
+import { closePool } from './db.js';
+import { createApp, notifyManagers } from './app.js';
+import { runMigrations, verifyMigrationsApplied } from './migrate.js';
 import { logError } from './utils/logger.js';
-import { authLimiter } from './middleware/rateLimit.js';
-import { runMigrations } from './migrate.js';
+import { scheduleJob, stopAllJobs } from './jobs/scheduler.js';
 import { runSubscriptionReminders } from './utils/subscription-reminders.js';
 import { runTrainingHourReminders } from './utils/training-reminders.js';
 import { activatePlannedMessages } from './routes/messages.js';
-import { query } from './db.js';
-import { notifyUsers } from './utils/notify.js';
-console.log('SERVER INDEX JS STARTED');
-dotenv.config();
 
-const PORT = Number(process.env.PORT) || DEFAULT_HTTP_PORT;
-const STATIC_DIR = 'public';
-const CORS_ORIGINS = (process.env.CORS_ORIGIN || '')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+const MS_PER_MINUTE = 60 * 1000;
+const MS_PER_HOUR = 60 * MS_PER_MINUTE;
+const SHUTDOWN_TIMEOUT_MS = 10_000;
 
-// Небезпечний дефолт секрету не повинен потрапити у продакшн: без власного
-// JWT_SECRET підписані токени легко підробити.
-const INSECURE_JWT_SECRET = 'change_me';
-if (!process.env.JWT_SECRET || process.env.JWT_SECRET === INSECURE_JWT_SECRET) {
-  const message = 'JWT_SECRET не задано або використовується дефолтне значення.';
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error(`${message} Запуск у production заблоковано.`);
-  }
-  console.warn(`Попередження: ${message} Задайте власний у .env перед деплоєм.`);
-}
-
-const app = express();
-
-// За замовчуванням Express не довіряє заголовку X-Forwarded-For — тоді
-// express-rate-limit не може коректно визначити реальну IP-адресу клієнта
-// і кидає ValidationError (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR), якщо цей
-// заголовок взагалі присутній у запиті (наприклад, від Caddy в проді або
-// від локального проксі/тулінгу в розробці). У проді перед застосунком
-// стоїть один реверс-проксі (Caddy, docker-compose), тож довіряємо рівно
-// одному хопу; це коректно й безпечно — заголовок від клієнта напряму
-// буде переписаний проксі, а не підмінений зловмисником.
-app.set('trust proxy', 1);
-
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'no-referrer');
-  return next();
-});
-
-app.use(cors({
-  origin: CORS_ORIGINS.length > 0
-    ? CORS_ORIGINS
-    : process.env.NODE_ENV !== 'production',
-}));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.static(STATIC_DIR));
-
-// Простий health-чек, корисний для моніторингу та deployment-перевірок.
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true });
-});
-
-// ─── Реєстрація доменних маршрутів ────────────────────────────────────────────
-// Вхід та коди підтвердження — під захистом rate limiter (антиперебір).
-app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/users', usersRoutes);
-app.use('/api/clients', clientsRoutes);
-app.use('/api/trainers', trainersRoutes);
-app.use('/api/workouts', workoutsRoutes);
-app.use('/api/schedules', schedulesRoutes);
-app.use('/api/bookings', bookingsRoutes);
-app.use('/api/subscriptions', subscriptionsRoutes);
-app.use('/api/payments', paymentsRoutes);
-app.use('/api/visits', visitsRoutes);
-app.use('/api/reports', reportsRoutes);
-app.use('/api/public', publicRoutes);
-app.use('/api/club', clubRoutes);
-app.use('/api/messages', messagesRoutes);
-app.use('/api/chat', chatRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api/anthropometry', anthropometryRoutes);
-app.use('/api/notifications', notificationsRoutes);
-app.use('/api/push', pushRoutes);
-app.use('/api/ai', aiRoutes);
-
-// ─── Глобальна обробка помилок ────────────────────────────────────────────────
-// Будь-яка помилка, передана через next(err), повертається клієнту як 500,
-// а не валить процес. Залишаємо чотири параметри — так Express розпізнає
-// саме обробник помилок.
-// eslint-disable-next-line no-unused-vars
-app.use((err, req, res, next) => {
-  logError('Необроблена помилка запиту', err, {
-    method: req.method,
-    path: req.originalUrl,
-    userId: req.user?.id,
-  });
-  notifyManagers(
-    `⚠️ Критична помилка сервера`,
-    `${err?.message || err}\n${req.method} ${req.originalUrl}`
-  ).catch(() => {});
-  if (res.headersSent) {
-    return next(err);
-  }
-  return res.status(HTTP_SERVER_ERROR).json({ error: 'Internal server error' });
-});
-
-// Підстраховка на рівні процесу: непередбачена відмова промісу чи виняток
-// в асинхронному обробнику не повинні «вбивати» сервер для всіх користувачів.
 process.on('unhandledRejection', (reason) => {
   logError('Необроблений reject промісу', reason);
-  notifyManagers('⚠️ Необроблена помилка', String(reason?.message || reason)).catch(() => {});
 });
 
+// Після uncaughtException стан процесу невизначений: логуємо й завершуємось,
+// платформа (Railway / Docker restart policy) підніме чистий процес.
 process.on('uncaughtException', (error) => {
-  logError('Необроблений виняток', error);
-  notifyManagers('⚠️ Критичний виняток', String(error?.message || error)).catch(() => {});
+  logError('Необроблений виняток — завершення процесу', error);
+  notifyManagers('⚠️ Критичний виняток сервера', String(error?.message || error))
+    .catch(() => {})
+    .finally(() => process.exit(1));
+  setTimeout(() => process.exit(1), 3000).unref();
 });
 
-async function notifyManagers(title, body) {
-  try {
-    const result = await query(`select id from users where role in ('admin', 'manager')`);
-    const ids = result.rows.map((r) => r.id);
-    if (ids.length) {
-      await notifyUsers(ids, title, body, { link: '/pages/manager/index.html' });
-    }
-  } catch {}
+function startJobs() {
+  if (!config.server.jobsEnabled) {
+    console.log('Фонові задачі вимкнено (JOBS_ENABLED=false)');
+    return;
+  }
+  // Нагадування про абонементи ідемпотентні в межах доби, тож щогодинний
+  // запуск не дублює сповіщень і переживає рестарти.
+  scheduleJob('subscription-reminders', MS_PER_HOUR, runSubscriptionReminders);
+  scheduleJob('planned-messages', MS_PER_MINUTE, activatePlannedMessages);
+  scheduleJob('training-hour-reminders', 5 * MS_PER_MINUTE, runTrainingHourReminders);
 }
 
-console.log('ROUTES REGISTERED');
+async function main() {
+  validateConfig();
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const MS_PER_FIVE_MINUTES = 5 * 60 * 1000;
-const MS_PER_MINUTE = 60 * 1000;
+  if (config.server.runMigrationsOnStart) {
+    await runMigrations();
+  } else {
+    await verifyMigrationsApplied();
+  }
 
-runMigrations()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-    // Нагадування про абонементи: запускаємо одразу й потім щодня.
-    runSubscriptionReminders();
-    setInterval(runSubscriptionReminders, MS_PER_DAY);
-    // Окремі фонові процеси: планові оголошення та нагадування про заняття.
-    activatePlannedMessages().catch((error) => logError('Планові повідомлення', error));
-    setInterval(() => activatePlannedMessages().catch((error) => logError('Планові повідомлення', error)), MS_PER_MINUTE);
-    runTrainingHourReminders();
-    setInterval(runTrainingHourReminders, MS_PER_FIVE_MINUTES);
-  })
-  .catch((err) => {
-    logError('Не вдалося застосувати міграції', err);
-    process.exit(1);
+  const app = createApp();
+  const server = config.server.host
+    ? app.listen(config.server.port, config.server.host)
+    : app.listen(config.server.port);
+
+  await new Promise((resolve, reject) => {
+    server.once('listening', resolve);
+    server.once('error', reject);
   });
+  console.log(`${config.brand.productName} server listening on port ${config.server.port} (${config.env})`);
 
+  startJobs();
+
+  let isShuttingDown = false;
+  const shutdown = (signal) => {
+    if (isShuttingDown) {
+      return;
+    }
+    isShuttingDown = true;
+    console.log(`${signal} отримано — завершуємо роботу`);
+    stopAllJobs();
+    setTimeout(() => process.exit(1), SHUTDOWN_TIMEOUT_MS).unref();
+    server.close(() => {
+      closePool().finally(() => process.exit(0));
+    });
+    // SSE-з'єднання (чат) тримаються довго — закриваємо їх примусово.
+    server.closeIdleConnections?.();
+    setTimeout(() => server.closeAllConnections?.(), 2000).unref();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+main().catch((error) => {
+  logError('Не вдалося запустити сервер', error);
+  closePool().finally(() => process.exit(1));
+});

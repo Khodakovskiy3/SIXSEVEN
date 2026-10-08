@@ -15,6 +15,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const seedFile = join(__dirname, '..', 'db', 'seed-test.sql');
 
 async function run() {
+  // seed-test.sql містить відомі тестові паролі — лише для локальної розробки.
+  // Для демо в production використовуйте `npm run demo:seed` (випадкові паролі).
+  if (process.env.NODE_ENV === 'production') {
+    console.error('✗ db:seed заборонено в production (відомі тестові паролі). Використайте npm run demo:seed.');
+    process.exitCode = 1;
+    return;
+  }
   const sql = readFileSync(seedFile, 'utf8');
   const client = await pool.connect();
 

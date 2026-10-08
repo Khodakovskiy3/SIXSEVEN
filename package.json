@@ -1,31 +1,35 @@
 {
-  "name": "sports-club-system",
-  "version": "1.0.0",
-  "description": "Система обліку спортивного клубу OLIMP",
-  "author": "OLIMP",
+  "name": "cluvyra",
+  "version": "0.1.0",
+  "description": "Cluvyra — AI-powered management platform for fitness and wellness businesses",
+  "author": "Cluvyra",
   "private": true,
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
     "start": "node server/index.js",
-    "predev": "node scripts/ensure-ollama.js",
     "dev": "nodemon server/index.js",
+    "dev:ollama": "node scripts/ensure-ollama.js && nodemon server/index.js",
     "db:migrate": "node scripts/db-migrate.js",
     "db:seed": "node scripts/db-seed.js",
+    "demo:seed": "node scripts/demo-seed.js",
     "test": "node --test tests/*.test.js",
+    "test:integration": "node --test --test-concurrency=1 tests/integration/*.test.js",
+    "check:syntax": "node scripts/check-syntax.js",
     "electron": "electron .",
     "electron:build": "electron-builder --mac",
     "electron:build:win": "electron-builder --win"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.132.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2",
+    "express": "^5.2.1",
     "express-rate-limit": "^7.5.1",
     "jsonwebtoken": "^9.0.2",
-    "nodemailer": "^9.0.1",
-    "pg": "^8.12.0",
+    "nodemailer": "^10.0.16",
+    "pg": "^8.23.1",
     "web-push": "^3.6.7",
     "zod": "^3.25.76"
   },
@@ -35,8 +39,8 @@
     "nodemon": "^3.1.14"
   },
   "build": {
-    "appId": "ua.olimp.sportsclub",
-    "productName": "OLIMP",
+    "appId": "com.cluvyra.desktop",
+    "productName": "Cluvyra",
     "asar": false,
     "directories": {
       "output": "dist-electron"
@@ -48,14 +52,15 @@
       "!docs/**/*",
       "!dist-electron/**/*",
       "!*.docx",
+      "!README.md",
       "!README.MD",
-      "!AGENTS.md"
-    ],
-    "extraResources": [
-      {
-        "from": ".env",
-        "to": "app/.env"
-      }
+      "!AGENTS.md",
+      "!.env",
+      "!.env.*",
+      "!.railway/**/*",
+      "!public/assets/uploads/**/*",
+      "!backups/**/*",
+      "!graphify-out/**/*"
     ],
     "mac": {
       "icon": "public/assets/icons/icon-512.png",
@@ -78,5 +83,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     }
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

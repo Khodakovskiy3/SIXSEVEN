@@ -7,20 +7,24 @@
  *  • signToken    — формує JWT-токен для виданого користувача.
  */
 
+import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
 
 import { query } from '../db.js';
+import { config } from '../config.js';
 import {
   AUTH_HEADER_PREFIX,
   HTTP_UNAUTHORIZED,
   HTTP_FORBIDDEN,
-  JWT_TTL,
 } from '../utils/constants.js';
 
-dotenv.config();
-
-const JWT_SECRET = process.env.JWT_SECRET || 'change_me';
+// Секрет лише з конфігурації: у production validateConfig() не дасть
+// стартувати без надійного JWT_SECRET. Для локальної розробки без секрету
+// генеруємо випадковий на час життя процесу (токени не переживуть рестарт),
+// а не відомий усім рядок на кшталт 'change_me'.
+const JWT_SECRET = config.auth.jwtSecret
+  || (config.isProduction ? '' : `dev-${crypto.randomUUID()}-${crypto.randomUUID()}`);
+const JWT_ALGORITHM = 'HS256';
 
 /**
  * Middleware, що перевіряє валідність токена з заголовка Authorization.
@@ -41,9 +45,9 @@ export async function authRequired(req, res, next) {
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
     const result = await query(
-      `select id, name, email, role, twofa_enabled
+      `select id, name, email, role, twofa_enabled, token_version
        from users
        where id = $1`,
       [payload.id]
@@ -53,7 +57,13 @@ export async function authRequired(req, res, next) {
       return res.status(HTTP_UNAUTHORIZED).json({ error: 'User not found' });
     }
 
-    req.user = result.rows[0];
+    // Токен, виданий до зміни пароля/ролі, відкликаний (claim tv застарів).
+    const { token_version: tokenVersion, ...user } = result.rows[0];
+    if (Number(payload.tv || 0) !== Number(tokenVersion || 0)) {
+      return res.status(HTTP_UNAUTHORIZED).json({ error: 'Session expired' });
+    }
+
+    req.user = user;
     return next();
   } catch {
     // Будь-яка помилка верифікації (прострочений, підроблений токен)
@@ -81,7 +91,7 @@ export function requireRole(...roles) {
 /**
  * Створює підписаний JWT-токен для користувача.
  *
- * @param {{ id: number, email: string, role: string, name: string }} user
+ * @param {{ id: number, email: string, role: string, name: string, token_version?: number }} user
  * @returns {string} токен у форматі JWT.
  */
 export function signToken(user) {
@@ -91,8 +101,9 @@ export function signToken(user) {
       email: user.email,
       role: user.role,
       name: user.name,
+      tv: Number(user.token_version || 0),
     },
     JWT_SECRET,
-    { expiresIn: JWT_TTL }
+    { expiresIn: config.auth.jwtTtl, algorithm: JWT_ALGORITHM }
   );
 }

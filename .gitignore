@@ -16,3 +16,8 @@ AGENTS.md
 dist-electron/
 backups/
 
+
+# User uploads (persistent volume in production; never commit user files)
+public/assets/uploads/
+.env.*
+!.env.example

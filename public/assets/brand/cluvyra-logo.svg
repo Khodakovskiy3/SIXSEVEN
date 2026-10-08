@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 228 64" role="img" aria-label="Cluvyra">
+  <rect width="64" height="64" rx="16" fill="#131F2C"/>
+  <path d="M44.26 21.72 A16 16 0 1 0 44.26 42.28" fill="none" stroke="#BEF45D" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="47" cy="32" r="4.2" fill="#FFFFFF"/>
+  <text x="78" y="43" font-family="'Manrope','Inter','Segoe UI',system-ui,sans-serif" font-size="32" font-weight="800" letter-spacing="-0.5" fill="currentColor">cluvyra</text>
+</svg>

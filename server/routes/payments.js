@@ -3,7 +3,7 @@
  *
  * GET    /api/payments     — список усіх оплат (admin, manager).
  * GET    /api/payments/me  — оплати поточного клієнта.
- * POST   /api/payments     — створити оплату (admin, manager, client).
+ * POST   /api/payments     — внести оплату вручну (admin, manager).
  * DELETE /api/payments/:id — видалити оплату (admin).
  */
 
@@ -15,13 +15,18 @@ import { getClientIdByUserId } from '../utils/identity.js';
 import {
   HTTP_BAD_REQUEST,
   HTTP_CREATED,
-  HTTP_FORBIDDEN,
   HTTP_NOT_FOUND,
   PAYMENT_STATUS_COMPLETED,
   ROLE,
 } from '../utils/constants.js';
 
 const router = Router();
+
+/** Допустимі статуси оплати (відповідають payments_status_check). */
+const PAYMENT_STATUSES = ['completed', 'pending', 'refunded'];
+
+/** Верхня межа суми однієї оплати — захист від одруків. */
+const MAX_PAYMENT_AMOUNT = 1_000_000;
 
 router.use(authRequired);
 
@@ -54,35 +59,35 @@ router.get('/me', requireRole(ROLE.CLIENT), async (req, res) => {
   return res.json(result.rows);
 });
 
-router.post('/', authRequired, async (req, res) => {
+// Ручне внесення оплати — лише персонал. Клієнти оплачують абонемент
+// через POST /api/subscriptions/purchase, а не створюють записи оплат
+// напряму (інакше клієнт міг би внести «completed»-оплату з довільною
+// сумою і спотворити фінансову аналітику).
+router.post('/', requireRole(ROLE.ADMIN, ROLE.MANAGER), async (req, res) => {
   const {
-    client_id: clientIdFromBody,
+    client_id: clientId,
     subscription_id: subscriptionId,
     amount,
     status,
   } = req.body || {};
 
-  // Для клієнта ігноруємо client_id з тіла запиту — використовуємо ID
-  // власного облікового запису, щоб не дати оплатити за чужий рахунок.
-  let resolvedClientId = clientIdFromBody || null;
-  if (req.user.role === ROLE.CLIENT) {
-    resolvedClientId = await getClientIdByUserId(req.user.id);
-  }
-
-  if (!resolvedClientId || !amount) {
+  const numericAmount = Number(amount);
+  if (!Number.isInteger(Number(clientId)) || !Number.isFinite(numericAmount)) {
     return res.status(HTTP_BAD_REQUEST).json({ error: 'Missing required fields' });
   }
-
-  const allowedRoles = [ROLE.ADMIN, ROLE.MANAGER, ROLE.CLIENT];
-  if (!allowedRoles.includes(req.user.role)) {
-    return res.status(HTTP_FORBIDDEN).json({ error: 'Forbidden' });
+  if (numericAmount <= 0 || numericAmount > MAX_PAYMENT_AMOUNT) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid amount' });
+  }
+  const resolvedStatus = status || PAYMENT_STATUS_COMPLETED;
+  if (!PAYMENT_STATUSES.includes(resolvedStatus)) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Invalid status' });
   }
 
   const result = await query(
     `insert into payments (client_id, subscription_id, amount, status)
      values ($1, $2, $3, $4)
      returning id, client_id, subscription_id, amount, date, status`,
-    [resolvedClientId, subscriptionId || null, amount, status || PAYMENT_STATUS_COMPLETED]
+    [Number(clientId), subscriptionId || null, numericAmount, resolvedStatus]
   );
 
   return res.status(HTTP_CREATED).json(result.rows[0]);

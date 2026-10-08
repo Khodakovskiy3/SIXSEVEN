@@ -167,6 +167,12 @@ export async function apiFetch(path, options = {}) {
     throw error;
   }
 
+  // Після зміни пароля сервер відкликає старі токени й повертає новий
+  // для поточної сесії — підміняємо його, щоб користувача не розлогінило.
+  if (data && typeof data.refreshedToken === 'string') {
+    localStorage.setItem(STORAGE_KEY.TOKEN, data.refreshedToken);
+  }
+
   return data;
 }
 

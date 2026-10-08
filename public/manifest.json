@@ -1,35 +1,17 @@
 {
-  "name": "OLIMP — Sports Club System",
-  "short_name": "OLIMP",
-  "start_url": "/index.html",
+  "name": "Cluvyra — studio management",
+  "short_name": "Cluvyra",
+  "description": "Run your studio. Simplify every booking.",
+  "id": "/app",
+  "start_url": "/app",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#050507",
-  "theme_color": "#1d6f42",
+  "background_color": "#131F2C",
+  "theme_color": "#131F2C",
   "icons": [
-    {
-      "src": "/assets/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/assets/icons/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/assets/icons/icon-192-maskable.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "/assets/icons/icon-512-maskable.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icons/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/assets/icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

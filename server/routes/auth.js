@@ -36,7 +36,12 @@ import {
   hasPendingCode,
   generateCode,
 } from '../utils/otp.js';
-import { sendOtpEmail, isMailConfigured } from '../utils/mailer.js';
+import {
+  sendOtpEmail,
+  canDeliverOtp,
+  isDevOtpExposureAllowed,
+  MAIL_UNAVAILABLE_MESSAGE,
+} from '../utils/mailer.js';
 import {
   BCRYPT_SALT_ROUNDS,
   HTTP_BAD_REQUEST,
@@ -64,6 +69,9 @@ function authResponse(user) {
   };
 }
 
+/** Простий формат email для публічної реєстрації (службові логіни — лише через адміністратора). */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 /** Людиночитні повідомлення для невдалої перевірки коду. */
 const OTP_ERRORS = {
   no_code: 'Код не знайдено. Запитайте новий код.',
@@ -72,17 +80,31 @@ const OTP_ERRORS = {
   invalid: 'Невірний код',
 };
 
+/** HTTP 503: код не може бути доставлений (немає SMTP у production). */
+const HTTP_SERVICE_UNAVAILABLE = 503;
+
 /**
- * Повертає devCode для відповіді API, коли код можна показувати в інтерфейсі:
- * SMTP не налаштовано (лист однаково не піде) або явно увімкнено
- * діагностичний режим DEBUG_OTP=1. В інших випадках — порожній об'єкт.
+ * Повертає devCode для відповіді API лише в режимі розробника
+ * (NODE_ENV != production і DEBUG_OTP=1). У production — завжди порожній
+ * об'єкт: код доставляється тільки поштою.
  *
  * @param {string} code — щойно згенерований OTP-код.
  * @returns {{devCode: string}|{}}
  */
 function devCodePayload(code) {
-  const shouldExposeCode = !isMailConfigured || process.env.DEBUG_OTP === '1';
-  return shouldExposeCode ? { devCode: code } : {};
+  return isDevOtpExposureAllowed ? { devCode: code } : {};
+}
+
+/**
+ * Якщо код не може бути доставлений — відповідає 503 і повертає true.
+ * Код у такому разі не генерується взагалі.
+ */
+function rejectIfOtpUndeliverable(res) {
+  if (canDeliverOtp()) {
+    return false;
+  }
+  res.status(HTTP_SERVICE_UNAVAILABLE).json({ error: MAIL_UNAVAILABLE_MESSAGE, code: 'MAIL_UNAVAILABLE' });
+  return true;
 }
 
 // ─── Непідтверджені реєстрації (pending_registrations) ───────────────────────
@@ -225,12 +247,12 @@ router.put('/profile', authRequired, validateBody(profileUpdateSchema), async (r
   }
 
   const result = await query(
-    `select id, name, email, role, phone from users where id = $1`,
+    `select id, name, email, role, phone, token_version from users where id = $1`,
     [req.user.id]
   );
 
-  const user = result.rows[0];
-  const token = signToken(user);
+  const { token_version: tokenVersion, ...user } = result.rows[0];
+  const token = signToken({ ...user, token_version: tokenVersion });
 
   res.json({ token, user });
 });
@@ -251,12 +273,17 @@ router.put('/password', authRequired, validateBody(passwordChangeSchema), async 
 
   const hash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
 
-  await query(
-    `update users set password = $1 where id = $2`,
+  // Зміна пароля відкликає всі раніше видані токени (інші пристрої,
+  // можливо скомпрометована сесія). Поточна сесія отримує новий токен.
+  const updated = await query(
+    `update users
+     set password = $1, token_version = token_version + 1
+     where id = $2
+     returning id, name, email, role, token_version`,
     [hash, req.user.id]
   );
 
-  res.json({ ok: true });
+  res.json({ ok: true, refreshedToken: signToken(updated.rows[0]) });
 });
 
 router.post('/register', validateBody(registerSchema), async (req, res) => {
@@ -279,6 +306,12 @@ router.post('/register', validateBody(registerSchema), async (req, res) => {
   const normalizedRole = ROLE.CLIENT;
 
   const emailLc = email.toLowerCase();
+  if (!EMAIL_PATTERN.test(emailLc)) {
+    return res.status(HTTP_BAD_REQUEST).json({ error: 'Невірний формат email' });
+  }
+  if (rejectIfOtpUndeliverable(res)) {
+    return undefined;
+  }
   const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
   try {
@@ -340,7 +373,7 @@ router.post('/register/verify', validateBody(registerVerifySchema), async (req, 
       const result = await client.query(
         `insert into users (name, email, password, role, twofa_enabled, phone)
          values ($1, $2, $3, $4, true, $5)
-         returning id, name, email, role`,
+         returning id, name, email, role, token_version`,
         [pending.name, pending.email, pending.password, pending.role, pending.phone || null]
       );
 
@@ -387,6 +420,10 @@ router.post('/register/resend', validateBody(registerResendSchema), async (req, 
     return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний запит' });
   }
 
+  if (rejectIfOtpUndeliverable(res)) {
+    return undefined;
+  }
+
   const wait = await getPendingResendWait(emailLc);
   if (wait > 0) {
     return res.status(HTTP_TOO_MANY_REQUESTS).json({
@@ -420,7 +457,7 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
   }
 
   const result = await query(
-    `select id, name, email, password, role, twofa_enabled
+    `select id, name, email, password, role, twofa_enabled, token_version
      from users where email = $1`,
     [email.toLowerCase()]
   );
@@ -440,6 +477,9 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
   // Для привілейованих ролей (admin, manager) 2FA примусова: код надсилається
   // навіть якщо прапорець twofa_enabled ще не встановлено.
   if (user.twofa_enabled || isMandatory2faRole(user.role)) {
+    if (rejectIfOtpUndeliverable(res)) {
+      return undefined;
+    }
     // Антиспам: якщо код уже надсилали нещодавно — не надсилаємо новий,
     // а просимо скористатися наявним (він ще дійсний).
     const wait = await getResendWaitSeconds(user.id, OTP_PURPOSE.LOGIN);
@@ -475,7 +515,7 @@ router.post('/login/verify', validateBody(loginVerifySchema), async (req, res) =
   }
 
   const result = await query(
-    `select id, name, email, role, twofa_enabled
+    `select id, name, email, role, twofa_enabled, token_version
      from users where email = $1`,
     [email.toLowerCase()]
   );
@@ -519,6 +559,9 @@ router.post('/login/resend', validateBody(loginResendSchema), async (req, res) =
   if (!isLoginStarted) {
     return res.status(HTTP_UNAUTHORIZED).json({ error: 'Невірний запит' });
   }
+  if (rejectIfOtpUndeliverable(res)) {
+    return undefined;
+  }
 
   const wait = await getResendWaitSeconds(user.id, OTP_PURPOSE.LOGIN);
   if (wait > 0) {
@@ -543,6 +586,9 @@ router.post('/login/resend', validateBody(loginResendSchema), async (req, res) =
 router.post('/2fa/request', authRequired, async (req, res) => {
   if (req.user.twofa_enabled) {
     return res.status(HTTP_BAD_REQUEST).json({ error: '2FA вже увімкнено' });
+  }
+  if (rejectIfOtpUndeliverable(res)) {
+    return undefined;
   }
   // Антиспам: не частіше, ніж раз на OTP_RESEND_COOLDOWN_SEC секунд.
   const wait = await getResendWaitSeconds(req.user.id, OTP_PURPOSE.ENABLE_2FA);

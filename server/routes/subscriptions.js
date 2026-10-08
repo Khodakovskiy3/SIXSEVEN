@@ -26,6 +26,7 @@ import {
   ROLE,
   SUBSCRIPTION_STATUS,
 } from '../utils/constants.js';
+import { todayInZone } from '../utils/time.js';
 
 const router = Router();
 
@@ -543,7 +544,7 @@ router.post('/purchase', requireRole(ROLE.CLIENT), async (req, res) => {
     return res.status(HTTP_NOT_FOUND).json({ error: 'Client not found' });
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInZone();
   const purchased = await withClient(async (client) => {
     await client.query('begin');
 

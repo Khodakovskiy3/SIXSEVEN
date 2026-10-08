@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { todayInZone } from '../utils/time.js';
 
 const MAX_NOTE_LENGTH = 500;
 
@@ -48,7 +49,7 @@ const recordedAt = z
   .refine(
     // Порівнюємо рядки в ISO-форматі: так уникаємо розбіжності часових поясів,
     // через яку «сьогодні» на сервері й у клієнта може відрізнятися на день.
-    (value) => value <= new Date().toISOString().slice(0, 10),
+    (value) => value <= todayInZone(),
     'Дата виміру не може бути в майбутньому'
   )
   .optional();

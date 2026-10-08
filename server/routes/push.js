@@ -9,6 +9,7 @@
  */
 
 import { Router } from 'express';
+import { config } from '../config.js';
 import { query } from '../db.js';
 import { authRequired } from '../middleware/auth.js';
 
@@ -105,11 +106,11 @@ router.get('/prefs', async (req, res) => {
 router.post('/test', async (req, res) => {
   try {
     const { sendPush } = await import('../utils/notify.js');
-    await sendPush([req.user.id], 'OLIMP — тест 🔔', 'Пуш сповіщення працюють!');
+    await sendPush([req.user.id], `${config.brand.productName} — тест 🔔`, 'Пуш сповіщення працюють!');
     return res.json({ ok: true });
   } catch (e) {
     console.error('[push] test:', e);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: 'Не вдалося надіслати тестове сповіщення' });
   }
 });
 

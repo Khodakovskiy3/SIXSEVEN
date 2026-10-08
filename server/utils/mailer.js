@@ -1,42 +1,57 @@
 /**
- * Надсилання електронних листів (для двофакторної автентифікації).
+ * Надсилання електронних листів (коди підтвердження / 2FA).
  *
- * Транспорт налаштовується через змінні оточення (.env):
+ * Транспорт налаштовується через змінні оточення:
  *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
  *
- * Якщо SMTP не налаштовано (типово для локальної розробки), листи не
- * надсилаються, а код друкується в консоль сервера — щоб можна було
- * протестувати 2FA без реального поштового сервера.
+ * Безпека кодів:
+ *  • у production код ніколи не друкується в лог і не повертається в API;
+ *  • без SMTP у production код узагалі не видається (маршрути відповідають
+ *    503) — щоб не створювати «обхід» перевірки;
+ *  • для локальної розробки без поштового сервера: DEBUG_OTP=1 — код
+ *    друкується в консоль і повертається у відповіді як devCode.
  */
 
 import nodemailer from 'nodemailer';
-import dotenv from 'dotenv';
 
+import { config } from '../config.js';
 import { OTP_TTL_MIN, OTP_PURPOSE } from './constants.js';
 
-dotenv.config();
-
-const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
+const { host, port, user, pass, from } = config.mail;
 
 /** true, якщо налаштовано реальний SMTP-сервер. */
-export const isMailConfigured = Boolean(SMTP_HOST);
+export const isMailConfigured = Boolean(host);
+
+/**
+ * Діагностичний режим розробника: код показується в консолі та API.
+ * Неможливий у production (додатково блокується validateConfig()).
+ */
+export const isDevOtpExposureAllowed = !config.isProduction && config.mail.debugOtp;
+
+/** Чи може система доставити одноразовий код користувачу. */
+export function canDeliverOtp() {
+  return isMailConfigured || isDevOtpExposureAllowed;
+}
+
+/** Повідомлення для відповіді 503, коли доставка кодів неможлива. */
+export const MAIL_UNAVAILABLE_MESSAGE =
+  'Надсилання кодів підтвердження тимчасово недоступне. Зверніться до адміністратора.';
 
 const transporter = isMailConfigured
   ? nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: Number(SMTP_PORT || 587),
-      secure: Number(SMTP_PORT) === 465,
-      auth: SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASS } : undefined,
-      // Пул з'єднань: повторне використання TLS-сесії пришвидшує наступні
-      // надсилання (не треба щоразу робити повний SMTP-хендшейк).
+      host,
+      port,
+      secure: port === 465,
+      auth: user ? { user, pass } : undefined,
+      // Пул з'єднань: повторне використання TLS-сесії пришвидшує надсилання.
       pool: true,
       maxConnections: 3,
     })
   : null;
 
 const SUBJECTS = {
-  [OTP_PURPOSE.LOGIN]: 'Код для входу в систему',
-  [OTP_PURPOSE.ENABLE_2FA]: 'Код підтвердження двофакторної автентифікації',
+  [OTP_PURPOSE.LOGIN]: `${config.brand.productName}: код для входу`,
+  [OTP_PURPOSE.ENABLE_2FA]: `${config.brand.productName}: код підтвердження`,
 };
 
 /**
@@ -48,31 +63,26 @@ const SUBJECTS = {
  * @returns {Promise<void>}
  */
 export async function sendOtpEmail(to, code, purpose) {
-  const subject = SUBJECTS[purpose] || 'Код підтвердження';
+  const subject = SUBJECTS[purpose] || `${config.brand.productName}: код підтвердження`;
   const text =
     `Ваш одноразовий код: ${code}\n\n` +
     `Код дійсний ${OTP_TTL_MIN} хвилин. ` +
-    `Якщо ви не робили цей запит — просто проігноруйте цей лист.`;
+    `Якщо ви не робили цей запит — просто проігноруйте цей лист.\n\n` +
+    `— ${config.brand.organizationName} · ${config.brand.productName}`;
 
-  // Тестові акаунти (наприклад, логін «admin») не мають справжньої адреси —
-  // спроба надсилання впаде в nodemailer з «No recipients defined»,
-  // тому для них поводимося як у dev-режимі: лише код у консоль.
+  if (isDevOtpExposureAllowed) {
+    console.log(`[2FA] (DEBUG_OTP) код для ${to} [${purpose}]: ${code}`);
+  }
+
+  // Службові логіни без справжньої адреси (напр. «admin») листа отримати
+  // не можуть — nodemailer впав би з «No recipients defined».
   const isRealEmail = String(to || '').includes('@');
-
   if (!transporter || !isRealEmail) {
-    // Dev-режим без SMTP: код у консоль сервера.
-    console.log(`[2FA] (DEV) код для ${to} [${purpose}]: ${code}`);
     return;
   }
 
-  // Діагностика: за DEBUG_OTP=1 дублюємо код у консоль навіть із увімкненим SMTP,
-  // щоб можна було звірити, який код реально надіслано. Не вмикати у проді.
-  if (process.env.DEBUG_OTP === '1') {
-    console.log(`[2FA] (DEBUG) код для ${to} [${purpose}]: ${code}`);
-  }
-
   await transporter.sendMail({
-    from: SMTP_FROM || 'no-reply@sixseven.local',
+    from: from || user,
     to,
     subject,
     text,

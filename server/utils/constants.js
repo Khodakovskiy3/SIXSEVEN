@@ -5,13 +5,15 @@
  * винесені сюди для централізованого керування та документації.
  */
 
+import { config } from '../config.js';
+
 // ─── Безпека ─────────────────────────────────────────────────────────────────
 
 /** Кількість раундів для bcrypt-хешування паролю. */
 export const BCRYPT_SALT_ROUNDS = 10;
 
-/** Тривалість дії JWT-токена. */
-export const JWT_TTL = '7d';
+/** Тривалість дії JWT-токена (JWT_TTL у конфігурації). */
+export const JWT_TTL = config.auth.jwtTtl;
 
 /** Префікс для заголовка Authorization (Bearer <token>). */
 export const AUTH_HEADER_PREFIX = 'Bearer ';
@@ -23,7 +25,7 @@ export const AUTH_HEADER_PREFIX = 'Bearer ';
  * локальний настінний час у цій зоні, тож для порівняння з поточним моментом
  * (now()) його треба інтерпретувати саме тут, а не в зоні сесії БД.
  */
-export const CLUB_TIMEZONE = 'Europe/Kyiv';
+export const CLUB_TIMEZONE = config.timezone;
 
 // ─── База даних ──────────────────────────────────────────────────────────────
 

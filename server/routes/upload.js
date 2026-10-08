@@ -5,29 +5,29 @@
  *   Body: { data: "data:image/jpeg;base64,..." }
  *   Returns: { url: "/assets/uploads/abc123.jpg" }
  *
- * Файли зберігаються у public/assets/uploads/.
+ * Файли зберігаються в UPLOADS_DIR (Railway volume у production,
+ * public/assets/uploads у розробці) і віддаються за /assets/uploads/<name>.
  * Дозволені формати: jpeg, png, webp, gif.
  * Максимальний розмір: 5 МБ.
  */
 
 import { Router } from 'express';
-import { mkdirSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import express from 'express';
 
 import { authRequired, requireRole } from '../middleware/auth.js';
 import { HTTP_BAD_REQUEST, ROLE } from '../utils/constants.js';
+import { config } from '../config.js';
+import { UPLOADS_DIR, UPLOADS_URL_PREFIX } from '../utils/uploads.js';
 
 const router = Router();
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const UPLOADS_DIR = join(__dirname, '../../public/assets/uploads');
-
-mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_FILE_SIZE_BYTES = config.uploads.maxBytes;
+// base64 роздуває файл на ~4/3; запас — на префікс data URL і JSON.
+const MAX_BODY_BYTES = Math.ceil(MAX_FILE_SIZE_BYTES * 1.4) + 1024;
 const MIME_EXTENSIONS = {
   'image/jpeg': '.jpg',
   'image/png': '.png',
@@ -63,7 +63,7 @@ function hasImageSignature(mime, buffer) {
   return false;
 }
 
-router.post('/image', authRequired, requireRole(ROLE.ADMIN), async (req, res) => {
+router.post('/image', express.json({ limit: MAX_BODY_BYTES }), authRequired, requireRole(ROLE.ADMIN), async (req, res) => {
   const { data } = req.body || {};
 
   if (!data || typeof data !== 'string') {
@@ -90,7 +90,7 @@ router.post('/image', authRequired, requireRole(ROLE.ADMIN), async (req, res) =>
 
   if (buffer.length === 0 || buffer.length > MAX_FILE_SIZE_BYTES) {
     return res.status(HTTP_BAD_REQUEST).json({
-      error: 'Файл порожній або більший за 5 МБ',
+      error: `Файл порожній або більший за ${Math.round(MAX_FILE_SIZE_BYTES / 1024 / 1024)} МБ`,
     });
   }
 
@@ -103,7 +103,7 @@ router.post('/image', authRequired, requireRole(ROLE.ADMIN), async (req, res) =>
   const name = `${randomBytes(12).toString('hex')}${MIME_EXTENSIONS[mime]}`;
   await writeFile(join(UPLOADS_DIR, name), buffer, { flag: 'wx' });
 
-  return res.json({ url: `/assets/uploads/${name}` });
+  return res.json({ url: `${UPLOADS_URL_PREFIX}/${name}` });
 });
 
 export default router;
