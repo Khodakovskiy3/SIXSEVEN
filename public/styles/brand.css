@@ -236,3 +236,11 @@ body,
 .chat-widget-btn {
     color: var(--cluvyra-navy) !important;
 }
+
+/* Auth buttons: lime hover/focus instead of the old orange */
+.auth-page button[type="submit"]:hover:not(:disabled),
+.auth-page button[type="submit"]:focus-visible {
+    background: #CFF77F !important;
+    box-shadow: 0 14px 32px rgba(190, 244, 93, 0.22) !important;
+    color: var(--cluvyra-navy) !important;
+}
