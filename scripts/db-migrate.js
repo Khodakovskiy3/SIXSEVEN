@@ -13,7 +13,9 @@ import { runMigrations } from '../server/migrate.js';
 
 runMigrations()
   .catch((error) => {
-    console.error(`\n✗ ${error.message}`);
+    // AggregateError (напр. ECONNREFUSED по IPv4+IPv6) має порожній message.
+    const reason = error.message || error.code || error.errors?.[0]?.message || String(error);
+    console.error(`\n✗ Міграції не застосовано: ${reason}`);
     process.exitCode = 1;
   })
   .finally(() => closePool());
