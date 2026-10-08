@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy · Cluvyra</title>
+    <meta name="description" content="How Cluvyra collects, uses and stores personal data.">
+    <meta name="theme-color" content="#131F2C">
+    <link rel="icon" href="/assets/brand/cluvyra-mark.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="/styles/landing.css">
+</head>
+<body>
+    <header class="site-header">
+        <div class="container header-inner">
+            <a class="logo" href="/"><img src="/assets/brand/cluvyra-mark.svg" alt="" width="32" height="32"><span>Cluvyra</span></a>
+            <div class="header-actions">
+                <a class="btn btn-ghost" href="/app">Sign in</a>
+                <a class="btn btn-primary" href="/#contact">Request a Demo</a>
+            </div>
+        </div>
+    </header>
+    <main class="legal">
+        <div class="container">
+            <article>
+                <h1>Privacy Policy</h1>
+                <p class="muted">Draft · last updated 8 October 2026</p>
+                <p class="review-note"><strong>Draft — requires review by the owner (and ideally a lawyer) before public launch.</strong> Sections marked “Owner to confirm” contain placeholders. Cluvyra is an early-stage product; the legal entity, hosting regions and retention periods below must be confirmed.</p>
+
+                <h2>1. Who we are</h2>
+                <p>Cluvyra is a software platform that helps fitness and wellness businesses (“studios”) manage bookings, schedules, memberships, clients and communication. <em>Owner to confirm: legal name and registered address of the operator, and the data protection contact.</em></p>
+                <p>When a studio uses Cluvyra, the studio decides why and how its members’ data is processed; Cluvyra processes that data on the studio’s behalf. For the marketing website and demo requests, Cluvyra itself is responsible for the data.</p>
+
+                <h2>2. What data we collect</h2>
+                <ul>
+                    <li><strong>Account data:</strong> name, email, phone number, role, password (stored only as a bcrypt hash), two-factor authentication settings.</li>
+                    <li><strong>Studio activity:</strong> memberships, bookings and cancellations, attendance, payment records entered by the studio, messages and announcements, trainer notes.</li>
+                    <li><strong>Optional fitness data</strong> a member chooses to enter, such as body measurements (weight, height, circumferences).</li>
+                    <li><strong>AI assistant conversations:</strong> the messages you type to the assistant.</li>
+                    <li><strong>Demo requests</strong> from this website: name, email, studio name and type, and your message.</li>
+                    <li><strong>Technical data:</strong> IP address and request metadata in server logs (for security and rate limiting), push-notification subscription endpoints if you enable notifications.</li>
+                </ul>
+                <p>We do not use advertising trackers or third-party analytics on this site.</p>
+
+                <h2>3. Why we use it</h2>
+                <ul>
+                    <li>To provide the service: accounts, bookings, memberships, notifications and reports.</li>
+                    <li>To keep the service secure: authentication, one-time codes, abuse prevention.</li>
+                    <li>To answer demo and early-access requests.</li>
+                    <li>To run the AI assistant when you choose to use it.</li>
+                </ul>
+
+                <h2>4. AI assistant and Claude API</h2>
+                <p>The AI assistant uses the Claude API provided by Anthropic. When you send a message to the assistant, the following is sent to Anthropic to generate a reply: your conversation with the assistant, the current date and time, your first name, your role, and — for members — a summary of your own active membership, recent visit count and latest weight/height if you recorded them, plus class schedule data retrieved for your request. Email addresses, passwords, payment details and other members’ data are not sent.</p>
+                <p>The assistant can search the schedule and prepare a booking, but a booking is only created after you press “Confirm”. The assistant does not provide medical advice.</p>
+                <p>Anthropic processes API data under its commercial terms and privacy policy. <em>Owner to confirm: the applicable Anthropic data-retention settings for the account used in production, and whether a data processing addendum is in place.</em></p>
+                <p>For usage limits and cost control we store technical AI usage records (time, model, token counts, status) without message text.</p>
+
+                <h2>5. Where data is stored and for how long</h2>
+                <p>Data is stored in a PostgreSQL database and file storage operated by our hosting provider. <em>Owner to confirm: hosting provider and region (e.g. Railway, region), backup schedule.</em></p>
+                <ul>
+                    <li>Account and studio data: while the studio uses Cluvyra, then deleted or returned according to the studio’s instructions. <em>Owner to confirm retention period.</em></li>
+                    <li>One-time codes: expire after 10 minutes and are stored only as hashes.</li>
+                    <li>AI conversation text is kept in your browser’s local storage; the server keeps only the technical usage records described above.</li>
+                    <li>Demo requests: until the request is handled, and no longer than 12 months. <em>Owner to confirm.</em></li>
+                </ul>
+
+                <h2>6. Sharing</h2>
+                <p>We share data only with service providers needed to run Cluvyra: hosting, email delivery (SMTP provider) and the Claude API (Anthropic) for the AI assistant. We do not sell personal data. <em>Owner to confirm the final list of subprocessors.</em></p>
+
+                <h2>7. Your rights and deleting your data</h2>
+                <p>You can view and update your profile in your account. To request access, correction, export or deletion of your data, contact your studio or us. You can clear your AI conversation at any time with the trash icon in the assistant; this removes it from your browser. Depending on where you live (for example under the GDPR or Ukrainian data protection law) you may have additional rights, including the right to complain to a supervisory authority.</p>
+
+                <h2>8. Security</h2>
+                <p>Passwords and one-time codes are hashed, connections are encrypted in transit (HTTPS), staff accounts require email two-factor authentication, and access is limited by role.</p>
+
+                <h2>9. Changes and contact</h2>
+                <p>We will update this page when our practices change.</p>
+                <p>Contact us through the <a href="/#contact">contact form</a><span class="support-line" hidden> or by email at <a data-support-email href="#"></a></span>.</p>
+            </article>
+        </div>
+    </main>
+    <footer class="site-footer">
+        <div class="container footer-inner">
+            <div class="footer-brand"><a class="logo" href="/"><img src="/assets/brand/cluvyra-mark.svg" alt="" width="28" height="28"><span>Cluvyra</span></a></div>
+            <nav class="footer-nav" aria-label="Footer"><a href="/">Home</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+        </div>
+    </footer>
+    <script src="/js/brand.js" defer></script>
+</body>
+</html>

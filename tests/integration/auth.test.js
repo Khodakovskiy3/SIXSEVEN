@@ -160,6 +160,33 @@ describe('auth & authorization (integration)', { skip: skipReason }, () => {
     assert.doesNotMatch(text, /at .*\.js:\d+/);
   });
 
+  test('public config exposes brand only; early-access form stores leads, honeypot drops bots', async () => {
+    const config = await api('GET', '/api/public/config');
+    assert.equal(config.status, 200);
+    assert.equal(config.body.productName, 'Cluvyra');
+    assert.doesNotMatch(JSON.stringify(config.body), /key|secret|password|smtp/i);
+
+    const bad = await api('POST', '/api/public/early-access', { body: { name: 'X', email: 'nope' } });
+    assert.equal(bad.status, 400);
+    const ok = await api('POST', '/api/public/early-access', {
+      body: { name: 'Studio Owner', email: 'Owner@Studio.test', studio_type: 'yoga', message: 'Hello' },
+    });
+    assert.equal(ok.status, 201);
+    const bot = await api('POST', '/api/public/early-access', {
+      body: { name: 'Bot', email: 'bot@spam.test', website: 'http://spam' },
+    });
+    assert.equal(bot.status, 202);
+    const { rows } = await ctx.query('select email, studio_type from early_access_requests order by id');
+    assert.deepEqual(rows, [{ email: 'owner@studio.test', studio_type: 'yoga' }]);
+
+    const client = await createUser(ctx.query, { role: 'client' });
+    assert.equal((await api('GET', '/api/public/early-access', { token: client.token })).status, 403);
+    const manager = await createUser(ctx.query, { role: 'manager' });
+    const list = await api('GET', '/api/public/early-access', { token: manager.token });
+    assert.equal(list.status, 200);
+    assert.equal(list.body.length, 1);
+  });
+
   test('admin login requires 2FA code (mandatory for staff)', async () => {
     const admin = await createUser(ctx.query, { role: 'admin' });
     const login = await api('POST', '/api/auth/login', { body: { email: admin.email, password: admin.password } });

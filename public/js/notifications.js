@@ -59,14 +59,14 @@ const CSS = `
   background: transparent;
   border: none;
   cursor: pointer;
-  color: var(--accent, #e85002);
+  color: var(--accent, #BEF45D);
   font-size: 12px;
   font-weight: 700;
   padding: 4px 6px;
   border-radius: 6px;
   transition: background .15s;
 }
-.notif-read-all:hover { background: rgba(232,80,2,.1); }
+.notif-read-all:hover { background: rgba(190, 244, 93,.1); }
 .notif-read-all:disabled { opacity: .4; cursor: default; }
 
 .notif-list {
@@ -107,7 +107,7 @@ const CSS = `
   background: transparent;
 }
 .notif-item--unread .notif-dot-indicator {
-  background: var(--accent, #e85002);
+  background: var(--accent, #BEF45D);
 }
 
 .notif-body { flex: 1; min-width: 0; }

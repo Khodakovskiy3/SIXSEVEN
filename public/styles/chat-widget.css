@@ -390,3 +390,107 @@
 .chat-widget-error.show {
     display: block;
 }
+
+/* ── AI booking: slot cards & confirmation card ───────────────────────────── */
+.ai-slots {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 4px 0 10px;
+}
+.ai-slot,
+.ai-confirm {
+    border: 1px solid var(--line, rgba(255, 255, 255, 0.14));
+    background: var(--surface-2, rgba(32, 32, 36, 0.92));
+    border-radius: 12px;
+    padding: 10px 12px;
+    color: var(--text, #f6f6f7);
+    font-size: 13px;
+}
+.ai-slot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.ai-slot-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.ai-slot-main strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ai-slot-seats {
+    color: var(--muted, #b3b3bd);
+    font-size: 12px;
+}
+.ai-slot-btn,
+.ai-confirm-btn {
+    border: 0;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    min-height: 36px;
+    flex: none;
+}
+.ai-slot-btn,
+.ai-confirm-btn.is-primary {
+    background: var(--accent, #BEF45D);
+    color: #131F2C;
+}
+.ai-confirm-btn {
+    background: transparent;
+    color: var(--text, #f6f6f7);
+    border: 1px solid var(--line, rgba(255, 255, 255, 0.2));
+}
+.ai-slot-btn:disabled,
+.ai-confirm-btn:disabled {
+    opacity: 0.55;
+    cursor: progress;
+}
+.ai-slot-tag {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent, #BEF45D);
+    flex: none;
+}
+.ai-slot-tag.is-muted {
+    color: var(--muted, #b3b3bd);
+}
+.ai-confirm {
+    margin: 4px 0 10px;
+    border-color: var(--accent, #BEF45D);
+}
+.ai-confirm-title {
+    font-weight: 800;
+    margin-bottom: 6px;
+}
+.ai-confirm-row {
+    margin: 2px 0;
+}
+.ai-confirm-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+.ai-confirm-status:empty {
+    display: none;
+}
+.ai-confirm-status {
+    margin-top: 8px;
+    font-weight: 700;
+}
+.ai-confirm-status.is-success { color: var(--accent, #BEF45D); }
+.ai-confirm-status.is-error { color: #ff8a80; }
+.ai-confirm-status.is-muted { color: var(--muted, #b3b3bd); }
+
+[data-theme="light"] .ai-slot-btn,
+[data-theme="light"] .ai-confirm-btn.is-primary {
+    color: #FFFFFF;
+}

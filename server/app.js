@@ -18,7 +18,7 @@ import { notifyUsers } from './utils/notify.js';
 import { UPLOADS_DIR, UPLOADS_URL_PREFIX } from './utils/uploads.js';
 import { HTTP_SERVER_ERROR } from './utils/constants.js';
 import { securityHeaders, uploadHeaders, noStore } from './middleware/security.js';
-import { authLimiter, credentialLimiter, apiLimiter, publicLimiter } from './middleware/rateLimit.js';
+import { authLimiter, credentialLimiter, apiLimiter, publicLimiter, formLimiter } from './middleware/rateLimit.js';
 
 import authRoutes from './routes/auth.js';
 import usersRoutes from './routes/users.js';
@@ -132,6 +132,7 @@ export function createApp() {
   app.use('/api/payments', paymentsRoutes);
   app.use('/api/visits', visitsRoutes);
   app.use('/api/reports', reportsRoutes);
+  app.use('/api/public/early-access', formLimiter);
   app.use('/api/public', publicLimiter, publicRoutes);
   app.use('/api/club', clubRoutes);
   app.use('/api/messages', messagesRoutes);

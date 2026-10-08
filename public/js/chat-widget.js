@@ -8,10 +8,11 @@
  *    облікового запису через JWT, тож доступний з будь-якого пристрою,
  *    а адміністратор бачить ім'я клієнта замість «Гість #N».
  *
- * Авторизованим користувачам додатково доступна вкладка «АІ-асистент» —
- * діалог із локальною LLM (маршрут /api/ai/assistant). Історія цього
- * діалогу живе лише в пам'яті сторінки: сервер stateless, тож увесь
- * контекст передається з кожним запитом.
+ * Авторизованим користувачам додатково доступна вкладка «АІ-асистент»
+ * (Claude через /api/ai/assistant). Клієнт може знайти реальні заняття й
+ * записатися: асистент показує картки слотів, а бронювання створюється
+ * лише після натискання «Підтвердити» (POST /api/ai/bookings/confirm).
+ * Історія діалогу зберігається в localStorage і передається з кожним запитом.
  *
  * Нові повідомлення підтягуються через polling (кожні CHAT_POLL_MS),
  * активний лише поки панель відкрита.
@@ -22,6 +23,9 @@
  *   POST /api/chat/client/messages  { body }                  — Bearer <token>
  *   GET  /api/chat/client/messages?after=<lastId>
  *   POST /api/ai/assistant          { messages }              — Bearer <token>
+ *   POST /api/ai/bookings/prepare   { schedule_id }           — Bearer <token>
+ *   POST /api/ai/bookings/confirm   { token }                 — Bearer <token>
+ *   POST /api/ai/bookings/decline   { token }                 — Bearer <token>
  */
 
 (function initChatWidget() {
@@ -180,10 +184,19 @@
 
   // Заглушка порожнього діалогу асистента — у константі, бо її треба повернути
   // на місце після очищення історії.
-  const AI_EMPTY_HTML = `
+  const isClient = authUser?.role === 'client';
+  const AI_EMPTY_HTML = isClient
+    ? `
     <div class="chat-widget-empty">
-      Привіт! Я АІ-асистент клубу OLIMP.
-      Питайте про тренування, техніку вправ чи план занять.
+      Привіт! Я AI-асистент Cluvyra 👋<br>
+      Допоможу знайти заняття й записатися. Напишіть, наприклад:
+      «Хочу завтра після 18:00 на групове тренування».
+    </div>
+  `
+    : `
+    <div class="chat-widget-empty">
+      Привіт! Я AI-асистент Cluvyra.
+      Питайте про тренування, техніку вправ чи розклад.
     </div>
   `;
 
@@ -226,7 +239,7 @@
 
   panel.innerHTML = `
     <div class="chat-widget-header">
-      <span>Чат клубу OLIMP</span>
+      <span>Чат клубу</span>
       <span class="chat-widget-actions">
         ${clearHtml}
         <button type="button" class="chat-widget-close" aria-label="Закрити">×</button>
@@ -425,6 +438,172 @@
     }
   }
 
+  // ─── Картки слотів і підтвердження бронювання ───────────────────────────────
+
+  /** «пт, 09.10 · 18:30» з 'YYYY-MM-DD' і 'HH:MM' (дата заняття — локальна дата клубу). */
+  function formatSlotWhen(date, time) {
+    const day = new Date(`${date}T12:00:00`);
+    const label = Number.isNaN(day.getTime())
+      ? date
+      : day.toLocaleDateString('uk-UA', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    return `${label} · ${String(time).slice(0, 5)}`;
+  }
+
+  function slotName(slot) {
+    return slot.class_name || slot.workout || 'Заняття';
+  }
+
+  function aiRequest(path, body) {
+    return fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify(body),
+    }).then(async (response) => ({
+      ok: response.ok,
+      status: response.status,
+      data: await response.json().catch(() => ({})),
+    }));
+  }
+
+  /** Повідомлення про помилку з урахуванням типових статусів. */
+  function aiErrorText(status, data, fallback) {
+    if (status === 401) {
+      return 'Сесія завершилась. Увійдіть знову, щоб продовжити.';
+    }
+    return data?.error || fallback;
+  }
+
+  /** Список реальних слотів з кнопкою «Обрати» (лише для клієнтів). */
+  function appendSlotCards(slots) {
+    if (!isClient || !Array.isArray(slots) || slots.length === 0) {
+      return;
+    }
+    const wrap = document.createElement('div');
+    wrap.className = 'ai-slots';
+    wrap.innerHTML = slots.map((slot) => {
+      const full = Number(slot.spots_left) <= 0;
+      const mine = slot.already_booked_by_you;
+      const action = mine
+        ? '<span class="ai-slot-tag">Ви записані</span>'
+        : full
+          ? '<span class="ai-slot-tag is-muted">Місць немає</span>'
+          : `<button type="button" class="ai-slot-btn" data-ai-pick="${Number(slot.schedule_id)}">Обрати</button>`;
+      return `
+        <div class="ai-slot">
+          <div class="ai-slot-main">
+            <strong>${escapeHtml(slotName(slot))}</strong>
+            <span>${escapeHtml(formatSlotWhen(slot.date, slot.time))}${slot.trainer ? ` · ${escapeHtml(slot.trainer)}` : ''}</span>
+            <span class="ai-slot-seats">Вільних місць: ${Number(slot.spots_left)}</span>
+          </div>
+          ${action}
+        </div>`;
+    }).join('');
+    aiBodyEl.appendChild(wrap);
+    aiBodyEl.scrollTop = aiBodyEl.scrollHeight;
+  }
+
+  /** Картка підтвердження: бронювання створюється лише кнопкою «Підтвердити». */
+  function appendConfirmCard(pending) {
+    if (!pending?.token || !pending.slot) {
+      return;
+    }
+    const { slot } = pending;
+    const card = document.createElement('div');
+    card.className = 'ai-confirm';
+    card.dataset.token = pending.token;
+    card.innerHTML = `
+      <div class="ai-confirm-title">Підтвердіть бронювання</div>
+      <div class="ai-confirm-row"><strong>${escapeHtml(slotName(slot))}</strong></div>
+      <div class="ai-confirm-row">${escapeHtml(formatSlotWhen(slot.date, slot.time))}${slot.duration_minutes ? ` · ${Number(slot.duration_minutes)} хв` : ''}</div>
+      ${slot.trainer ? `<div class="ai-confirm-row">Тренер: ${escapeHtml(slot.trainer)}</div>` : ''}
+      <div class="ai-confirm-row ai-slot-seats">Вільних місць: ${Number(slot.spots_left)}</div>
+      <div class="ai-confirm-status" data-confirm-status></div>
+      <div class="ai-confirm-actions">
+        <button type="button" class="ai-confirm-btn is-primary" data-ai-confirm-booking>Підтвердити</button>
+        <button type="button" class="ai-confirm-btn" data-ai-decline-booking>Скасувати</button>
+      </div>`;
+    aiBodyEl.appendChild(card);
+    aiBodyEl.scrollTop = aiBodyEl.scrollHeight;
+  }
+
+  function setCardBusy(card, busy) {
+    card.querySelectorAll('button').forEach((btn) => { btn.disabled = busy; });
+  }
+
+  function finishCard(card, text, variant) {
+    const status = card.querySelector('[data-confirm-status]');
+    status.textContent = text;
+    status.className = `ai-confirm-status is-${variant}`;
+    card.querySelector('.ai-confirm-actions')?.remove();
+  }
+
+  async function pickSlot(button) {
+    clearError();
+    button.disabled = true;
+    try {
+      const { ok, status, data } = await aiRequest('/ai/bookings/prepare', { schedule_id: Number(button.dataset.aiPick) });
+      if (!ok) {
+        showError(aiErrorText(status, data, 'Не вдалося підготувати бронювання'));
+        button.disabled = false;
+        return;
+      }
+      appendConfirmCard(data.pendingBooking);
+    } catch {
+      showError('Немає зв’язку з сервером. Спробуйте ще раз.');
+      button.disabled = false;
+    }
+  }
+
+  async function confirmCard(card) {
+    clearError();
+    setCardBusy(card, true);
+    try {
+      const { ok, status, data } = await aiRequest('/ai/bookings/confirm', { token: card.dataset.token });
+      if (!ok) {
+        const text = aiErrorText(status, data, 'Не вдалося підтвердити бронювання');
+        // Слот зайняли / підтвердження прострочене — картка більше не дійсна.
+        if (status === 409 || status === 410 || status === 400) {
+          finishCard(card, text, 'error');
+        } else {
+          showError(text);
+          setCardBusy(card, false);
+        }
+        return;
+      }
+      // Успіх показуємо ЛИШЕ після 201 від сервера (реальна транзакція).
+      const when = formatSlotWhen(data.slot.date, data.slot.time);
+      finishCard(card, `✓ Заброньовано: ${slotName(data.slot)}, ${when}`, 'success');
+      aiHistory.push({ role: 'assistant', content: `Бронювання підтверджено системою: ${slotName(data.slot)}, ${when}.` });
+      saveAiHistory();
+    } catch {
+      showError('Немає зв’язку з сервером. Спробуйте ще раз.');
+      setCardBusy(card, false);
+    }
+  }
+
+  async function declineCard(card) {
+    setCardBusy(card, true);
+    aiRequest('/ai/bookings/decline', { token: card.dataset.token }).catch(() => {});
+    finishCard(card, 'Бронювання скасовано', 'muted');
+  }
+
+  aiBodyEl.addEventListener('click', (event) => {
+    const pick = event.target.closest('[data-ai-pick]');
+    if (pick) {
+      pickSlot(pick);
+      return;
+    }
+    const card = event.target.closest('.ai-confirm');
+    if (!card) {
+      return;
+    }
+    if (event.target.closest('[data-ai-confirm-booking]')) {
+      confirmCard(card);
+    } else if (event.target.closest('[data-ai-decline-booking]')) {
+      declineCard(card);
+    }
+  });
+
   /** Ховає смужку підтвердження очищення. */
   function hideAiConfirm() {
     if (aiConfirmEl) {
@@ -472,8 +651,7 @@
 
   /**
    * Надсилає діалог асистенту та відображає його відповідь.
-   * Кнопка блокується на час генерації: локальна модель відповідає
-   * кілька секунд, а сервер однаково відхилить паралельний запит.
+   * Кнопка блокується на час генерації відповіді (кілька секунд).
    *
    * @param {string} body Текст повідомлення користувача.
    * @returns {Promise<void>}
@@ -501,13 +679,15 @@
         // Невдалий запит не лишаємо в історії, щоб повтор надіслав те саме.
         aiHistory.pop();
         saveAiHistory();
-        showError(data.error || 'Асистент недоступний. Спробуйте пізніше.');
+        showError(aiErrorText(response.status, data, 'Асистент недоступний. Спробуйте пізніше.'));
         return;
       }
 
       aiHistory.push({ role: 'assistant', content: data.reply });
       saveAiHistory();
       appendAiMessage('assistant', data.reply);
+      appendSlotCards(data.slots);
+      appendConfirmCard(data.pendingBooking);
     } catch {
       aiHistory.pop();
       saveAiHistory();
@@ -517,6 +697,24 @@
       isAiPending = false;
       submitEl.disabled = false;
     }
+  }
+
+  let aiStatusChecked = false;
+
+  /** Один раз перевіряє, чи налаштований асистент, і попереджає заздалегідь. */
+  function checkAiStatus() {
+    if (aiStatusChecked) {
+      return;
+    }
+    aiStatusChecked = true;
+    fetch(`${API_BASE}/ai/status`, { headers: { Authorization: `Bearer ${authToken}` } })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((status) => {
+        if (status && !status.available && mode === AI_MODE) {
+          showError('AI-асистент зараз недоступний. Розклад і запис працюють у розділі «Розклад».');
+        }
+      })
+      .catch(() => {});
   }
 
   /**
@@ -534,7 +732,9 @@
     const isAi = mode === AI_MODE;
     bodyEl.hidden = isAi;
     aiBodyEl.hidden = !isAi;
-    inputEl.placeholder = isAi ? 'Запитайте про тренування…' : 'Ваше повідомлення…';
+    inputEl.placeholder = isAi
+      ? (isClient ? 'Напр.: завтра після 18:00 групове…' : 'Запитайте про тренування…')
+      : 'Ваше повідомлення…';
     submitEl.disabled = isAi && isAiPending;
     if (aiClearEl) {
       aiClearEl.hidden = !isAi;
@@ -550,6 +750,9 @@
 
     const activeBody = isAi ? aiBodyEl : bodyEl;
     activeBody.scrollTop = activeBody.scrollHeight;
+    if (isAi) {
+      checkAiStatus();
+    }
     if (!formEl.hidden) {
       inputEl.focus();
     }

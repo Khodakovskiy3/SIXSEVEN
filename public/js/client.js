@@ -374,15 +374,15 @@ function renderCurrentSubscription(subscriptions = []) {
       </div>
       <div class="sub-card__illo" aria-hidden="true">
         <svg viewBox="0 0 120 100" width="90" height="76" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="10" y="18" width="95" height="64" rx="14" fill="rgba(232,80,2,0.10)"/>
-          <rect x="4" y="28" width="6" height="20" rx="3" fill="rgba(232,80,2,0.15)"/>
-          <rect x="105" y="28" width="6" height="20" rx="3" fill="rgba(232,80,2,0.15)"/>
-          <circle cx="60" cy="50" r="22" fill="rgba(232,80,2,0.10)"/>
-          <rect x="34" y="46" width="12" height="8" rx="2" fill="rgba(232,80,2,0.5)"/>
-          <rect x="74" y="46" width="12" height="8" rx="2" fill="rgba(232,80,2,0.5)"/>
-          <rect x="44" y="48" width="32" height="4" rx="2" fill="rgba(232,80,2,0.5)"/>
-          <rect x="32" y="44" width="6" height="12" rx="3" fill="rgba(232,80,2,0.6)"/>
-          <rect x="82" y="44" width="6" height="12" rx="3" fill="rgba(232,80,2,0.6)"/>
+          <rect x="10" y="18" width="95" height="64" rx="14" fill="rgba(190, 244, 93,0.10)"/>
+          <rect x="4" y="28" width="6" height="20" rx="3" fill="rgba(190, 244, 93,0.15)"/>
+          <rect x="105" y="28" width="6" height="20" rx="3" fill="rgba(190, 244, 93,0.15)"/>
+          <circle cx="60" cy="50" r="22" fill="rgba(190, 244, 93,0.10)"/>
+          <rect x="34" y="46" width="12" height="8" rx="2" fill="rgba(190, 244, 93,0.5)"/>
+          <rect x="74" y="46" width="12" height="8" rx="2" fill="rgba(190, 244, 93,0.5)"/>
+          <rect x="44" y="48" width="32" height="4" rx="2" fill="rgba(190, 244, 93,0.5)"/>
+          <rect x="32" y="44" width="6" height="12" rx="3" fill="rgba(190, 244, 93,0.6)"/>
+          <rect x="82" y="44" width="6" height="12" rx="3" fill="rgba(190, 244, 93,0.6)"/>
         </svg>
       </div>
     </div>
@@ -886,15 +886,15 @@ function renderHomeSubscription(subscriptions = []) {
       </div>
       <div class="sub-card__illo" aria-hidden="true">
         <svg viewBox="0 0 120 100" width="90" height="76" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="10" y="18" width="95" height="64" rx="14" fill="rgba(232,80,2,0.10)"/>
-          <rect x="4" y="28" width="6" height="20" rx="3" fill="rgba(232,80,2,0.15)"/>
-          <rect x="105" y="28" width="6" height="20" rx="3" fill="rgba(232,80,2,0.15)"/>
-          <circle cx="60" cy="50" r="22" fill="rgba(232,80,2,0.10)"/>
-          <rect x="34" y="46" width="12" height="8" rx="2" fill="rgba(232,80,2,0.5)"/>
-          <rect x="74" y="46" width="12" height="8" rx="2" fill="rgba(232,80,2,0.5)"/>
-          <rect x="44" y="48" width="32" height="4" rx="2" fill="rgba(232,80,2,0.5)"/>
-          <rect x="32" y="44" width="6" height="12" rx="3" fill="rgba(232,80,2,0.6)"/>
-          <rect x="82" y="44" width="6" height="12" rx="3" fill="rgba(232,80,2,0.6)"/>
+          <rect x="10" y="18" width="95" height="64" rx="14" fill="rgba(190, 244, 93,0.10)"/>
+          <rect x="4" y="28" width="6" height="20" rx="3" fill="rgba(190, 244, 93,0.15)"/>
+          <rect x="105" y="28" width="6" height="20" rx="3" fill="rgba(190, 244, 93,0.15)"/>
+          <circle cx="60" cy="50" r="22" fill="rgba(190, 244, 93,0.10)"/>
+          <rect x="34" y="46" width="12" height="8" rx="2" fill="rgba(190, 244, 93,0.5)"/>
+          <rect x="74" y="46" width="12" height="8" rx="2" fill="rgba(190, 244, 93,0.5)"/>
+          <rect x="44" y="48" width="32" height="4" rx="2" fill="rgba(190, 244, 93,0.5)"/>
+          <rect x="32" y="44" width="6" height="12" rx="3" fill="rgba(190, 244, 93,0.6)"/>
+          <rect x="82" y="44" width="6" height="12" rx="3" fill="rgba(190, 244, 93,0.6)"/>
         </svg>
       </div>
     </div>

@@ -16,6 +16,8 @@ const CSP = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob:",
+  // Notification chime is generated in memory as a blob: WAV.
+  "media-src 'self' blob: data:",
   "connect-src 'self'",
   // Club contacts page embeds a Google map.
   'frame-src https://www.google.com',

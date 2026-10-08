@@ -36,7 +36,7 @@ export function getInitials(name = '') {
 
 /** Палітра кольорів для аватарів (детермінований вибір за іменем). */
 export const AVATAR_PALETTE = [
-  '#e05555', '#ff6424', '#e0a020', '#4ade80',
+  '#e05555', '#BEF45D', '#e0a020', '#4ade80',
   '#22d3ee', '#818cf8', '#f472b6', '#a78bfa',
 ];
 

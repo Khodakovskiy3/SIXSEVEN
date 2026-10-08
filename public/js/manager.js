@@ -150,7 +150,7 @@ function svgAreaChart(rows, valueKey, {
   const max   = Math.max(...vals, 1);
   const n     = data.length;
   const isRev = valueKey === 'revenue';
-  const clr   = color || (isRev ? '#F59E0B' : '#E85002');
+  const clr   = color || (isRev ? '#F59E0B' : '#BEF45D');
   const showDots = n <= 20;
   const sw    = n > 50 ? 1.8 : n > 25 ? 2.2 : 2.5;
   const PAD_T = 18, PAD_B = 10;
@@ -391,8 +391,8 @@ function svgDashChart(data, valueKey, totalLabel = '') {
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="dch-svg">
             <defs>
               <linearGradient id="dchGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stop-color="#e85002" stop-opacity=".4"/>
-                <stop offset="100%" stop-color="#e85002" stop-opacity=".02"/>
+                <stop offset="0%"   stop-color="#BEF45D" stop-opacity=".4"/>
+                <stop offset="100%" stop-color="#BEF45D" stop-opacity=".02"/>
               </linearGradient>
               <filter id="dchGlow" x="-10%" y="-80%" width="120%" height="260%">
                 <feGaussianBlur stdDeviation="2" result="b"/>
@@ -401,9 +401,9 @@ function svgDashChart(data, valueKey, totalLabel = '') {
             </defs>
             ${gridLines}
             <path d="${area}" fill="url(#dchGrad)"/>
-            <path d="${avgLine}" stroke="#e85002" stroke-width="0.5" stroke-dasharray="2 2" fill="none" opacity=".4"/>
-            <path d="${line}" stroke="#e85002" stroke-width="0.8" fill="none" filter="url(#dchGlow)" opacity=".65"/>
-            <path d="${line}" stroke="#e85002" stroke-width="0.6" fill="none"/>
+            <path d="${avgLine}" stroke="#BEF45D" stroke-width="0.5" stroke-dasharray="2 2" fill="none" opacity=".4"/>
+            <path d="${line}" stroke="#BEF45D" stroke-width="0.8" fill="none" filter="url(#dchGlow)" opacity=".65"/>
+            <path d="${line}" stroke="#BEF45D" stroke-width="0.6" fill="none"/>
           </svg>
           ${dotsHtml}
           ${hoverStripsHtml}
@@ -586,7 +586,7 @@ async function renderManagerDashboard() {
           </div>
         </div>
         <div class="dash-kpi-card__deco">
-          <svg viewBox="0 0 52 28" fill="none"><circle cx="18" cy="14" r="6" stroke="#e85002" stroke-width="1.2" opacity=".35"/><circle cx="34" cy="14" r="6" stroke="#e85002" stroke-width="1.2" opacity=".35"/><path d="M4 26v-1a10 10 0 0 1 14-9.2" stroke="#e85002" stroke-width="1" stroke-dasharray="2 2" opacity=".2"/><path d="M34 17A10 10 0 0 1 48 26v1" stroke="#e85002" stroke-width="1" stroke-dasharray="2 2" opacity=".2"/></svg>
+          <svg viewBox="0 0 52 28" fill="none"><circle cx="18" cy="14" r="6" stroke="#BEF45D" stroke-width="1.2" opacity=".35"/><circle cx="34" cy="14" r="6" stroke="#BEF45D" stroke-width="1.2" opacity=".35"/><path d="M4 26v-1a10 10 0 0 1 14-9.2" stroke="#BEF45D" stroke-width="1" stroke-dasharray="2 2" opacity=".2"/><path d="M34 17A10 10 0 0 1 48 26v1" stroke="#BEF45D" stroke-width="1" stroke-dasharray="2 2" opacity=".2"/></svg>
         </div>
       </article>
 
@@ -602,7 +602,7 @@ async function renderManagerDashboard() {
           </div>
         </div>
         <div class="dash-kpi-card__deco">
-          <svg viewBox="0 0 52 22" fill="none"><polyline points="0,18 12,10 24,14 36,4 52,12" stroke="#e85002" stroke-width="1.5" fill="none" opacity=".3"/></svg>
+          <svg viewBox="0 0 52 22" fill="none"><polyline points="0,18 12,10 24,14 36,4 52,12" stroke="#BEF45D" stroke-width="1.5" fill="none" opacity=".3"/></svg>
         </div>
       </article>
 
@@ -618,7 +618,7 @@ async function renderManagerDashboard() {
           </div>
         </div>
         <div class="dash-kpi-card__deco">
-          <svg viewBox="0 0 52 22" fill="none"><path d="M0 18 Q14 4 26 12 Q38 20 52 4" stroke="#e85002" stroke-width="1.5" fill="none" opacity=".3"/><path d="M0 18 Q14 4 26 12 Q38 20 52 4 L52 22 L0 22Z" fill="#e85002" opacity=".1"/></svg>
+          <svg viewBox="0 0 52 22" fill="none"><path d="M0 18 Q14 4 26 12 Q38 20 52 4" stroke="#BEF45D" stroke-width="1.5" fill="none" opacity=".3"/><path d="M0 18 Q14 4 26 12 Q38 20 52 4 L52 22 L0 22Z" fill="#BEF45D" opacity=".1"/></svg>
         </div>
       </article>
 
@@ -634,7 +634,7 @@ async function renderManagerDashboard() {
           </div>
         </div>
         <div class="dash-kpi-card__deco">
-          <svg viewBox="0 0 52 22" fill="none"><rect x="0"  y="12" width="9" height="10" rx="2" fill="#e85002" opacity=".3"/><rect x="14" y="6"  width="9" height="16" rx="2" fill="#e85002" opacity=".3"/><rect x="28" y="9"  width="9" height="13" rx="2" fill="#e85002" opacity=".3"/><rect x="42" y="2"  width="9" height="20" rx="2" fill="#e85002" opacity=".3"/></svg>
+          <svg viewBox="0 0 52 22" fill="none"><rect x="0"  y="12" width="9" height="10" rx="2" fill="#BEF45D" opacity=".3"/><rect x="14" y="6"  width="9" height="16" rx="2" fill="#BEF45D" opacity=".3"/><rect x="28" y="9"  width="9" height="13" rx="2" fill="#BEF45D" opacity=".3"/><rect x="42" y="2"  width="9" height="20" rx="2" fill="#BEF45D" opacity=".3"/></svg>
         </div>
       </article>
 
@@ -731,7 +731,7 @@ async function renderManagerAnalytics() {
 
   // Популярність тренувань — бари
   const totalBookings = workoutStats.reduce((s, w) => s + w.bookings_count, 0);
-  const CHART_COLORS = ['var(--accent)', '#f97316', '#ffce45', '#39d98a', '#818cf8', '#06b6d4'];
+  const CHART_COLORS = ['var(--accent)', '#9FD93F', '#ffce45', '#39d98a', '#818cf8', '#06b6d4'];
   const workoutPopularityHtml = workoutStats.length
     ? workoutStats.map((w, i) => {
         const max   = workoutStats[0]?.bookings_count || 1;

@@ -850,16 +850,16 @@ async function loadTrainers() {
 }
 
 const _svcTheme = {
-  'trx':          { color: '#ff6424', gradient: 'linear-gradient(135deg,#ff6424 0%,#8a2200 100%)' },
-  'фітнес':       { color: '#ff6424', gradient: 'linear-gradient(135deg,#ff6424 0%,#c23a00 100%)' },
+  'trx':          { color: '#BEF45D', gradient: 'linear-gradient(135deg,#BEF45D 0%,#8a2200 100%)' },
+  'фітнес':       { color: '#BEF45D', gradient: 'linear-gradient(135deg,#BEF45D 0%,#c23a00 100%)' },
   'йога':         { color: '#6ec8a0', gradient: 'linear-gradient(135deg,#2a8a62 0%,#0e3d2c 100%)' },
-  'персональні':  { color: '#ffbf17', gradient: 'linear-gradient(135deg,#ffbf17 0%,#b87800 100%)' },
+  'персональні':  { color: '#7CC4FA', gradient: 'linear-gradient(135deg,#7CC4FA 0%,#b87800 100%)' },
   'єдиноборства': { color: '#e05555', gradient: 'linear-gradient(135deg,#c93333 0%,#6b0a0a 100%)' },
 };
 
 function _buildAdminSvcCard(service, globalIndex) {
   const key = String(service.name).toLowerCase();
-  const theme = _svcTheme[key] || { color: '#ff6424', gradient: 'linear-gradient(135deg,#ff6424 0%,#8a2200 100%)' };
+  const theme = _svcTheme[key] || { color: '#BEF45D', gradient: 'linear-gradient(135deg,#BEF45D 0%,#8a2200 100%)' };
   const bg = service.image_url
     ? `background-image:url('${escapeHtml(service.image_url)}')`
     : `background:${theme.gradient}`;

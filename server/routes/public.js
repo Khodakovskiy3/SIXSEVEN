@@ -1,8 +1,55 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { logError } from '../utils/logger.js';
+import { publicConfig } from '../config.js';
+import { authRequired, requireRole } from '../middleware/auth.js';
+import { ROLE } from '../utils/constants.js';
 
 const router = Router();
+
+// Публічна (несекретна) конфігурація бренду для фронтенда.
+router.get('/config', (req, res) => {
+  res.json(publicConfig());
+});
+
+const EARLY_ACCESS_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const STUDIO_TYPES = new Set(['fitness', 'yoga', 'pilates', 'gym', 'personal', 'wellness', 'other']);
+
+/** Обрізає рядок до межі; порожні значення → null. */
+function clip(value, max) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text ? text.slice(0, max) : null;
+}
+
+// Заявка на демо з лендингу. Honeypot-поле `website` має лишатися порожнім
+// (боти його заповнюють) — тоді відповідаємо успіхом, але нічого не зберігаємо.
+router.post('/early-access', async (req, res) => {
+  const body = req.body || {};
+  if (clip(body.website, 200)) {
+    return res.status(202).json({ ok: true });
+  }
+  const name = clip(body.name, 100);
+  const email = clip(body.email, 150)?.toLowerCase();
+  if (!name || !email || !EARLY_ACCESS_EMAIL.test(email)) {
+    return res.status(400).json({ error: 'Please provide your name and a valid email.' });
+  }
+  const studioType = STUDIO_TYPES.has(body.studio_type) ? body.studio_type : null;
+  await query(
+    `insert into early_access_requests (name, email, studio_name, studio_type, message)
+     values ($1, $2, $3, $4, $5)`,
+    [name, email, clip(body.studio_name, 150), studioType, clip(body.message, 2000)]
+  );
+  return res.status(201).json({ ok: true });
+});
+
+// Перегляд заявок — лише керівник/адміністратор.
+router.get('/early-access', authRequired, requireRole(ROLE.MANAGER, ROLE.ADMIN), async (req, res) => {
+  const result = await query(
+    `select id, name, email, studio_name, studio_type, message, created_at
+     from early_access_requests order by created_at desc limit 500`
+  );
+  return res.json(result.rows);
+});
 
 router.get('/plans', async (req, res) => {
   const result = await query(`

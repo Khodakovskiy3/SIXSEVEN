@@ -1,0 +1,238 @@
+/*
+ * Cluvyra brand layer — loaded after the page stylesheet.
+ * Palette: navy #131F2C, lime #BEF45D, white #FFFFFF.
+ * Re-themes the existing OLIMP cabinets without rewriting their CSS:
+ * design tokens are overridden, and every element that used the old orange
+ * accent as a background gets dark text for contrast on lime.
+ * Generated selector lists come from the existing stylesheets.
+ */
+:root {
+    --cluvyra-navy: #131F2C;
+    --cluvyra-navy-deep: #0C141D;
+    --cluvyra-navy-2: #1B2A3A;
+    --cluvyra-lime: #BEF45D;
+    --cluvyra-lime-soft: rgba(190, 244, 93, 0.14);
+    --bg: #0C141D;
+    --surface: #131F2C;
+    --surface-2: #1B2A3A;
+    --accent: #BEF45D;
+    --accent-2: #9FD93F;
+    --accent-soft: rgba(190, 244, 93, 0.14);
+    --line: rgba(255, 255, 255, 0.10);
+}
+[data-theme="light"] {
+    --bg: #F3F6F9;
+    --surface: #FFFFFF;
+    --surface-2: #E9EEF3;
+    --accent: #4E7A12;
+    --accent-2: #3D610C;
+    --accent-soft: rgba(78, 122, 18, 0.10);
+}
+
+body,
+.app-shell,
+.admin-shell,
+.manager-shell,
+.trainer-shell {
+    background:
+        radial-gradient(ellipse 80% 60% at 0% 100%, rgba(190, 244, 93, 0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 70% 55% at 100% 0%, rgba(80, 130, 190, 0.10) 0%, transparent 55%),
+        var(--bg) !important;
+    background-attachment: fixed;
+}
+[data-theme="light"] body,
+[data-theme="light"] .app-shell,
+[data-theme="light"] .admin-shell,
+[data-theme="light"] .manager-shell,
+[data-theme="light"] .trainer-shell {
+    background: var(--bg) !important;
+}
+
+/* Brand mark in sidebars / headers */
+.brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: "Montserrat", system-ui, sans-serif !important;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+.brand::before {
+    content: "";
+    width: 28px;
+    height: 28px;
+    flex: none;
+    background: url("/assets/brand/cluvyra-mark.svg") center / contain no-repeat;
+}
+.brand-org {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    align-self: center;
+}
+.brand-org:empty {
+    display: none;
+}
+
+/* Dark text on lime backgrounds (contrast) — generated from existing stylesheets */
+.avatar,
+.next-time-badge,
+.anthro-add-btn,
+.sub-card__badge,
+.primary-btn,
+.profile-avatar,
+.adm-profile-ring,
+.manage-card__cta .primary-btn,
+.dash-hero-card--primary,
+.cseg-btn.active,
+.clients-add-btn:hover,
+.manage-card.featured .manage-card__cta .danger-btn,
+.sched-cal-apply,
+.sched-cal-cell.range-lo,
+.sched-cal-cell.range-hi,
+.msg-chat-badge,
+.ana-chip.active,
+.mu-avatar--trainer,
+.manager-app--users .cseg-btn.active,
+.trainer-schedule-header span,
+.trainer-modal-close:hover,
+.trainer-client-card-header > span:first-child,
+.auth-card button[type="submit"] {
+    color: var(--cluvyra-navy) !important;
+}
+[data-theme="light"] :is(.avatar, .next-time-badge, .anthro-add-btn, .sub-card__badge, .primary-btn, .profile-avatar, .adm-profile-ring, .manage-card__cta .primary-btn, .dash-hero-card--primary, .cseg-btn.active, .clients-add-btn:hover, .manage-card.featured .manage-card__cta .danger-btn, .sched-cal-apply, .sched-cal-cell.range-lo, .sched-cal-cell.range-hi, .msg-chat-badge, .ana-chip.active, .mu-avatar--trainer, .manager-app--users .cseg-btn.active, .trainer-schedule-header span, .trainer-modal-close:hover, .trainer-client-card-header > span:first-child) {
+    color: #FFFFFF !important;
+}
+
+/* Former orange gradients → lime */
+.promo-art::before,
+.dash-hero-card--primary,
+.trainer-bars strong,
+.dbar-fill,
+.mu-avatar--trainer {
+    background: linear-gradient(145deg, #CFF77F 0%, #BEF45D 55%, #A3DD3E 100%) !important;
+    border-color: rgba(190, 244, 93, 0.6) !important;
+    box-shadow: 0 8px 28px rgba(190, 244, 93, 0.18) !important;
+    color: var(--cluvyra-navy) !important;
+}
+.trainer-bars strong,
+.dbar-fill {
+    box-shadow: none !important;
+}
+.dash-hero-card--primary * {
+    color: var(--cluvyra-navy) !important;
+}
+.dash-hero-card--primary .dhc-icon-box {
+    background: rgba(19, 31, 44, 0.12) !important;
+}
+
+/* Former orange tints → lime tints (small elements) */
+.next-icon-wrap,
+.next-dur,
+.anthro-delta--up,
+.panel-icon,
+.visual-chip,
+.sub-date-divider,
+.clients-search-wrap input[type="search"]:focus,
+.rc-date-badge,
+.records-empty-icon,
+.adm-profile-role-badge,
+.manage-card__type,
+.logout:hover,
+.sched-date-pill:hover,
+.sched-date-pill.active,
+.dash-qa-btn:hover,
+.dash-hero-card:not(.dash-hero-card--primary) .dhc-icon-box,
+.dash-sr-item:hover,
+.attention-item__icon,
+.attention-item.warning .attention-item__icon,
+.msg-card__ico--planned,
+.msg-card__side .status.planned,
+.admin-toolbar input[type="search"]:focus,
+.admin-toolbar input[type="text"]:focus,
+.admin-app .chip.active,
+.status.paused,
+.status.planned,
+.plans-nav-btn:hover:not(:disabled),
+.manage-card.featured .manage-card__type,
+.manage-card:not(.featured) .manage-card__cta .primary-btn:hover,
+.manage-card__action:hover,
+.cmf-field:focus-within,
+.spec-chip.checked,
+.spec-chip:has(input:checked),
+.tcf-selected-card,
+.sched-range-btn.active,
+.sched-cal-cell.in-range,
+.admin-app .svc-nav-btn:hover,
+.adm-svc-btn--toggle.toggle-off,
+.adm-svc-btn--toggle.toggle-off:hover,
+.msg-chat-item.active,
+.msg-chat-status.waiting,
+.msg-bubble--admin .msg-bubble-text,
+.admin-app .primary-btn:hover:not(:disabled),
+.admin-modal .primary-btn:hover:not(:disabled),
+.sheet-close.primary-btn:hover {
+    background: var(--accent-soft) !important;
+}
+
+/* Former orange-tinted large surfaces */
+.next-training,
+.anthro-card,
+.club-slide,
+.adm-profile-hero,
+.finance-line-chart,
+.visit-line-chart,
+.auth-card {
+    background:
+        radial-gradient(ellipse 80% 90% at 0% 0%, rgba(190, 244, 93, 0.08) 0%, transparent 60%),
+        var(--surface) !important;
+}
+
+/* Former orange text accents */
+.anthro-delta--up,
+.attention-item.warning .attention-item__icon,
+.msg-chat-status.waiting {
+    color: var(--accent) !important;
+}
+
+/* Auth pages (login / register) */
+.auth-topbar {
+    background: rgba(12, 20, 29, 0.85) !important;
+    backdrop-filter: blur(10px);
+}
+.auth-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: "Montserrat", system-ui, sans-serif !important;
+    font-size: 19px !important;
+    font-weight: 800;
+    letter-spacing: -0.02em !important;
+    text-shadow: none !important;
+}
+.auth-brand::before {
+    content: "";
+    width: 26px;
+    height: 26px;
+    background: url("/assets/brand/cluvyra-mark.svg") center / contain no-repeat;
+}
+
+@media (max-width: 480px) {
+    .brand-org {
+        display: none;
+    }
+    .brand::before {
+        width: 24px;
+        height: 24px;
+    }
+}
+
+/* Chat widget on lime accents: dark text/icons for contrast */
+.chat-widget-header,
+.chat-widget-header button,
+.chat-widget-form button[type="submit"],
+.chat-widget-btn {
+    color: var(--cluvyra-navy) !important;
+}

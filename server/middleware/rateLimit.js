@@ -71,3 +71,14 @@ export const publicLimiter = rateLimit({
   statusCode: HTTP_TOO_MANY_REQUESTS,
   message: limitMessage,
 });
+
+/** Форма заявки з лендингу: не більше 5 заявок за 10 хвилин з однієї IP. */
+export const formLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  skip: (req) => req.method !== 'POST',
+  standardHeaders: true,
+  legacyHeaders: false,
+  statusCode: HTTP_TOO_MANY_REQUESTS,
+  message: { error: 'Too many requests. Please try again later.' },
+});

@@ -4,8 +4,9 @@
     <script>(function(){var t=localStorage.getItem("olimp-theme");if(t==="light")document.documentElement.setAttribute("data-theme","light");})()</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OLIMP - Кабінет клієнта - Антропометрія</title>
+    <title>Кабінет клієнта · Антропометрія · Cluvyra</title>
     <link rel="stylesheet" href="../../styles/client.css">
+    <link rel="stylesheet" href="/styles/brand.css">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#111111">
     <style>
@@ -17,7 +18,7 @@
 <body>
     <div class="app-shell">
         <aside class="sidebar">
-            <div class="brand brand-sidebar">OLIMP</div>
+            <div class="brand brand-sidebar">Cluvyra<span class="brand-org" data-org-name></span></div>
             <button class="sidebar-toggle" aria-label="Розгорнути меню">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
             </button>
@@ -33,7 +34,7 @@
         <main class="client-app">
             <header class="topbar">
                 <div>
-                    <div class="brand">OLIMP</div>
+                    <div class="brand">Cluvyra<span class="brand-org" data-org-name></span></div>
                     <h1 id="screen-title">Антропометрія</h1>
                 </div>
                 <div class="top-actions">
@@ -166,5 +167,6 @@
         if (closeBtn) closeBtn.addEventListener('click', closeHistory);
         if (modal)    modal.addEventListener('click', e => { if (e.target === modal) closeHistory(); });
     </script>
+    <script src="/js/brand.js" defer></script>
 </body>
 </html>

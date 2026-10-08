@@ -62,16 +62,16 @@ function injectStyles() {
     .pwa-install-btn[hidden] { display: none !important; }
     .pwa-install-btn { cursor: pointer; }
     .pwa-install-btn svg { width: 22px; height: 22px; }
-    .pwa-install-btn.icon-btn { color: #ffbf17; }
+    .pwa-install-btn.icon-btn { color: #BEF45D; }
     .pwa-install-text-btn {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 8px 16px; border-radius: 999px;
-      border: 1px solid rgba(255, 191, 23, 0.55);
-      background: transparent; color: #ffbf17;
+      border: 1px solid rgba(190, 244, 93, 0.55);
+      background: transparent; color: #BEF45D;
       font: inherit; font-weight: 700; font-size: 14px;
     }
     .pwa-install-text-btn svg { width: 18px; height: 18px; }
-    .pwa-install-text-btn:hover { background: rgba(255, 191, 23, 0.12); }
+    .pwa-install-text-btn:hover { background: rgba(190, 244, 93, 0.12); }
   `;
   document.head.appendChild(style);
 }
