@@ -75,6 +75,28 @@ Not run:
 * ❌ Docker image build — local disk filled up to 100% during `docker build` and Docker Desktop became unresponsive; re-run on a machine with free space or let Railway build it.
 * ❌ Real SMTP delivery, Railway deploy, custom domain, Web Push with real VAPID keys.
 
+## Re-audit 2026-10-13 (cloud session)
+
+Re-verified from `feature/cluvyra-startup` @ `d94c8c4`:
+
+| Check | Result |
+|---|---|
+| `npm ci` / `npm run check:syntax` | ✅ 100/100 files |
+| `npm test` | ✅ 79/79 |
+| `npm run test:integration` (disposable PostgreSQL 16, Node 22.22) | ✅ 53/53 |
+| `npm audit --omit=dev` | ✅ 0 vulnerabilities |
+| Docker build | ❌ **blocked**: Docker Hub returned `429 Too Many Requests` pulling `node:24-alpine` (sandbox rate limit). Still unverified — retry elsewhere or let Railway build |
+| Railway (project, variables, logs, health, domain) | ⏳ **not verified** — no Railway CLI/token/MCP in this session; `.railway/railway.ts` not compared with live config; do **not** `railway config apply` before `railway config plan` |
+| Live Claude API / tool calling / token usage | ⏳ **not verified** — no `ANTHROPIC_API_KEY` available in this session (keys live only in Railway); $0 spent |
+| Browser E2E | not re-run in this session |
+
+Changes made in this session:
+
+* Default `ANTHROPIC_MODEL` changed from `claude-opus-5-5` to the cheaper `claude-sonnet-5-5` (still overridable in Railway; `claude-haiku-5-5` is the lowest-cost option — unverified for effort/fallback params, so it uses the plain request path).
+* Demo-request form: repeat submissions with the same email within 24 h no longer create duplicates (`200 {duplicate:true}`); owner email notification via SMTP to `SUPPORT_EMAIL` when both are configured (best effort, header-injection safe). Covered by the auth integration test.
+* New `docs/DEMO_SCRIPT.md`; `docs/STARTUP_APPLICATION.md` refreshed against the live program page (capacity notice, origin statement, status separation, roadmap).
+* Privacy/Terms still contain intentional "Owner to confirm" placeholders (legal entity, region, retention) — owner input required.
+
 ## Environment limitations encountered
 
 * Host disk had ~0 bytes free after the Docker build attempt; temporary screenshots were deleted to recover. Docker Desktop (shared with another local project) is hung and needs a restart by the owner. Free disk space before running `docker build` again.

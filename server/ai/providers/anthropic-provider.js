@@ -4,7 +4,7 @@
  * Uses the official @anthropic-ai/sdk with a manual tool-use loop driven by
  * server/ai/assistant.js. The API key never leaves the server.
  *
- * Model: ANTHROPIC_MODEL (default claude-opus-5-5). Claude 5.x models always
+ * Model: ANTHROPIC_MODEL (default claude-sonnet-5-5). Claude 5.x models always
  * think; ANTHROPIC_EFFORT (default "low") keeps chat latency and cost down.
  * For the 5.x family the request opts into server-side refusal fallback.
  */

@@ -45,7 +45,7 @@ const isProduction = NODE_ENV === 'production';
 const isTest = NODE_ENV === 'test';
 
 /** Default Claude model; override with ANTHROPIC_MODEL (see docs). */
-export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5';
+export const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-5-5';
 
 export const config = Object.freeze({
   env: NODE_ENV,

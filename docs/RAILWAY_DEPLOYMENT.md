@@ -81,7 +81,7 @@ RAILWAY_RUN_UID=0
 AI_ENABLED=true
 AI_PROVIDER=anthropic
 ANTHROPIC_API_KEY=<from Claude Console>
-ANTHROPIC_MODEL=claude-opus-5-5
+ANTHROPIC_MODEL=claude-sonnet-5-5
 ANTHROPIC_EFFORT=low
 DEMO_MODE=false
 ```

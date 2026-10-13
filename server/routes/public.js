@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { logError } from '../utils/logger.js';
+import { sendDemoRequestNotification } from '../utils/mailer.js';
 import { publicConfig } from '../config.js';
 import { authRequired, requireRole } from '../middleware/auth.js';
 import { ROLE } from '../utils/constants.js';
@@ -34,11 +35,30 @@ router.post('/early-access', async (req, res) => {
     return res.status(400).json({ error: 'Please provide your name and a valid email.' });
   }
   const studioType = STUDIO_TYPES.has(body.studio_type) ? body.studio_type : null;
+  // Повторне надсилання (подвійний клік, refresh) не створює дубль: та сама
+  // адреса за останні 24 години вважається тією самою заявкою.
+  const duplicate = await query(
+    `select 1 from early_access_requests
+     where lower(email) = $1 and created_at > now() - interval '24 hours' limit 1`,
+    [email]
+  );
+  if (duplicate.rowCount > 0) {
+    return res.status(200).json({ ok: true, duplicate: true });
+  }
+  const lead = {
+    name,
+    email,
+    studio_name: clip(body.studio_name, 150),
+    studio_type: studioType,
+    message: clip(body.message, 2000),
+  };
   await query(
     `insert into early_access_requests (name, email, studio_name, studio_type, message)
      values ($1, $2, $3, $4, $5)`,
-    [name, email, clip(body.studio_name, 150), studioType, clip(body.message, 2000)]
+    [lead.name, lead.email, lead.studio_name, lead.studio_type, lead.message]
   );
+  // Лист власнику — best effort: збій пошти не ламає збереження заявки.
+  sendDemoRequestNotification(lead).catch((err) => logError('Demo request email failed', err));
   return res.status(201).json({ ok: true });
 });
 

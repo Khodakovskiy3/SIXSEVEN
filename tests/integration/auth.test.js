@@ -172,6 +172,11 @@ describe('auth & authorization (integration)', { skip: skipReason }, () => {
       body: { name: 'Studio Owner', email: 'Owner@Studio.test', studio_type: 'yoga', message: 'Hello' },
     });
     assert.equal(ok.status, 201);
+    const dup = await api('POST', '/api/public/early-access', {
+      body: { name: 'Studio Owner', email: 'owner@studio.test', message: 'double click' },
+    });
+    assert.equal(dup.status, 200);
+    assert.equal(dup.body.duplicate, true);
     const bot = await api('POST', '/api/public/early-access', {
       body: { name: 'Bot', email: 'bot@spam.test', website: 'http://spam' },
     });

@@ -88,3 +88,27 @@ export async function sendOtpEmail(to, code, purpose) {
     text,
   });
 }
+
+/**
+ * Сповіщає власника про нову заявку на демо (SUPPORT_EMAIL). Нічого не робить,
+ * якщо SMTP або SUPPORT_EMAIL не налаштовані. Значення очищені від переносів
+ * рядків, щоб не допустити ін'єкції заголовків.
+ *
+ * @param {{ name: string, email: string, studio_name?: string|null, studio_type?: string|null, message?: string|null }} lead
+ */
+export async function sendDemoRequestNotification(lead) {
+  const to = config.brand.supportEmail;
+  if (!transporter || !to) return;
+  const oneLine = (value) => String(value ?? '').replace(/[\r\n]+/g, ' ').slice(0, 200);
+  await transporter.sendMail({
+    from: from || user,
+    to,
+    replyTo: oneLine(lead.email),
+    subject: `${config.brand.productName}: new demo request`,
+    text:
+      `Name: ${oneLine(lead.name)}\n` +
+      `Email: ${oneLine(lead.email)}\n` +
+      `Studio: ${oneLine(lead.studio_name) || '-'} (${oneLine(lead.studio_type) || '-'})\n\n` +
+      `${String(lead.message ?? '').slice(0, 2000)}`,
+  });
+}

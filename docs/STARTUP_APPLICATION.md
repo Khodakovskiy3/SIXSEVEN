@@ -4,7 +4,7 @@
 > https://claude.com/programs/startups. Nothing here claims Anthropic support, funding, a registered
 > company or customers.
 
-## Program requirements (checked 2026-10-08 on the official page)
+## Program requirements (re-checked 2026-10-13 on the official page)
 
 Requirements change — re-check the page right before applying.
 
@@ -17,11 +17,14 @@ Requirements change — re-check the page right before applying.
 | Short description of what you are building | ✅ Draft below |
 | Compliance with Anthropic’s supportability policies | ✅ Fitness/wellness SaaS; no medical advice; *owner to read the policy* |
 
-Benefits listed on the page at the time of checking: one year of Claude Team (up to 5 seats if new
-to Team), $1,000 in Claude API credits, higher API rate limits, partner offers, office hours and
-events; additional credits for founders backed by Anthropic partner VCs/accelerators (not
-applicable). Credits expire six months after grant and apply only to the first-party Claude API.
-Third-party articles mention other amounts — rely on the official page only.
+Current page (2026-10-13), summarised: open to bootstrapped, pre-seed and venture-backed startups;
+apply by signing in to the Claude Console; Anthropic aims to review within about a week and emails a
+decision. Benefits named: higher API rate limits for members who receive program credits, "Startup
+Stack" partner offers (third-party discounts, not from Anthropic), bi-weekly applied-AI office hours.
+**The page states Anthropic is currently over capacity on the Claude Team and $1,000 API credit
+offers and is re-reviewing applications — do not assume these benefits will be granted.** Credits (if
+granted) apply only to the first-party Claude API via Console, not Bedrock/Vertex. Earlier notes
+about "one year of Claude Team" and "$1,000 credits" may be outdated — rely on the live page.
 
 **Recommended order:** buy domain → set up `hello@cluvyra.com` → deploy to Railway with the custom
 domain → create the Claude Console account with the company email → apply.
@@ -98,3 +101,31 @@ effort settings, and prototyping the planned follow-up and staff-copilot workflo
 - [ ] Claude Console account created with the company email; API key stored only in Railway
 - [ ] Answers above reviewed; traction statement accurate
 - [ ] Application submitted by the owner (not automated)
+
+---
+
+## Product origin (state plainly if asked)
+
+Cluvyra evolved from a working sports-club management application first built as a university course
+project. It is being developed into an independent AI-powered SaaS product for fitness and wellness
+businesses.
+
+## Status separation (do not blur in the form)
+
+| Item | State |
+|---|---|
+| Booking, schedules, memberships, roles, PWA, landing, demo-request form | **Implemented**; verified locally (79 unit + 53 integration tests, real PostgreSQL) |
+| Claude tool-use booking flow | **Implemented**; verified with a mock provider only |
+| Live Claude API call, live Railway deployment, SMTP, custom domain | **Pending external verification** (needs owner's Railway/Anthropic access) |
+| Lead recovery, follow-ups, staff copilot, insights, multi-tenancy | **Planned** |
+
+## 3-month roadmap (plan, not commitment)
+
+1. Month 1 — live deployment + domain/mailbox, run the demo script live, 2–3 pilot conversations with local studios.
+2. Month 2 — English cabinet UI, HttpOnly-cookie sessions, payment provider integration.
+3. Month 3 — AI follow-up for missed classes / expiring memberships; multi-tenant data model.
+
+## First-users plan
+
+Direct outreach to small local studios (yoga, pilates, personal training) with a free pilot; the
+landing "Request a Demo" form stores leads; no testimonials or metrics are published until real.
