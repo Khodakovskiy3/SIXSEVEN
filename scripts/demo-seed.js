@@ -32,8 +32,8 @@ const MARKER_KEY = 'demo_seeded_at';
 const args = new Set(process.argv.slice(2));
 
 const ACCOUNTS = {
-  admin: { name: 'Demo Admin', email: process.env.DEMO_ADMIN_EMAIL || 'admin@demo.example.com', env: 'DEMO_ADMIN_PASSWORD' },
-  manager: { name: 'Demo Manager', email: process.env.DEMO_MANAGER_EMAIL || 'manager@demo.example.com', env: 'DEMO_MANAGER_PASSWORD' },
+  admin: { name: 'Demo Admin', email: process.env.DEMO_ADMIN_EMAIL || 'admin@demo.example.com', fallbackEmail: 'admin@demo.example.com', env: 'DEMO_ADMIN_PASSWORD' },
+  manager: { name: 'Demo Manager', email: process.env.DEMO_MANAGER_EMAIL || 'manager@demo.example.com', fallbackEmail: 'manager@demo.example.com', env: 'DEMO_MANAGER_PASSWORD' },
   trainer: { name: 'Iryna S. (demo)', email: process.env.DEMO_TRAINER_EMAIL || 'trainer@demo.example.com', env: 'DEMO_TRAINER_PASSWORD' },
   client: { name: 'Olena K. (demo)', email: process.env.DEMO_CLIENT_EMAIL || 'client@demo.example.com', env: 'DEMO_CLIENT_PASSWORD' },
 };
@@ -108,10 +108,12 @@ async function resetPasswords() {
   for (const [role, account] of Object.entries(ACCOUNTS)) {
     const password = passwordFor(account);
     const hash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+    // Якщо власник задав справжню адресу (DEMO_*_EMAIL) після першого seed,
+    // переносимо демо-акаунт на неї, щоб 2FA-листи доходили.
     const result = await query(
-      `update users set password = $1, token_version = token_version + 1
-       where lower(email) = lower($2) and role = $3`,
-      [hash, account.email, role]
+      `update users set password = $1, email = $2, token_version = token_version + 1
+       where role = $3 and lower(email) in (lower($2), lower($4))`,
+      [hash, account.email, role, account.fallbackEmail || account.email]
     );
     if (result.rowCount > 0) {
       printed.push({ role, email: account.email, password: process.env[account.env] ? '(from env)' : password });
