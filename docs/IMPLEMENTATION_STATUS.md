@@ -97,6 +97,20 @@ Changes made in this session:
 * New `docs/DEMO_SCRIPT.md`; `docs/STARTUP_APPLICATION.md` refreshed against the live program page (capacity notice, origin statement, status separation, roadmap).
 * Privacy/Terms still contain intentional "Owner to confirm" placeholders (legal entity, region, retention) — owner input required.
 
+## Live verification on Railway (2026-10-13)
+
+Existing project `cluvyra` / `production`; `cluvyra-web` (branch `feature/cluvyra-startup`, commit `b8d46e3`) and `postgres` are live; healthcheck `/api/health` passes at deploy; pre-deploy migrations succeed; SMTP configured (warning gone). Verified from inside the service with `npm run smoke:live` (synthetic demo client only):
+
+| Check | Result |
+|---|---|
+| Claude API reachable, model | ✅ `claude-sonnet-5-5` (served model matches) |
+| Minimal call | ✅ 1.5 s, 21 in / 4 out tokens |
+| Assistant with tool use ("book tomorrow after 18:00") | ✅ 4.2 s, 2 model rounds, 1 tool call, 4 819 in / 209 out tokens; answered with the 2 real classes after 18:00 (Yoga Flow 18:30, HIIT 19:30) from PostgreSQL |
+| prepare → confirm → real booking | ✅ booking row created, then cancelled by the script to keep the demo repeatable |
+| Approximate spend | well under $0.05 |
+
+Still not verified: browser UI end-to-end on the live URL (sandbox cannot reach `*.up.railway.app`), real email delivery of 2FA/OTP codes, Docker build from the repo `Dockerfile` (Docker Hub rate limit in the sandbox), custom domain.
+
 ## Environment limitations encountered
 
 * Host disk had ~0 bytes free after the Docker build attempt; temporary screenshots were deleted to recover. Docker Desktop (shared with another local project) is hung and needs a restart by the owner. Free disk space before running `docker build` again.

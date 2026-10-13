@@ -49,6 +49,7 @@ booking is only created when the member confirms and the server re-validates eve
 ## Honest status of this script
 
 * Flow verified with the **mock provider** in integration tests and in the browser (earlier run).
-* **Not yet run against the live Claude API or the live Railway URL** — see
-  `docs/IMPLEMENTATION_STATUS.md`. Run this script once live and record the result before sending
-  the demo link to anyone.
+* **Live Claude API verified (2026-10-13)** on Railway via `npm run smoke:live`: real model
+  `claude-sonnet-5-5`, tool call returned real classes, prepare → confirm created a booking.
+  Details in `docs/IMPLEMENTATION_STATUS.md`.
+* **Not yet walked through in the browser on the live URL** — do this once before sharing the link.
