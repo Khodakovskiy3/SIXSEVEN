@@ -12,8 +12,8 @@ Requirements change — re-check the page right before applying.
 |---|---|
 | Startup founded in the last 5 years or funded in the last 2 | ✅ Founded 2026 (product stage). *Owner: confirm founding date wording; no funding.* |
 | Claude Console account | ⏳ To create (owner) |
-| Company email **matching the website domain** | ⏳ Blocked: `cluvyra.com` and `hello@cluvyra.com` are not purchased yet |
-| Website | ⏳ Deploy landing to Railway; ideally on `cluvyra.com` before applying |
+| Company email **matching the website domain** | ✅ `hello@cluvyra.pro` on `cluvyra.pro` (forwarding) |
+| Website | ✅ https://cluvyra.pro (Railway, HTTPS) |
 | Short description of what you are building | ✅ Draft below |
 | Compliance with Anthropic’s supportability policies | ✅ Fitness/wellness SaaS; no medical advice; *owner to read the policy* |
 
@@ -26,83 +26,71 @@ offers and is re-reviewing applications — do not assume these benefits will be
 granted) apply only to the first-party Claude API via Console, not Bedrock/Vertex. Earlier notes
 about "one year of Claude Team" and "$1,000 credits" may be outdated — rely on the live page.
 
-**Recommended order:** buy domain → set up `hello@cluvyra.com` → deploy to Railway with the custom
-domain → create the Claude Console account with the company email → apply.
-
 ---
 
-## Application answers (draft)
+## Application answers (ready to paste)
 
 **Company / product name:** Cluvyra
 
-**Website:** https://cluvyra.com *(planned — use the Railway URL until the domain is live, if the form allows)*
+**Website:** https://cluvyra.pro
 
-**Company email:** hello@cluvyra.com *(planned)*
+**Company email:** hello@cluvyra.pro (receive-only forwarding to the founder; use a personal address on the same domain for the Console account if one is created)
 
-**Category:** B2B SaaS / Fitness & Wellness Technology
+**Category:** B2B SaaS — fitness & wellness technology
 
-**Stage:** Early-stage MVP (pre-revenue, no institutional funding)
+**Stage:** Early-stage MVP. Pre-revenue, bootstrapped, no external funding, no registered legal entity yet (sole founder).
 
-**Founding / funding:** *Owner to fill: founding date; “bootstrapped, no external funding”.*
+**Founded:** 2026 (product development as Cluvyra began in October 2026; it evolved from an earlier course project, see below).
 
 **One-line description:**
-Cluvyra is an AI-powered management platform for fitness and wellness businesses — bookings,
-schedules, memberships, clients and communication in one place.
+Cluvyra is an AI-powered management platform for fitness and wellness studios — bookings, schedules, memberships, clients and communication in one place, with a Claude-powered booking assistant.
 
 **What are you building? (short)**
-Cluvyra is an AI-powered management platform for fitness and wellness businesses. It brings
-customer management, class scheduling, memberships, bookings and communication into one system.
+Cluvyra helps small fitness and wellness studios run their business: customer and membership management, class scheduling, online booking, staff tools, notifications and analytics. Its core AI feature is a conversational booking assistant powered by Claude: a member writes “I want a group class tomorrow after 6 pm”, Claude calls our backend tools to search the real schedule, proposes concrete classes with free spots, and a booking is created only after the member confirms and the server re-checks every rule.
 
-We are developing Claude-powered conversational workflows that help customers discover suitable
-classes, check real availability and complete bookings through natural language.
+**What are you building? (detailed)**
+Studios today answer the same scheduling questions all day by phone and chat, and members drop off when booking is inconvenient. Cluvyra puts a studio’s schedule, memberships and clients in one system with role-based cabinets (member, trainer, admin, manager) and a PWA front end, and adds a Claude assistant that handles natural-language booking in Ukrainian and English. Claude never touches the database: it can only call a small set of validated, user-scoped tools (search classes, check availability, my bookings, my membership, prepare booking). Creating the booking is a separate server-side step that needs the member’s explicit confirmation (single-use, user-bound, expiring token that the model never sees). The backend enforces capacity, membership validity, duplicates and timezone (Europe/Kyiv) rules, with row locks so two people cannot take the last seat.
+
+**Problem:** Small studios lack affordable, modern tooling; scheduling and booking is manual and error-prone, and generic chatbots cannot be trusted to make real bookings.
+
+**Target audience:** Independent yoga, pilates, fitness and personal-training studios and small gyms (starting in Ukraine/Eastern Europe).
+
+**Differentiation:** Natural-language booking that is safe by design (tool use + server-side confirmation + authorization), built for small studios rather than enterprise gym chains.
 
 **Why Claude?**
-Claude powers natural-language assistance and booking intent understanding. We integrate Claude with
-controlled backend tools so customer requests turn into real bookings while the server enforces
-authentication, capacity and membership rules. Claude handles the conversation in Ukrainian and
-English — understanding dates like “tomorrow after 6 pm”, asking only for missing details and
-explaining options — while every action goes through validated, user-scoped tools and an explicit,
-server-side confirmation step.
+Claude’s tool use and instruction following let us turn free-form requests (“tomorrow after 6”, in Ukrainian or English) into precise tool calls and clear answers, while our backend keeps full control of authorization and business rules. Cost-conscious model choice (Claude Sonnet 5.5 by default, configurable) keeps short booking dialogs affordable for a small-studio product.
 
-**How do you use Claude today? (factual)**
-- Official `@anthropic-ai/sdk` on our Node.js backend, model configurable (default `claude-opus-5-5`).
-- Manual tool-use loop with five read-only / prepare-only tools (search classes, check availability,
-  my bookings, my membership, prepare booking). Booking creation requires the member to press
-  “Confirm”; the confirmation token is never visible to the model.
-- Cost and safety controls: per-user rate limits and daily caps, bounded tool rounds, timeouts,
-  usage metrics without message content, refusal handling.
-- Automated tests use a mock provider (no API spend in CI).
+**How do you use Claude today? (verified facts)**
+- Official `@anthropic-ai/sdk` on a Node.js backend; model set via `ANTHROPIC_MODEL` (currently `claude-sonnet-5-5`).
+- Manual tool-use loop, five read-only/prepare-only tools, bounded rounds, timeouts, refusal handling, per-user rate limits and daily caps, usage metrics without message content.
+- **Live check on 2026-10-13 (production environment, synthetic demo data):** the model answered; a request for “tomorrow after 18:00” triggered one tool call and returned the two real classes after 18:00 from PostgreSQL (≈4.2 s, ≈4.8k input / 0.2k output tokens); preparing and confirming created a real booking row, which the test then cancelled. Total test spend well under $0.05.
+- Automated tests (79 unit, 53 integration against real PostgreSQL) use a mock provider.
 
-**Current traction:** *Owner to fill honestly.* Suggested: “Working MVP with a demo studio (synthetic
-data); preparing first pilot conversations with local studios.” Do not list customers or revenue
-that do not exist.
+**Current traction:** None yet — no customers, revenue, pilots or partnerships. A working MVP and a public demo exist; the next step is finding the first pilot studios.
 
-**Planned expansion (not yet built):**
-- AI lead recovery (re-engaging people who asked but did not book)
-- Customer follow-up after missed classes or expiring memberships
-- Staff copilot for the front desk
-- Personalised assistance based on attendance history
-- AI business insights for studio owners
+**Planned (not built yet):** AI lead recovery, follow-ups after missed classes or expiring memberships, staff copilot, attendance-based personalisation, AI business insights, multi-tenant data model, payment provider integration.
 
-**How will credits be used?**
-Production traffic of the booking assistant for pilot studios, evaluation runs to tune prompts and
-effort settings, and prototyping the planned follow-up and staff-copilot workflows.
+**How will credits/benefits be used?**
+Production traffic for the booking assistant in pilot studios, evaluation runs to tune prompts and effort settings, and prototyping the planned follow-up and staff-copilot workflows. We do not expect or assume that Team seats or $1,000 credits will be granted.
 
 **Partner VC / accelerator referral:** None.
 
----
-
-## Before submitting — checklist
-
-- [ ] Domain `cluvyra.com` purchased; DNS configured
-- [ ] Mailbox `hello@cluvyra.com` working (SPF/DKIM)
-- [ ] Production deployment reachable over HTTPS; landing, `/privacy`, `/terms` reviewed by owner
-- [ ] Privacy Policy “Owner to confirm” items completed
-- [ ] Claude Console account created with the company email; API key stored only in Railway
-- [ ] Answers above reviewed; traction statement accurate
-- [ ] Application submitted by the owner (not automated)
+**Founder:** *Fill in your name, role and links in the form — not stored in this repository.*
 
 ---
+
+## Before submitting — checklist (status 2026-10-13)
+
+- [x] Domain `cluvyra.pro` registered, verified, HTTPS valid, attached to the Railway service
+- [x] `hello@cluvyra.pro` forwarding to founder’s inbox (receive-only)
+- [x] Production deployment on Railway (service live; live Claude booking flow verified)
+- [x] Privacy Policy and Terms completed (operator = individual founder; no entity)
+- [ ] Open https://cluvyra.pro in a browser: landing, `/privacy`, `/terms`, demo-request form
+- [ ] Browser walk-through of the demo script on the live URL (see `docs/DEMO_SCRIPT.md`)
+- [ ] Claude Console account created with an email on `cluvyra.pro`
+- [ ] Rotate the Gmail app password that was pasted into a chat; rotate demo account passwords
+- [ ] Re-read the live program page right before submitting
+- [ ] Application submitted by the founder (not automated)
 
 ## Product origin (state plainly if asked)
 

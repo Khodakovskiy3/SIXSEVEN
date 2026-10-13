@@ -151,7 +151,7 @@ Known trade-off: the JWT is stored in `localStorage` (mitigated by CSP/escaping)
 
 Early-stage MVP — actively developing. Ready for a manual single-instance deployment on Railway; external steps (Railway project, Anthropic API key, SMTP, domain) are listed in [`docs/RAILWAY_DEPLOYMENT.md`](docs/RAILWAY_DEPLOYMENT.md) and tracked in [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
 
-Planned domains (`cluvyra.com`, `app.cluvyra.com`) and the `hello@cluvyra.com` mailbox are **not yet registered**.
+Domain `cluvyra.pro` is live; `hello@cluvyra.pro` forwards to the founder’s inbox (receive-only).
 
 ## Optional components
 
